@@ -124,12 +124,13 @@ int main(int argc, char** argv)
     const QList<trainType> trains = trainCatalogue::load(jsonPath, &error);
     check("data/traintypes.json loads with no error", !trains.isEmpty() && error.isEmpty(), error);
 
-    check("it holds exactly the 38 seeded entries", trains.size() == OWNER_COUNT && OWNER_COUNT == 38,
+    check("it holds at least the 38 seeded entries", trains.size() >= OWNER_COUNT && OWNER_COUNT == 38,
           QString("%1 entries").arg(trains.size()));
 
     QMap<QString, const trainType*> byNl2Name;
     for (int i = 0; i < trains.size(); ++i)
-        byNl2Name.insert(trains.at(i).sNl2Name, &trains.at(i));
+        if (!byNl2Name.contains(trains.at(i).sNl2Name)) // the seeded 38 come first; real-model rows may reuse a name
+            byNl2Name.insert(trains.at(i).sNl2Name, &trains.at(i));
 
     int missing = 0, wrongValue = 0;
     QStringList problems;
