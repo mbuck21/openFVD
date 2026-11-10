@@ -132,6 +132,9 @@ HEADERS  += core/undohandler.h \
     lenassert.h \
     core/secnlcsv.h
 
+SOURCES += core/traintype.cpp
+HEADERS += core/traintype.h
+
 FORMS    += ui/transitionwidget.ui \
     ui/trackwidget.ui \
     ui/trackproperties.ui \

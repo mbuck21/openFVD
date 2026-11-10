@@ -1,0 +1,803 @@
+{
+  "schemaVersion": 1,
+  "trains": [
+    {
+      "id": "nl2-4d-coaster",
+      "name": "4D Coaster",
+      "manufacturer": "",
+      "nl2Name": "4D Coaster",
+      "heartline": {
+        "value": 0.95,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-classic-steel-looping-coaster",
+      "name": "Classic Steel Looping Coaster",
+      "manufacturer": "",
+      "nl2Name": "Classic Steel Looping Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-classic-steel-looping-coaster-modern",
+      "name": "Classic Steel Looping Coaster (Modern)",
+      "manufacturer": "",
+      "nl2Name": "Classic Steel Looping Coaster (Modern)",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-corkscrew-coaster",
+      "name": "Corkscrew Coaster",
+      "manufacturer": "",
+      "nl2Name": "Corkscrew Coaster",
+      "heartline": {
+        "value": 0.65,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-gerstlauer-bobsled-coaster",
+      "name": "Gerstlauer Bobsled Coaster",
+      "manufacturer": "Gerstlauer",
+      "nl2Name": "Gerstlauer Bobsled Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-gerstlauer-euro-fighter",
+      "name": "Gerstlauer Euro-Fighter",
+      "manufacturer": "Gerstlauer",
+      "nl2Name": "Gerstlauer Euro-Fighter",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-gerstlauer-euro-fighter-2",
+      "name": "Gerstlauer Euro-Fighter 2",
+      "manufacturer": "Gerstlauer",
+      "nl2Name": "Gerstlauer Euro-Fighter 2",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-gerstlauer-spinning-coaster",
+      "name": "Gerstlauer Spinning Coaster",
+      "manufacturer": "Gerstlauer",
+      "nl2Name": "Gerstlauer Spinning Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-gravity-group-timberliner",
+      "name": "Gravity Group Timberliner",
+      "manufacturer": "Gravity Group",
+      "nl2Name": "Gravity Group Timberliner",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-hyper-coaster",
+      "name": "Hyper Coaster",
+      "manufacturer": "",
+      "nl2Name": "Hyper Coaster",
+      "heartline": {
+        "value": 0.9,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-hyper-coaster-4-seats-across",
+      "name": "Hyper Coaster (4 Seats Across)",
+      "manufacturer": "",
+      "nl2Name": "Hyper Coaster (4 Seats Across)",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-hyper-coaster-4-seats-across-with-scoops",
+      "name": "Hyper Coaster (4 Seats Across with Scoops)",
+      "manufacturer": "",
+      "nl2Name": "Hyper Coaster (4 Seats Across with Scoops)",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-hyper-coaster-4-seats-staggered",
+      "name": "Hyper Coaster (4 Seats Staggered)",
+      "manufacturer": "",
+      "nl2Name": "Hyper Coaster (4 Seats Staggered)",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-inverted-coaster-2-seats-across",
+      "name": "Inverted Coaster (2 Seats Across)",
+      "manufacturer": "",
+      "nl2Name": "Inverted Coaster (2 Seats Across)",
+      "heartline": {
+        "value": -0.9,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-inverted-coaster-4-seats-across",
+      "name": "Inverted Coaster (4 Seats Across)",
+      "manufacturer": "",
+      "nl2Name": "Inverted Coaster (4 Seats Across)",
+      "heartline": {
+        "value": -1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-inverted-face-to-face-coaster",
+      "name": "Inverted Face-to-Face Coaster",
+      "manufacturer": "",
+      "nl2Name": "Inverted Face-to-Face Coaster",
+      "heartline": {
+        "value": -0.9,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-inverted-impulse-coaster",
+      "name": "Inverted Impulse Coaster",
+      "manufacturer": "",
+      "nl2Name": "Inverted Impulse Coaster",
+      "heartline": {
+        "value": -1.16,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-lim-launched-coaster",
+      "name": "LIM Launched Coaster",
+      "manufacturer": "",
+      "nl2Name": "LIM Launched Coaster",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-mack-launched-coaster",
+      "name": "Mack Launched Coaster",
+      "manufacturer": "Mack",
+      "nl2Name": "Mack Launched Coaster",
+      "heartline": {
+        "value": 1.5,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-mauer-sohne-spinning-coaster",
+      "name": "Mauer Söhne Spinning Coaster",
+      "manufacturer": "Mauer Söhne",
+      "nl2Name": "Mauer Söhne Spinning Coaster",
+      "heartline": {
+        "value": 1.15,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-mauer-sohne-x-car-coaster",
+      "name": "Mauer Söhne X-Car Coaster",
+      "manufacturer": "Mauer Söhne",
+      "nl2Name": "Mauer Söhne X-Car Coaster",
+      "heartline": {
+        "value": 1.295,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-rocket-coaster",
+      "name": "Rocket Coaster",
+      "manufacturer": "",
+      "nl2Name": "Rocket Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-suspended-coaster",
+      "name": "Suspended Coaster",
+      "manufacturer": "",
+      "nl2Name": "Suspended Coaster",
+      "heartline": {
+        "value": -1.7,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-dive-coaster",
+      "name": "Twisted Dive Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Dive Coaster",
+      "heartline": {
+        "value": 1.8,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-floorless-coaster",
+      "name": "Twisted Floorless Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Floorless Coaster",
+      "heartline": {
+        "value": 1.3,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-flying-coaster",
+      "name": "Twisted Flying Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Flying Coaster",
+      "heartline": {
+        "value": -1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-sitdown-coaster",
+      "name": "Twisted Sitdown Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Sitdown Coaster",
+      "heartline": {
+        "value": 1.2,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-stand-up-coaster",
+      "name": "Twisted Stand-Up Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Stand-Up Coaster",
+      "heartline": {
+        "value": 1.6,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-twisted-wing-coaster",
+      "name": "Twisted Wing Coaster",
+      "manufacturer": "",
+      "nl2Name": "Twisted Wing Coaster",
+      "heartline": {
+        "value": 0.5,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-vekoma-flying-dutchman",
+      "name": "Vekoma Flying Dutchman",
+      "manufacturer": "Vekoma",
+      "nl2Name": "Vekoma Flying Dutchman",
+      "heartline": {
+        "value": 0.8,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-vekoma-minetrain-coaster",
+      "name": "Vekoma Minetrain Coaster",
+      "manufacturer": "Vekoma",
+      "nl2Name": "Vekoma Minetrain Coaster",
+      "heartline": {
+        "value": 1.2,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-vekoma-minetrain-coaster-with-locomotive",
+      "name": "Vekoma Minetrain Coaster with Locomotive",
+      "manufacturer": "Vekoma",
+      "nl2Name": "Vekoma Minetrain Coaster with Locomotive",
+      "heartline": {
+        "value": 1.2,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-vekoma-motorbike-coaster",
+      "name": "Vekoma Motorbike Coaster",
+      "manufacturer": "Vekoma",
+      "nl2Name": "Vekoma Motorbike Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-wooden-coaster-classic-4-seat",
+      "name": "Wooden Coaster (Classic 4-Seat)",
+      "manufacturer": "",
+      "nl2Name": "Wooden Coaster (Classic 4-Seat)",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-wooden-coaster-classic-6-seat",
+      "name": "Wooden Coaster (Classic 6-Seat)",
+      "manufacturer": "",
+      "nl2Name": "Wooden Coaster (Classic 6-Seat)",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-wooden-coaster-trailered-2-seat",
+      "name": "Wooden Coaster (Trailered 2-Seat)",
+      "manufacturer": "",
+      "nl2Name": "Wooden Coaster (Trailered 2-Seat)",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-wooden-coaster-trailered-4-seat",
+      "name": "Wooden Coaster (Trailered 4-Seat)",
+      "manufacturer": "",
+      "nl2Name": "Wooden Coaster (Trailered 4-Seat)",
+      "heartline": {
+        "value": 1.0,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "nl2-zamperla-twister-coaster",
+      "name": "Zamperla Twister Coaster",
+      "manufacturer": "Zamperla",
+      "nl2Name": "Zamperla Twister Coaster",
+      "heartline": {
+        "value": 1.1,
+        "source": "Owner's table: NoLimits 2 train heartlines, compiled by Coasterdave for NL2 2.1.0.0",
+        "confidence": "unverified"
+      },
+      "seatsAcross": null,
+      "rowsPerCar": null,
+      "carsPerTrain": null,
+      "carLength": null,
+      "restraint": "",
+      "minRadius": {
+        "vertical": null,
+        "horizontal": null
+      },
+      "notes": ""
+    }
+  ]
+}
