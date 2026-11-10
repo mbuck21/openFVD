@@ -1,0 +1,44 @@
+name: Task for the owner
+description: Something only the owner can do (a decision, an install, a check in NoLimits).
+labels: ["owner"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plain words. The area label is set by hand (or by the session that opens the issue); a form cannot set it from the dropdown below.
+  - type: textarea
+    id: what
+    attributes:
+      label: What is needed and why
+      description: In plain words.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Exact steps
+      description: Numbered, one action each, so it can be done without guessing.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: What the owner sees when it worked.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the program this is about. Add the matching label by hand.
+      options:
+        - "core: tracks, sections, nodes, transitions, physics, the .fvd file"
+        - "renderer: the OpenGL view, the track mesh, shaders"
+        - "ui: the Qt widgets and forms, plots, dialogs"
+        - "build: fvd.pro, the toolchain, dependencies, binaries"
+        - "export: the NoLimits exporters and importers, the .3ds export"
+        - "docs: the map, the rules, the GitHub set-up"

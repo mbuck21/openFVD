@@ -1,0 +1,44 @@
+name: Task for Claude
+description: A follow-up that a Claude session can do.
+labels: ["claude"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plain words. The area label is set by hand (or by the session that opens the issue); a form cannot set it from the dropdown below.
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The task, in plain words.
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where
+      description: Files, functions or commands involved (docs/codebase-map.md says where each kind of change lands).
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What goes wrong or stays unclear without it.
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: What can be checked, for example the program builds, an export opens in NoLimits, or a doc says X.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the program this is about. Add the matching label by hand.
+      options:
+        - "core: tracks, sections, nodes, transitions, physics, the .fvd file"
+        - "renderer: the OpenGL view, the track mesh, shaders"
+        - "ui: the Qt widgets and forms, plots, dialogs"
+        - "build: fvd.pro, the toolchain, dependencies, binaries"
+        - "export: the NoLimits exporters and importers, the .3ds export"
+        - "docs: the map, the rules, the GitHub set-up"
