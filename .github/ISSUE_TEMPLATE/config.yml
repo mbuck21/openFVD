@@ -1,0 +1,2 @@
+# Sessions open issues through the API, so blank issues stay on. No contact links.
+blank_issues_enabled: true

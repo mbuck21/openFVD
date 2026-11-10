@@ -1,0 +1,10 @@
+# Keeps the GitHub Actions used by the two Claude workflows on current
+# versions: once a month Dependabot opens a pull request when a newer major
+# version exists. Nothing else is covered: the C++ dependencies (Qt, GLEW,
+# glm, lib3ds) are not package-managed in this repository.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

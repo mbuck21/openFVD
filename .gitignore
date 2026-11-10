@@ -34,3 +34,17 @@
 # QT Crap
 *.pro.user
 *.user
+
+# Files FVD++ writes next to itself when run
+fvd.log
+options.cfg
+*.bak
+
+# qmake / Qt Creator build output
+build*/
+Makefile*
+moc_*
+ui_*.h
+qrc_*
+*.o
+.qmake.stash
