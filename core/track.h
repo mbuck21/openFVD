@@ -35,7 +35,6 @@
 
 class sectionHandler;
 class trackWidget;
-class smoothUi;
 class smoothHandler;
 class trackHandler;
 
@@ -69,6 +68,10 @@ public:
 
     void removeSmooth(int fromNode = 0);
     void applySmooth(int fromNode = 0);
+
+    void applyRollSmooth(int fromNode = 0);
+    void applyRollSmoothFilter(smoothHandler* _handler);
+    bool smoothingActive();
 
     void updateTrack(int index, int iNode);
     void updateTrack(section* fromSection, int iNode);
@@ -107,7 +110,10 @@ public:
 
     QString name;
 
-    smoothUi* smoother;
+    // Roll smoothing is re-applied by updateTrack only once this is set: the
+    // ui sets it when the smoothing dialog first exists for the track or
+    // after the track was loaded (it was "a smoothing dialog exists").
+    bool bAutoSmooth;
 
     QList<smoothHandler*> smoothList;
 
