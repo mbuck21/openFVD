@@ -26,5 +26,6 @@
         <file>shaders/sky.vert</file>
         <file>shaders/track.frag</file>
         <file>shaders/track.vert</file>
+        <file>data/traintypes.json</file>
     </qresource>
 </RCC>
