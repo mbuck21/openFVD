@@ -22,6 +22,7 @@
 #include "track.h"
 #include "section.h"
 
+// Like secforced, but its two functions prescribe pitch change and yaw change in degrees per second; the forces are derived afterwards.
 class secgeometric : public section
 {
 public:

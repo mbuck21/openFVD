@@ -25,6 +25,9 @@ class track;
 class QTreeWidgetItem;
 
 // One row of the track panel's section list (row 0 is the anchor).
+// Owns the row (listItem), not the section: the section belongs to its track. Made by
+// trackWidget; the first constructor also asks the track to make the section. No
+// model logic.
 class sectionHandler
 {
 public:

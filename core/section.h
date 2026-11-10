@@ -44,6 +44,10 @@ enum secType
     nolimitscsv
 };
 
+// One piece of a track's chain (abstract). Owns its nodes (lNodes) and its
+// transition functions; a subclass integrates them in updateSection(), starting from
+// a copy of the previous section's last node. Created by track::newSection() or
+// track::appendSectionFromFile() and freed by its track. Must not touch any window.
 class section
 {
 public:

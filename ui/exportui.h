@@ -29,6 +29,9 @@ namespace Ui {
 class Exportui;
 }
 
+// The export dialog (Ctrl+Shift+E; doFastExport() is Ctrl+E): track, sections,
+// exporter type, segment length. Created by MainWindow. It writes through
+// core/elementfile.* and never formats an export file itself.
 class exportUi : public QDialog
 {
     Q_OBJECT

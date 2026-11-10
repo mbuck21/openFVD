@@ -28,6 +28,10 @@ class graphWidget;
 class undoHandler;
 class trackMesh;
 
+// One track's window side. Creates and owns the track (trackData), its panel, graph
+// pane, list row, mesh and undo list. Made by projectWidget (and importUi). Implements
+// trackListener: when the track says its geometry changed it rebuilds the mesh, and
+// it shows the status text and redraws the graphs. Holds no model logic.
 class trackHandler : public trackListener
 {
 public:

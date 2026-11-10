@@ -23,6 +23,9 @@
 
 class MainWindow;
 
+// The undo list of one track: a stack of undoActions limited to maxStackSize, and the
+// remembered old values of the edit boxes. Owned by trackHandler. doUndo() and
+// doRedo() are called from MainWindow's Edit menu. Window code (docs/decisions/0009).
 class undoHandler
 {
 public:

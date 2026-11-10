@@ -31,6 +31,10 @@ namespace Ui {
 class projectWidget;
 }
 
+// The project: the list of trackHandlers, the ground texture path and the import
+// entries. It is MainWindow's project tab and creates and deletes the trackHandlers.
+// Implements projectFileClient: core/projectfile.* reads and writes the file and
+// calls back here for everything that belongs to the windows.
 class projectWidget : public QWidget, public projectFileClient
 {
     Q_OBJECT

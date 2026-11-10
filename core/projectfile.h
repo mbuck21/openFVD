@@ -30,6 +30,8 @@ class track;
 // project. The reader and the writer call these synchronously, at the points
 // noted; they change the model themselves and leave everything else (windows,
 // the ground texture, undo) to the client.
+// Implemented by projectWidget (ui/projectwidget.h); the batch mode and the core-only
+// program use the same reader and writer.
 class projectFileClient
 {
 public:

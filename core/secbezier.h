@@ -22,6 +22,7 @@
 #include "track.h"
 #include "section.h"
 
+// A list of Bezier control points (bezier_t), made by the NoLimits 1 importer; it has no roll function.
 class secbezier : public section
 {
 public:

@@ -29,6 +29,7 @@ class smoothHandler;
 // What a smoothing entry tells whoever shows it (the smoothing dialog's list).
 // fields says which of the entry's shown values were just written, as
 // smoothHandler::eField bits; an entry without a listener tells nobody.
+// Implemented by smoothUi (ui/smoothui.h).
 class smoothHandlerListener
 {
 public:
@@ -37,6 +38,10 @@ public:
     virtual void smoothHandlerDeleted(smoothHandler* which) = 0;
 };
 
+// One roll-smoothing entry of a track (a section or a span of nodes, a length and a
+// number of passes). Owned by the track's smoothList and made by track or by
+// smoothUi. Tells its mListener when a shown value changes. The filter itself is
+// track::applyRollSmoothFilter(); this class only holds the settings.
 class smoothHandler
 {
 public:

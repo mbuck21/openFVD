@@ -34,6 +34,10 @@ namespace Ui {
 class smoothUi;
 }
 
+// The smoothing dialog: edits a track's smoothHandler entries (from, to, length,
+// passes) and owns their list rows. Created for a track by trackWidget, or by
+// projectWidget while a project loads. Implements smoothHandlerListener, so a changed
+// entry updates its row. The filter itself is in core (track::applyRollSmoothFilter()).
 class smoothUi : public QDialog, public smoothHandlerListener
 {
     Q_OBJECT
