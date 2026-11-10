@@ -51,7 +51,6 @@ SOURCES += main.cpp\
     core/track.cpp \
     core/subfunction.cpp \
     core/smoothhandler.cpp \
-    core/sectionhandler.cpp \
     core/section.cpp \
     core/secstraight.cpp \
     core/secgeometric.cpp \
@@ -73,6 +72,7 @@ SOURCES += main.cpp\
     ui/trackwidget.cpp \
     ui/trackproperties.cpp \
     ui/smoothui.cpp \
+    ui/sectionhandler.cpp \
     ui/qcustomplot.cpp \
     ui/projectwidget.cpp \
     ui/optionsmenu.cpp \
@@ -94,7 +94,6 @@ HEADERS  += core/undohandler.h \
     core/track.h \
     core/subfunction.h \
     core/smoothhandler.h \
-    core/sectionhandler.h \
     core/section.h \
     core/secstraight.h \
     core/secgeometric.h \
@@ -116,6 +115,7 @@ HEADERS  += core/undohandler.h \
     ui/trackwidget.h \
     ui/trackproperties.h \
     ui/smoothui.h \
+    ui/sectionhandler.h \
     ui/qcustomplot.h \
     ui/projectwidget.h \
     ui/optionsmenu.h \

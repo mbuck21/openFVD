@@ -39,6 +39,8 @@ public:
     void trackGeometryChanged(track* which, int fromNode);
     void trackStatusMessage(const QString& text, int timeoutMs);
     void trackSmoothingApplied(track* which);
+    void trackSectionAdded(track* which, int index);
+    void trackLoaded(track* which);
 
 
     track* trackData;

@@ -194,7 +194,7 @@ void projectWidget::importNLTrackFile(QString fileName)
 {
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
-    noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     importer->importAsNlTrack();
     delete importer;
 }
@@ -256,7 +256,7 @@ void projectWidget::importPointListFile(QString fileName)
 {
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
-    noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     importer->importAsTxt();
     delete importer;
 }
@@ -385,7 +385,7 @@ QString projectWidget::saveProject(std::fstream& file)
 
     for(int i = 0; i < this->trackList.size(); ++i) {
         trackList[i]->trackWidgetItem->writeNames();
-        trackList[i]->trackData->saveTrack(file, trackList[i]->trackWidgetItem);
+        trackList[i]->trackData->saveTrack(file);
     }
 
     file << "EOP";
@@ -425,10 +425,10 @@ QString projectWidget::loadProject(std::fstream& file)
             if(temp == "TRC") {
                 newEmptyTrack();
                 if(legacy == 1) {
-                    trackList[i]->trackData->legacyLoadTrack(file, trackList[i]->trackWidgetItem);
+                    trackList[i]->trackData->legacyLoadTrack(file);
                     errType = 0;
                 } else {
-                    trackList[i]->trackData->loadTrack(file, trackList[i]->trackWidgetItem);
+                    trackList[i]->trackData->loadTrack(file);
 
                     trackWidget* _widget = trackList[i]->trackWidgetItem;
                     if(!_widget->smoothScreen) {

@@ -26,15 +26,12 @@
 #include "secgeometric.h"
 #include "secbezier.h"
 #include "secnlcsv.h"
-#include "sectionhandler.h"
 #include <QList>
 #include <fstream>
 #include <QString>
 #include <QColor>
 #include "tracklistener.h"
 
-class sectionHandler;
-class trackWidget;
 class smoothHandler;
 class trackHandler;
 
@@ -76,15 +73,17 @@ public:
     void updateTrack(int index, int iNode);
     void updateTrack(section* fromSection, int iNode);
     void newSection(enum secType type, int index = -1);
+    section* appendSectionFromFile(enum secType type);
+    void updateAnchorGeometrics();
 
     int exportTrack3(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack4(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
 
     void exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toIndex);
 
-    QString saveTrack(std::fstream& file, trackWidget* _widget);
-    QString loadTrack(std::fstream& file, trackWidget* _widget);
-    QString legacyLoadTrack(std::fstream& file, trackWidget* _widget);
+    QString saveTrack(std::fstream& file);
+    QString loadTrack(std::fstream& file);
+    QString legacyLoadTrack(std::fstream& file);
     mnode* getPoint(int index);
     int getIndexFromDist(float dist);
     int getNumPoints(section* until = NULL);

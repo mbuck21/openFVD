@@ -39,11 +39,25 @@ sectionHandler::sectionHandler(track* _track, enum secType _type, int _id)
         sectionData->sName = name;
     }
 
+    createRow(name);
+}
+
+sectionHandler::sectionHandler(section* _section, int _id)
+{
+    type = _section->type;
+    id = _id;
+    sectionData = _section;
+
+    createRow(sectionData->sName);
+}
+
+void sectionHandler::createRow(const QString& name)
+{
     listItem = new QTreeWidgetItem();
     listItem->setText(1, name);
     listItem->setText(0, QString().number(id));
     listItem->setTextAlignment(0, Qt::AlignHCenter | Qt::AlignVCenter);
-    switch(_type)
+    switch(type)
     {
     case straight:
         listItem->setText(2, QString("Straight"));

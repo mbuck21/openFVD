@@ -95,3 +95,16 @@ void trackHandler::trackSmoothingApplied(track* which)
     Q_UNUSED(which);
     graphWidgetItem->redrawGraphs();
 }
+
+void trackHandler::trackSectionAdded(track* which, int index)
+{
+    Q_UNUSED(which);
+    trackWidgetItem->showAddedSection(index);
+}
+
+void trackHandler::trackLoaded(track* which)
+{
+    Q_UNUSED(which);
+    trackWidgetItem->clearSelection();
+    trackWidgetItem->setNames();
+}
