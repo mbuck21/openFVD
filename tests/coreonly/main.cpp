@@ -55,10 +55,16 @@ static const double EXPORT_RELROLL_THRESHOLD = 85.0;
 
 static FILE* logFile = NULL;
 
-static void messageHandler(QtMsgType, const QMessageLogContext&, const QString& msg)
+// Without --log, debug output and warnings are dropped (the exporters log
+// thousands of lines, and every project logs a harmless "parameter out of
+// bounds" warning at its last node). A failed model check (lenAssert, which
+// is qCritical in a release build) still goes to stderr, so it leaves a trace.
+static void messageHandler(QtMsgType type, const QMessageLogContext&, const QString& msg)
 {
     if(logFile) {
         fprintf(logFile, "%s\n", msg.toLocal8Bit().constData());
+    } else if(type == QtCriticalMsg || type == QtFatalMsg) {
+        fprintf(stderr, "%s\n", msg.toLocal8Bit().constData());
     }
 }
 
