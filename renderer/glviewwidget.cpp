@@ -185,7 +185,7 @@ void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 	if(shadowMode == 0) shader->useUniform("shadowTex", simpleShadowFb->getTexture());
 	else if(shadowMode > 0)  shader->useUniform("shadowTex", shadowVolumeFb->getTexture());
 
-	QColor* tempColor = _track->trackColors;
+	QColor* tempColor = _track->trackData->display.colors;
 	shader->useUniform("defaultColor", tempColor[0].red()/255.f, tempColor[0].green()/255.f, tempColor[0].blue()/255.f);
 	shader->useUniform("sectionColor", tempColor[1].red()/255.f, tempColor[1].green()/255.f, tempColor[1].blue()/255.f);
 	shader->useUniform("transitionColor", tempColor[2].red()/255.f, tempColor[2].green()/255.f, tempColor[2].blue()/255.f);
@@ -198,7 +198,7 @@ void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 		for(int i = 0; i < mesh->pipeBorders.size()-1; ++i)
 		{
 			//glDrawArrays(GL_TRIANGLE_STRIP, i*mesh->trackVertexSize, mesh->trackVertexSize);
-			if(mesh->isWireframe)
+			if(mesh->trackData->display.bWireframe)
 			{
 				glDrawElements(GL_LINE_STRIP, mesh->pipeBorders[i+1]-mesh->pipeBorders[i], GL_UNSIGNED_INT, (GLvoid*)(sizeof(GLuint)*mesh->pipeBorders[i]));
 			}
@@ -209,7 +209,7 @@ void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 			//glDrawArrays(GL_POINTS, i*mesh->trackVertexSize, mesh->trackVertexSize);
 		}
 		glBindVertexArray(mesh->TrackObject[3]);
-		if(mesh->isWireframe)
+		if(mesh->trackData->display.bWireframe)
 		{
 			glDrawArrays(GL_LINES, 0, mesh->crossties.size());
 		}
@@ -221,7 +221,7 @@ void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 
 
 		glBindVertexArray(mesh->TrackObject[4]);
-		if(mesh->isWireframe)
+		if(mesh->trackData->display.bWireframe)
 		{
 			shader->useUniform("defaultColor", 0.6f, 0.2f, 0.2f);
 			glDrawArrays(GL_LINES, 0, mesh->rendersupports.size());
@@ -277,7 +277,7 @@ void glViewWidget::drawSimpleSM(trackHandler *_track)
 		glBindVertexArray(mesh->TrackObject[0]);
 		for(int i = 0; i < mesh->pipeBorders.size()-1; ++i)
 		{
-			if(mesh->isWireframe)
+			if(mesh->trackData->display.bWireframe)
 			{
 				glDrawElements(GL_LINE_STRIP, mesh->pipeBorders[i+1]-mesh->pipeBorders[i], GL_UNSIGNED_INT, (GLvoid*)(sizeof(GLuint)*mesh->pipeBorders[i]));
 			}
@@ -287,7 +287,7 @@ void glViewWidget::drawSimpleSM(trackHandler *_track)
 			}
 		}
 		glBindVertexArray(mesh->TrackObject[3]);
-		if(mesh->isWireframe)
+		if(mesh->trackData->display.bWireframe)
 		{
 			glDrawArrays(GL_LINES, 0, mesh->crossties.size());
 		}
@@ -298,7 +298,7 @@ void glViewWidget::drawSimpleSM(trackHandler *_track)
 
 
 		glBindVertexArray(mesh->TrackObject[4]);
-		if(mesh->isWireframe)
+		if(mesh->trackData->display.bWireframe)
 		{
 			glDrawArrays(GL_LINES, 0, mesh->rendersupports.size());
 		}
@@ -361,7 +361,7 @@ void glViewWidget::drawShadowVolumes()
 				glBindVertexArray(mesh->TrackObject[0]);
 				for(int i = 0; i < mesh->pipeBorders.size()-1; ++i)
 				{
-					if(mesh->isWireframe)
+					if(mesh->trackData->display.bWireframe)
 					{
 						glDrawElements(GL_LINE_STRIP, mesh->pipeBorders[i+1]-mesh->pipeBorders[i], GL_UNSIGNED_INT, (GLvoid*)(sizeof(GLuint)*mesh->pipeBorders[i]));
 					}
@@ -371,7 +371,7 @@ void glViewWidget::drawShadowVolumes()
 					}
 				}
 				glBindVertexArray(mesh->TrackObject[3]);
-				if(mesh->isWireframe)
+				if(mesh->trackData->display.bWireframe)
 				{
 					glDrawArrays(GL_LINES, 0, mesh->crossties.size());
 				}
@@ -382,7 +382,7 @@ void glViewWidget::drawShadowVolumes()
 
 
 				glBindVertexArray(mesh->TrackObject[4]);
-				if(mesh->isWireframe)
+				if(mesh->trackData->display.bWireframe)
 				{
 					glDrawArrays(GL_LINES, 0, mesh->rendersupports.size());
 				}
@@ -466,7 +466,7 @@ void glViewWidget::drawOcclusion()
 				trackList[i]->mMesh->recolorTrack();
 				trackList[i]->trackData->hasChanged = false;
 			}
-			if(!trackList[i]->mMesh->isWireframe) drawTrack(trackList[i], true);
+			if(!trackList[i]->trackData->display.bWireframe) drawTrack(trackList[i], true);
 		}
 	}
 
@@ -586,7 +586,7 @@ void glViewWidget::paintGL()
 						trackList[i]->mMesh->recolorTrack();
 						trackList[i]->trackData->hasChanged = false;
 					}
-					if(shadowMode == 0 || trackList[i]->mMesh->isWireframe || trackList[i]->trackData->drawHeartline == 2)
+					if(shadowMode == 0 || trackList[i]->trackData->display.bWireframe || trackList[i]->trackData->drawHeartline == 2)
 					{
 						drawSimpleSM(trackList[i]);
 					}
@@ -635,7 +635,7 @@ void glViewWidget::paintGL()
 							trackList[i]->mMesh->recolorTrack();
 							trackList[i]->trackData->hasChanged = false;
 						}
-						if(shadowMode == 0 || trackList[i]->mMesh->isWireframe || trackList[i]->trackData->drawHeartline == 2)
+						if(shadowMode == 0 || trackList[i]->trackData->display.bWireframe || trackList[i]->trackData->drawHeartline == 2)
 						{
 							drawSimpleSM(trackList[i]);
 						}
@@ -1514,11 +1514,11 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 		section* curSection = myTrack->lSections[i];
 		if(curSection == myTrack->activeSection)
 		{
-			glColor3f(_track->trackColors[1].red()/255.f, _track->trackColors[1].green()/255.f , _track->trackColors[1].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[1].red()/255.f, _track->trackData->display.colors[1].green()/255.f , _track->trackData->display.colors[1].blue()/255.f);
 		}
 		else
 		{
-			glColor3f(_track->trackColors[0].red()/255.f, _track->trackColors[0].green()/255.f , _track->trackColors[0].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[0].red()/255.f, _track->trackData->display.colors[0].green()/255.f , _track->trackData->display.colors[0].blue()/255.f);
 		}
 		glBegin(GL_LINE_STRIP);
 		for(int j = 0; j < curSection->lNodes.size(); ++j)
@@ -1592,11 +1592,11 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 		section* curSection = myTrack->lSections[i];
 		if(curSection == myTrack->activeSection)
 		{
-			glColor3f(_track->trackColors[1].red()/255.f, _track->trackColors[1].green()/255.f , _track->trackColors[1].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[1].red()/255.f, _track->trackData->display.colors[1].green()/255.f , _track->trackData->display.colors[1].blue()/255.f);
 		}
 		else
 		{
-			glColor3f(_track->trackColors[0].red()/255.f, _track->trackColors[0].green()/255.f , _track->trackColors[0].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[0].red()/255.f, _track->trackData->display.colors[0].green()/255.f , _track->trackData->display.colors[0].blue()/255.f);
 		}
 		glBegin(GL_LINE_STRIP);
 		for(int j = 0; j < curSection->lNodes.size(); ++j)
@@ -1636,11 +1636,11 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 		section* curSection = myTrack->lSections[i];
 		if(curSection == myTrack->activeSection)
 		{
-			glColor3f(_track->trackColors[1].red()/255.f, _track->trackColors[1].green()/255.f , _track->trackColors[1].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[1].red()/255.f, _track->trackData->display.colors[1].green()/255.f , _track->trackData->display.colors[1].blue()/255.f);
 		}
 		else
 		{
-			glColor3f(_track->trackColors[0].red()/255.f, _track->trackColors[0].green()/255.f , _track->trackColors[0].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[0].red()/255.f, _track->trackData->display.colors[0].green()/255.f , _track->trackData->display.colors[0].blue()/255.f);
 		}
 		glBegin(GL_LINE_STRIP);
 		for(int j = 0; j < curSection->lNodes.size(); ++j)
@@ -1680,11 +1680,11 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 		section* curSection = myTrack->lSections[i];
 		if(curSection == myTrack->activeSection)
 		{
-			glColor3f(_track->trackColors[1].red()/255.f, _track->trackColors[1].green()/255.f , _track->trackColors[1].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[1].red()/255.f, _track->trackData->display.colors[1].green()/255.f , _track->trackData->display.colors[1].blue()/255.f);
 		}
 		else
 		{
-			glColor3f(_track->trackColors[0].red()/255.f, _track->trackColors[0].green()/255.f , _track->trackColors[0].blue()/255.f);
+			glColor3f(_track->trackData->display.colors[0].red()/255.f, _track->trackData->display.colors[0].green()/255.f , _track->trackData->display.colors[0].blue()/255.f);
 		}
 		for(int j = 0; j < curSection->lNodes.size(); j++)
 		{

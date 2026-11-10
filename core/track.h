@@ -30,8 +30,9 @@
 #include <QList>
 #include <fstream>
 #include <QString>
+#include <QColor>
+#include "tracklistener.h"
 
-class optionsMenu;
 class sectionHandler;
 class trackWidget;
 class smoothUi;
@@ -47,6 +48,14 @@ enum trackStyle {
     box,            // 0,5m
     smallflat,           // 0,5m
     doublespine
+};
+
+// How the track is drawn. Saved in the project file, so it lives with the
+// track rather than with the window that draws it.
+struct trackDisplay
+{
+    QColor colors[3];   // default, active section, transition
+    bool bWireframe;
 };
 
 class track
@@ -96,7 +105,6 @@ public:
     float fResistance;
     QList<section*> lSections;
 
-    optionsMenu* mOptions;
     QString name;
 
     smoothUi* smoother;
@@ -104,6 +112,9 @@ public:
     QList<smoothHandler*> smoothList;
 
     trackHandler* mParent;
+    trackListener* mListener;   // told when the geometry changes; may be NULL
+
+    trackDisplay display;
 
     int smoothedUntil;
     enum trackStyle style;

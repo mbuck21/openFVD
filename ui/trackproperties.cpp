@@ -128,45 +128,45 @@ void TrackProperties::on_trainTypeBox_currentIndexChanged(int index)
 
 void TrackProperties::on_defaultColorButton_released()
 {
-    colorPicker->setCurrentColor(curTrack->trackColors[0]);
+    colorPicker->setCurrentColor(curTrack->trackData->display.colors[0]);
     colorPicker->open(this, SLOT(ondefaultColor_received()));
 }
 
 void TrackProperties::ondefaultColor_received()
 {
-    curTrack->trackColors[0] = colorPicker->selectedColor();
+    curTrack->trackData->display.colors[0] = colorPicker->selectedColor();
     QPalette palette = ui->defaultColorButton->palette();
-    palette.setColor(QPalette::ButtonText, curTrack->trackColors[0]);
+    palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[0]);
     ui->defaultColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
 }
 
 void TrackProperties::on_sectionColorButton_released()
 {
-    colorPicker->setCurrentColor(curTrack->trackColors[1]);
+    colorPicker->setCurrentColor(curTrack->trackData->display.colors[1]);
     colorPicker->open(this, SLOT(onsectionColor_received()));
 }
 
 void TrackProperties::onsectionColor_received()
 {
-    curTrack->trackColors[1] = colorPicker->selectedColor();
+    curTrack->trackData->display.colors[1] = colorPicker->selectedColor();
     QPalette palette = ui->sectionColorButton->palette();
-    palette.setColor(QPalette::ButtonText, curTrack->trackColors[1]);
+    palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[1]);
     ui->sectionColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
 }
 
 void TrackProperties::on_transitionColorButton_released()
 {
-    colorPicker->setCurrentColor(curTrack->trackColors[2]);
+    colorPicker->setCurrentColor(curTrack->trackData->display.colors[2]);
     colorPicker->open(this, SLOT(ontransitionColor_received()));
 }
 
 void TrackProperties::ontransitionColor_received()
 {
-    curTrack->trackColors[2] = colorPicker->selectedColor();
+    curTrack->trackData->display.colors[2] = colorPicker->selectedColor();
     QPalette palette = ui->transitionColorButton->palette();
-    palette.setColor(QPalette::ButtonText, curTrack->trackColors[2]);
+    palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[2]);
     ui->transitionColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
 }
@@ -262,8 +262,8 @@ void TrackProperties::on_buttonBox_accepted()
         curTrack->trackData->hasChanged = true;
     }
 
-    if(curTrack->mMesh->isWireframe != ui->wireframeBox->isChecked()) {
-        curTrack->mMesh->isWireframe = ui->wireframeBox->isChecked();
+    if(curTrack->trackData->display.bWireframe != ui->wireframeBox->isChecked()) {
+        curTrack->trackData->display.bWireframe = ui->wireframeBox->isChecked();
         curTrack->mMesh->buildMeshes(0);
         curTrack->trackData->hasChanged = true;
     }
@@ -284,16 +284,16 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
         ui->resistanceBox->setValue(curTrack->trackData->fResistance*1e5);
 
         QPalette palette = ui->defaultColorButton->palette();
-        palette.setColor(QPalette::ButtonText, curTrack->trackColors[0]);
+        palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[0]);
         ui->defaultColorButton->setPalette(palette);
-        palette.setColor(QPalette::ButtonText, curTrack->trackColors[1]);
+        palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[1]);
         ui->sectionColorButton->setPalette(palette);
-        palette.setColor(QPalette::ButtonText, curTrack->trackColors[2]);
+        palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[2]);
         ui->transitionColorButton->setPalette(palette);
 
         ui->drawBox->setCurrentIndex(curTrack->trackData->drawHeartline);
         ui->styleBox->setCurrentIndex(curTrack->trackData->style);
-        ui->wireframeBox->setChecked(curTrack->mMesh->isWireframe);
+        ui->wireframeBox->setChecked(curTrack->trackData->display.bWireframe);
 
     }
     // Every time the dialog opens, not only for another track: a train picked

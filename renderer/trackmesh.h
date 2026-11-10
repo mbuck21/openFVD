@@ -109,8 +109,6 @@ public:
 
     int trackVertexSize, supportsSize, numRails, heartlineSize, railShadowSize;
 
-    bool isWireframe;
-
     void init();
 private:
     int j;

@@ -30,6 +30,7 @@
 #include "trackproperties.h"
 #include "lenassert.h"
 #include "trackwidget.h"
+#include "optionsmenu.h"
 #include <QMenu>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -139,7 +140,7 @@ void projectWidget::on_addButton_released()
 
 void projectWidget::newEmptyTrack()
 {
-    trackHandler* _newTrack = new trackHandler(QString("unnamed Track"), trackList.size()+1);
+    trackHandler* _newTrack = new trackHandler(QString("unnamed Track"), trackList.size()+1, gloParent->mOptions->maxUndoChanges);
     trackList.append(_newTrack);
     ui->trackListWidget->addTopLevelItem(_newTrack->listItem);
 }

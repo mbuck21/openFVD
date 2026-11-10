@@ -23,6 +23,7 @@
 #include "trackhandler.h"
 #include "mainwindow.h"
 #include "lenassert.h"
+#include "optionsmenu.h"
 
 using namespace std;
 
@@ -60,7 +61,7 @@ importUi::importUi(QWidget *parent, QString _fileName) :
             posList.append(fin.tellg());
             int namelength = readInt(&fin);
             QString name = QString(readString(&fin, namelength).c_str());
-            trackList.append(new trackHandler(name, id));
+            trackList.append(new trackHandler(name, id, gloParent->mOptions->maxUndoChanges));
             ui->treeWidget->addTopLevelItem(trackList[id]->listItem);
             id++;
             i += 3+namelength;
