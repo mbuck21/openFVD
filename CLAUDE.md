@@ -8,6 +8,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 
 - **The map:** `docs/codebase-map.md` (layout, data model, file format, the flows and their entry functions, where each kind of change lands). Terms: `docs/glossary.md`.
 - **Building:** `docs/building.md` (MSYS2 UCRT64; one command, `tools\build-windows.cmd`). **Testing:** `docs/testing.md`, against the 2016 baseline in `samples/baseline/`.
+- **Research behind the plan:** `docs/research/` (R1 heartlines and trains, R2 minimum radii, R3 ride-force limits, R4 NoLimits 2 blocks, R5 the force-vector-design workflow study). Read the one for your feature before designing it.
 - **The plan:** `docs/roadmap.md` (stages, what is serial, what runs together) and `docs/feature-requests.md` (the owner's requests, `FR-1` to `FR-9`).
 - **Status:** `STATUS.md`, rewritten in place, never appended. Deferred ideas: `docs/maybe-later.md`. How a session runs the work: `docs/development-workflow.md`.
 - **Upstream:** altlenny/openFVD, its five issues and the `readme.txt` changelog. The official FVD++ documentation and the NoLimits Exchange forum it pointed to are gone.
@@ -37,7 +38,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 
 - Build: `tools\build-windows.cmd` from a normal terminal (or `tools/build-windows.sh` in the MSYS2 UCRT64 shell). It leaves `build/release/FVD.exe` and a copy that runs on its own in `build/dist/`. Details, versions and the lib3ds switch: `docs/building.md`.
 - Run: `build\dist\FVD.exe`. It writes `fvd.log` where it is started and `options.cfg` beside itself; both are ignored by git.
-- Test: there is no automated suite. `docs/testing.md` says how to export `samples/baseline/four-sections.fvd` and compare with the 2016 binary's files using `tools/compare_exports.py`. Write the tool's last lines in the pull request's "Tests" part.
+- Test: `py -3 tools/run-baseline.py` exports every project in `samples/baseline/` through the program's batch mode (no window) and compares with the 2016 binary's files; it must end `PASS`. `tools\run-tests.cmd` builds and runs the small automated tests under `tests/`. `docs/testing.md` has the details and the by-hand procedure. Write the last lines of both in the pull request's "Tests" part.
 - The committed `bin/win64/FVD.exe` is the 2016 release and the reference. Run it from a copy outside the repository.
 
 ## Working with the owner

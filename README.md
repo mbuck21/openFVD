@@ -1,3 +1,60 @@
+# FVD++, mbuck21's fork
+
+This is a fork of [altlenny/openFVD](https://github.com/altlenny/openFVD), Stephan "Lenny" Alt's FVD++ v0.79: a force vector design tool for roller-coaster track that exports to NoLimits 1 and 2. The original project was last changed in 2023. Its own README follows below, unchanged.
+
+## About this fork
+
+I'm a roller coaster enthusiast and a mechanical engineer, not a software developer. I use FVD++ to design coasters for NoLimits 2, and I am using [Claude Code](https://claude.com/claude-code) to keep the program working and to extend it. I decide what the program should do and try the results; nearly all of the code and documentation changes here are written by Claude, with every change checked against the original program's output before it is merged.
+
+It is a hobby project and a work in progress. There is no warranty, and nothing here is an engineering tool for real rides.
+
+## What the fork is trying to do
+
+- **Keep FVD++ building and running** on a current Windows PC.
+- **Make force vector design faster without giving up detail.** This is the main goal: less rework when an element early in the ride changes, and tools that hit a target (a height, a heading, a closed circuit) without trial and error.
+- **Check a design while it is being made:** minimum curve radius, and ride forces against the published limits, first at the heartline and later at every seat of the train.
+- **Know about trains:** heartline heights and other data per train type, so the designer picks a train and does not type numbers.
+- **Let the program be driven without clicking,** so it can be tested automatically and an AI agent can help build a layout.
+- Further out: stations, lifts, brakes and blocks, and a throughput estimate.
+
+The plan and its order are in [`docs/roadmap.md`](docs/roadmap.md); what was asked for is in [`docs/feature-requests.md`](docs/feature-requests.md); where things stand today is in [`STATUS.md`](STATUS.md).
+
+## What is different from the original so far
+
+**Fixed**
+
+- **It builds again.** One command builds the program with a current toolchain (MSYS2 UCRT64: GCC 16, Qt 5.15, glm 1.0, GLEW 2.3). The original pointed at library folders on its author's PC and no longer compiled against current glm. See [`docs/building.md`](docs/building.md).
+- **Nine defects that a current compiler found** in the original code, among them a function in the NoLimits 2 CSV import that returned no value and used a counter before setting it, an export file name that was read after its memory had been released, and several pointers used before they were set. The fixes change no output: the exports are byte for byte the same before and after.
+- **Checked against the 2016 release.** The rebuilt program reproduces the original binary's exports on the test tracks (identical, except one curve handle that moves by under a millimetre). See [`docs/testing.md`](docs/testing.md).
+
+**Added**
+
+- **A batch mode:** `FVD.exe --batch-export project.fvd outdir` writes the NoLimits 2 and NoLimits 1 exports with no window and no clicking, and `tools/run-baseline.py` compares them with the reference files in one command.
+- **A train catalogue** ([`data/traintypes.json`](data/traintypes.json)): NoLimits 2's train styles and the main models of Mack, Vekoma, B&M, Intamin and RMC, each heartline with its source and how sure it is. Most values are not independently verified and say so.
+- **A "Train type" list in Track Properties** that fills in the heartline height from the catalogue.
+- **The first automated test** (`tests/`), and research notes behind the planned features in [`docs/research/`](docs/research/): heartlines, minimum radii, ride-force limits (ASTM F2291 and EN 13814), NoLimits 2 block logic, and how force vector design could be made faster.
+- **Documentation for working on the code:** a map of the code base, a glossary, how to build and test, and a record of the decisions taken (`CLAUDE.md`, [`docs/`](docs/README.md)).
+
+**In progress**
+
+- Separating the model and the physics from the windows, so the program can load, compute and export without a screen. Nothing a user sees changes; it is the foundation for the checks and the automation.
+
+**Not maintained here**
+
+- The macOS build. The files are still in the tree, untouched.
+- The `.3ds` model export on Windows is left out of the default build (it needs a library that is no longer packaged).
+
+The files under `bin/` are still the original author's 2016 release, kept as the reference the rebuilt program is compared with.
+
+## Licence
+
+GPL-3.0, as the original. See [`LICENSE`](LICENSE).
+
+---
+
+*The original README:*
+
+```
 ####################
 # open FVD++ v0.79 #
 ####################
@@ -177,4 +234,4 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
-
+```
