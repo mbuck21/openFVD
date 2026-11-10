@@ -53,6 +53,10 @@ struct trackDisplay
     bool bWireframe;
 };
 
+// One track: the anchor node, the ordered sections (lSections), the roll smoothing
+// entries (smoothList) and how it is drawn (display). Owns all of them and frees
+// them. Created by trackHandler (ui/) and by projectFileClient::projectNewTrack().
+// Tells its mListener what changed. Must not include or call any window class.
 class track
 {
 public:

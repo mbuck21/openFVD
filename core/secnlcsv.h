@@ -5,6 +5,7 @@
 #include "track.h"
 #include "section.h"
 
+// A track sampled from a NoLimits 2 CSV export (loadTrack()); the geometry is fixed and the physics are simulated over it.
 class secnlcsv : public section
 {
 public:

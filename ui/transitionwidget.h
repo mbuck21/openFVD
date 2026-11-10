@@ -26,6 +26,9 @@ namespace Ui {
 class transitionWidget;
 }
 
+// The transition editor: the boxes (length, change, shape, centre, tension) for the
+// selected subfunc. Part of graphWidget (reached as graphWidget::transitionHandler).
+// Each edit pushes an undoAction, changes the subfunc and updates the track.
 class transitionWidget : public QWidget
 {
     Q_OBJECT

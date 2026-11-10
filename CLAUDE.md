@@ -7,6 +7,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 ## Where the knowledge is
 
 - **The map:** `docs/codebase-map.md` (layout, data model, file format, the flows and their entry functions, where each kind of change lands). Terms: `docs/glossary.md`.
+- **One guide per folder:** `core/CLAUDE.md` (the model), `ui/CLAUDE.md` (the windows), `renderer/CLAUDE.md` (the 3D view): what the folder may depend on, its main classes, where a change lands, its traps, how to check a change. Read the one for the folder you are about to change.
 - **Building:** `docs/building.md` (MSYS2 UCRT64; one command, `tools\build-windows.cmd`). **Testing:** `docs/testing.md`, against the 2016 baseline in `samples/baseline/`.
 - **Research behind the plan:** `docs/research/` (R1 heartlines and trains, R2 minimum radii, R3 ride-force limits, R4 NoLimits 2 blocks, R5 the force-vector-design workflow study). Read the one for your feature before designing it.
 - **The plan:** `docs/roadmap.md` (stages, what is serial, what runs together) and `docs/feature-requests.md` (the owner's requests, `FR-1` to `FR-9`).
@@ -18,7 +19,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 1. **A C++ change is not done until it compiles, the program was run, and the baseline comparison in `docs/testing.md` gives the expected result.** A pull request that changes `.cpp`, `.h`, `.ui`, `.pro` or shader files says at the top what was built and run. One written where no build was possible (a GitHub `@claude` run has no toolchain) says "not compiled" and stays a draft until someone builds it.
 2. **The committed binaries stay out of pull requests** (`bin/win64/FVD.exe`, `bin/win64/glew32.dll`, `bin/osx64.zip`) unless the pull request rebuilt them, says from which commit and with which toolchain, and the owner asked for new binaries. The 2016 Windows binary is the baseline every rebuild is compared against.
 3. **Never edit `ui/qcustomplot.cpp` or `ui/qcustomplot.h`.** They are the vendored QCustomPlot 1.2.1 library. Upgrading it is its own issue.
-4. **The `.fvd` file format changes only with a version bump and a load path for old files** (`projectWidget::saveProject()` / `loadProject()`, `docs/codebase-map.md` "Saved project file"). Projects the owner saved must keep opening.
+4. **The `.fvd` file format changes only with a version bump and a load path for old files** (`writeProject()` / `readProject()` in `core/projectfile.cpp`, `track::saveTrack()` / `loadTrack()`, `docs/codebase-map.md` "Saved project file"). Projects the owner saved must keep opening.
 5. **Keep the GPL header** on every source file and the license on the repository. New source files and scripts (`tools/`) get the same header with the fork's author line added below the original. Documentation, fixtures and configuration files carry no header.
 6. **Nothing the program writes gets committed:** `fvd.log`, `options.cfg`, `*.bak`, build directories. `.gitignore` lists them; add to it rather than committing around it.
 7. **No new dependency without a one-line justification** in the pull request. The three external libraries (GLEW, glm, lib3ds) and Qt 5 are already a burden; see `docs/building.md`.
@@ -31,14 +32,14 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 - Maths is glm with `GLM_FORCE_RADIANS`; angles are degrees in the UI and the node fields (`fRoll`, `getPitch()`), converted with `TO_RAD`/`TO_DEG` from `lenassert.h`. Everything is `float`. Time steps are `1/F_HZ` seconds (`core/mnode.h`).
 - Checks are `lenAssert(cond)` (an `assert` in debug, a `qCritical` in release). Logging is `qDebug`/`qWarning`, which land in `fvd.log` next to the working directory.
 - Indentation is four spaces, with tabs in some files; keep each file's own style and do not reformat files you did not otherwise change.
-- Every editable value goes through `undoAction` (`core/undoaction.h`): a new spin box means a new `eActionType`, an "old value" field on `undoHandler`, and a case in `undoAction::doUndo()`.
+- Every editable value goes through `undoAction` (`ui/undoaction.h`): a new spin box means a new `eActionType`, an "old value" field on `undoHandler`, and a case in `undoAction::doUndo()`.
 - Binary file I/O uses the helpers in `core/exportfuncs.cpp`, never raw `fwrite` of a struct in new code.
 
 ## Build and run
 
 - Build: `tools\build-windows.cmd` from a normal terminal (or `tools/build-windows.sh` in the MSYS2 UCRT64 shell). It leaves `build/release/FVD.exe` and a copy that runs on its own in `build/dist/`. Details, versions and the lib3ds switch: `docs/building.md`.
 - Run: `build\dist\FVD.exe`. It writes `fvd.log` where it is started and `options.cfg` beside itself; both are ignored by git.
-- Test: `py -3 tools/run-baseline.py` exports every project in `samples/baseline/` through the program's batch mode (no window) and compares with the 2016 binary's files; it must end `PASS`. `tools\run-tests.cmd` builds and runs the small automated tests under `tests/`. `docs/testing.md` has the details and the by-hand procedure. Write the last lines of both in the pull request's "Tests" part.
+- Test: `py -3 tools/run-baseline.py` exports every project in `samples/baseline/` through the program's batch mode (no window) and compares with the 2016 binary's files; it must end `PASS`. `tools\run-tests.cmd` builds and runs the small automated tests under `tests/`. A change in `core/` also runs `py -3 tools/check-core.py` (`core/CLAUDE.md`). `docs/testing.md` has the details and the by-hand procedure. Write the last lines of both in the pull request's "Tests" part.
 - The committed `bin/win64/FVD.exe` is the 2016 release and the reference. Run it from a copy outside the repository.
 
 ## Working with the owner

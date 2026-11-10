@@ -32,6 +32,10 @@ namespace Ui {
 class trackWidget;
 }
 
+// The panel of one track: the anchor fields, the section list and the fields of the
+// selected section. Created and owned by trackHandler; creates the sectionHandlers
+// (one per list row) and the smoothUi. Most edit slots live here: each pushes an
+// undoAction, changes the model, then calls track::updateTrack().
 class trackWidget : public QWidget
 {
     Q_OBJECT

@@ -35,6 +35,9 @@ enum eFunctype
 
 class section;
 
+// A transition curve (roll, normal force, lateral force, pitch or yaw): consecutive
+// subfunc pieces in funcList, which it owns. Created by its section (secParent).
+// Maths only; it must not touch any window.
 class func
 {
 public:

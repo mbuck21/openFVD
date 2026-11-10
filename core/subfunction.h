@@ -43,6 +43,10 @@ typedef struct bez_s
     float y;
 } bez_t;
 
+// One piece of a func: an argument range, a start value, a change and a shape
+// (eDegree), with the time-warp knobs centerArg and tensionArg. getValue() is the
+// maths of every transition shape. Owned by its func. Keep float operations as they
+// are: the results must stay bit-identical to the 2016 binary (core/CLAUDE.md).
 class subfunc
 {
 public:

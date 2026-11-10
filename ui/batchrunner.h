@@ -40,6 +40,10 @@ class track;
 //
 // The result is reported in a text file and the exit code (0 or 1), because
 // the program has no console.
+//
+// Created by main.cpp, which leaves with run()'s exit code. It builds a hidden
+// MainWindow and drives the windows through batchDriver (batchscenarios.*). It must
+// never show a window or take the keyboard focus.
 class batchRunner
 {
 public:

@@ -59,6 +59,9 @@ public:
     QString sNotes;
 };
 
+// Loads the train catalogue (data/traintypes.json) into trainType entries. Static
+// functions only; the default catalogue is loaded once and kept. QtCore only, so
+// tests/traintypes builds it on its own. Holds data; it changes no track.
 class trainCatalogue
 {
 public:

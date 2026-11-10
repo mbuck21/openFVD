@@ -60,6 +60,10 @@ typedef struct mesh_s
 class MainWindow;
 class trackHandler;
 
+// The 3D view (a QGLWidget): camera, sky, floor, shadows, and the drawing of every
+// track's trackMesh. Created by MainWindow (the global glView). Reads the project
+// through gloParent; the only model value it writes is the point-of-view position.
+// initializeWithoutShowing() sets up OpenGL for the batch mode.
 class glViewWidget : public QGLWidget
 {
     Q_OBJECT

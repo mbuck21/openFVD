@@ -27,6 +27,8 @@ class track;
 // What a track tells whoever shows it. The track calls these synchronously,
 // at the moment its geometry changes; a track without a listener (mListener
 // is NULL) calls nothing.
+// Implemented by trackHandler (ui/trackhandler.h). Core must never name a window
+// class: a new notice is a new virtual function here, implemented in ui/.
 class trackListener
 {
 public:

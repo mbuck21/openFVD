@@ -75,6 +75,10 @@ namespace Ui {
 class MainWindow;
 }
 
+// The main window: menus, status bar, the 3D view and the project panel. Created by
+// main.cpp (batchRunner makes a hidden one); creates the glViewWidget and the options,
+// export, conversion and 3D-export dialogs, and defines the globals gloParent and
+// glView. Keep model work out of it: that belongs in core/.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
