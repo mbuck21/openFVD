@@ -51,3 +51,6 @@ qrc_*
 
 # Machine-local library paths (see libs.pri.example)
 libs.pri
+
+# The owner's own projects, used as local test tracks (decision record 0007)
+samples/private/

@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. Nothing here is started. It says what has to come before what, and what can run side by side.
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. **Stage 1 is in progress** on the integration branch `claude/stage-1` (decision record 0007); nothing else is started. It says what has to come before what, and what can run side by side.
 
 Rewrite a stage's section when its plan changes; move a finished stage to a one-line summary at the top. Each stage runs on its own integration branch (decision record 0004).
 
@@ -91,8 +91,10 @@ Two pieces can share a stage only if they do not edit the same files. The lead c
 
 | Piece | What | Depends on | Who | Requests |
 |---|---|---|---|---|
-| **B0** | Widen the baseline: more sample projects saved and exported with the 2016 binary, covering every section type, every transition shape, both roll orientations, time and distance arguments, smoothing, and a full-length layout. Needs screen access to drive the 2016 program once. | nothing | lead | all (the safety net) |
-| **F1** | Core runs without a window. `core/` stops including widget headers and calling `gloParent`; loading a file no longer goes through the track widget's slots; every edit becomes a command object that both the window and undo use. No change in what the program computes: the baseline comparison is the gate. | nothing | lead and Opus; one piece at a time through `core/track.cpp`, `core/trackhandler.*`, `core/undoaction.cpp` (243 references into the UI), then the widgets | FR-5, FR-8 |
+| **B1** | A no-click batch mode in the existing program (`--batch-export`) and `tools/run-baseline.py`, so the comparison is one command. A slice of F2 pulled forward (decision record 0007). | nothing | Opus | all |
+| **B2** | Scripted scenarios in the batch mode: it generates the test projects, and checks undo and redo by round trip. | B1 | Opus | all |
+| **B0** | Widen the baseline: the generated test projects exported with the 2016 binary, covering every section type the screens offer, every transition shape, both roll orientations, time and distance arguments, smoothing; plus the owner's own projects, compared locally. Needs screen access to drive the 2016 program once. | B2 | lead | all (the safety net) |
+| **F1** | Core runs without a window. `core/` stops including widget headers and calling `gloParent`; loading a file no longer goes through the track widget's slots; every edit becomes a core function that both the window and undo call (the list of named commands is built on them in Stage 2). Cut into pieces F1a to F1h along the nine seams of decision record 0007; ends with a console program that links only `core/`. No change in what the program computes: the baseline comparison is the gate. | B0 | lead and Opus; one piece at a time through `core/track.cpp`, `core/trackhandler.*`, `core/undoaction.cpp` (243 references into the UI), then the widgets | FR-5, FR-8 |
 | **R1** | Heartlines and the train catalogue: check the owner's table, find sources, list missing types (Intamin, B&M, RMC, Mack, Vekoma, Gerstlauer, GCI first). | nothing | Sonnet, web research | FR-1, FR-9 |
 | **R2** | Minimum radii by track system and train. | nothing | Sonnet | FR-3 |
 | **R3** | ASTM F2291 (and EN 13814) force limits, durations, combined directions, restraint classes; what can be encoded, and whether the owner needs to buy the standard. | nothing | Opus (a wrong reading here is costly) | FR-4 |

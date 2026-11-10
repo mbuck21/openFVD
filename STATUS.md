@@ -9,13 +9,13 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 ## Focus
 
 - **The baseline is in place.** FVD++ builds on the owner's PC with one command, the result matches the 2016 release on a test track, and the defects a current compiler found in the original code are fixed. Nothing about what the program computes has changed.
-- **The feature list is in and planned.** The owner's nine requests are in `docs/feature-requests.md`; `docs/roadmap.md` orders them into five stages. Nothing is started: the owner asked for the plan only. The lead session acts as architect and the owner as customer (decision record 0006).
+- **The feature list is in and planned, and Stage 1 is under way.** The owner's nine requests are in `docs/feature-requests.md`; `docs/roadmap.md` orders them into five stages. The owner asked on 2026-11-10 for Stage 1 to be finished by the lead with its team. The lead session acts as architect and the owner as customer (decision record 0006).
 
 ## Milestone now
 
 **Milestones 1 and 2 are reached:** a reproducible build (MSYS2 UCRT64: GCC 16.2, Qt 5.15.19, GLEW 2.3.1, glm 1.0.3; `tools\build-windows.cmd`; decision record 0003) and a clean baseline (#8 fixed, `samples/baseline/` as the fixed reference, `docs/testing.md` as the check).
 
-**Milestone 3 is Stage 1 of the roadmap:** a wider baseline (B0), the core running without a window (F1), the research pack (R1 to R5), train types as data (D2) and heartline presets (D3). Not started; it waits for the owner's word to begin.
+**Milestone 3 is Stage 1 of the roadmap:** a wider baseline (B0), the core running without a window (F1), the research pack (R1 to R5), train types as data (D2) and heartline presets (D3). **In progress since 2026-11-10** on the integration branch `claude/stage-1`; its pull request into `master` lists the 18 pieces and their state. The cut and the order are in decision record 0007.
 
 Open issues:
 - #13 (`owner`): three checks deferred from the baseline: an export opened in NoLimits 2, the decision about the `.3ds` export, a NoLimits 2 CSV import.
@@ -24,7 +24,7 @@ Open issues:
 
 ## Waiting on the owner
 
-- The word to start Stage 1, and the six owner decisions listed at the end of `docs/roadmap.md` as they come up.
+- Screen access for the FVD++ window when the lead asks (to export the test tracks with the 2016 program), and the owner decisions listed at the end of `docs/roadmap.md` as they come up.
 - Optional tidy-up: delete the `ANTHROPIC_API_KEY` repository secret and the Console key behind it; nothing uses them now.
 - #13, when convenient: the three deferred checks.
 
