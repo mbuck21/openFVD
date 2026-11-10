@@ -33,6 +33,7 @@
 #include <QtDebug>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -71,6 +72,13 @@ int batchRunner::run()
     return 1;
 }
 
+#ifdef Q_OS_WIN
+static void unlockForeground()
+{
+    LockSetForegroundWindow(LSFW_UNLOCK);
+}
+#endif
+
 // Builds the main window and initialises OpenGL without showing anything.
 // Loading a project builds the track meshes, which needs OpenGL; the GL view
 // also creates the default project when it is initialised.
@@ -79,7 +87,10 @@ MainWindow* batchRunner::createHiddenWindow()
 #ifdef Q_OS_WIN
     // Creating the GL view briefly makes its hidden window the foreground
     // window (measured: about 50 ms), which would take keystrokes away from
-    // whatever the user is typing into. This stops it.
+    // whatever the user is typing into. This stops it. The unlock is also
+    // registered for exit, because initializeGL() ends the program with
+    // exit(4) when GLEW cannot start, before the unlock below is reached.
+    atexit(unlockForeground);
     LockSetForegroundWindow(LSFW_LOCK);
 #endif
     MainWindow* w = new MainWindow(); // never deleted: ~MainWindow() calls exit(0)
