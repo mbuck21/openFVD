@@ -8,5 +8,5 @@ TEMPLATE = app
 SOURCES += main.cpp ../../core/traintype.cpp
 HEADERS += ../../core/traintype.h
 
-# Where data/traintypes.json is, found from this folder and not typed by hand.
-DEFINES += TRAINTYPES_JSON=\\\"$$PWD/../../data/traintypes.json\\\"
+# The test gets the repository folder as its first argument (tools/run-tests.sh
+# passes it) and finds data/traintypes.json from there.

@@ -18,7 +18,8 @@
 #
 # Build and run every automated test under tests/ (see tests/README.md).
 # Run from the MSYS2 UCRT64 shell, or through tools\run-tests.cmd.
-# Each test is built into build/tests/<name>/. Ends with PASS or FAIL and a
+# Each test is built into build/tests/<name>/ and is run with the repository
+# folder as its first argument. Ends with PASS or FAIL and a
 # matching exit code.
 set -uo pipefail
 
@@ -55,7 +56,7 @@ for pro in "$repo"/tests/*/*.pro; do
         failed=$((failed + 1))
         continue
     fi
-    if ! ( cd "$out" && PATH="$out:$PATH" "$exe" ); then
+    if ! ( cd "$out" && PATH="$out:$PATH" "$exe" "$(cygpath -m "$repo")" ); then
         failed=$((failed + 1))
     fi
 done

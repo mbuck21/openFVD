@@ -192,7 +192,7 @@ QList<trainType> trainCatalogue::load(const QString& path, QString* error)
     }
     const QJsonObject root = doc.object();
     const QJsonValue ver = root.value("schemaVersion");
-    if (!ver.isDouble() || (int)ver.toDouble() != SCHEMA_VERSION)
+    if (!ver.isDouble() || ver.toDouble() != (double)SCHEMA_VERSION)
     {
         *err = QString("schemaVersion must be %1").arg(SCHEMA_VERSION);
         return QList<trainType>();

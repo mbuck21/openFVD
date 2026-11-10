@@ -21,6 +21,6 @@ tools\run-tests.cmd
 ## Add one
 
 1. Make `tests/<name>/` with a `<name>.pro` (copy `traintypes/traintypes.pro`) and a `main.cpp`. The program name in the `.pro` must equal the folder name.
-2. Keep it to QtCore and the few source files under test (`SOURCES += ../../core/<file>.cpp`), so it builds on its own and stays fast. Find data files through a `DEFINES` path built from `$$PWD`, never an absolute path.
+2. Keep it to QtCore and the few source files under test (`SOURCES += ../../core/<file>.cpp`), so it builds on its own and stays fast. Every test is run with the repository folder as its first argument; find data files from that, never from an absolute path typed by hand or a `DEFINES` path (qmake splits those at a space in the folder name).
 3. Print one line per check, then `PASS` or `FAIL` as the last line, and return 0 or 1.
 4. Add a row to the table above. `tools/run-tests.*` picks the folder up by itself.

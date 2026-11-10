@@ -47,7 +47,8 @@ public:
     QString sName;          // shown to the user
     QString sManufacturer;  // empty when not known
     QString sNl2Name;       // exact NoLimits 2 train name, or empty
-    sourcedValue heartline; // metres above the track centre line, negative below
+    sourcedValue heartline; // metres; the number that goes into track::fHeart (rails to heartline, as
+                            // NoLimits 2 shows it), negative = train hangs below. Datum: docs/research/r1-heartlines-and-trains.md
     int iSeatsAcross;       // -1 when not known
     int iRowsPerCar;        // -1 when not known
     int iCarsPerTrain;      // -1 when not known

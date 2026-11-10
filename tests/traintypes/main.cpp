@@ -115,7 +115,13 @@ int main(int argc, char** argv)
 
     // The real file.
     QString error;
-    const QList<trainType> trains = trainCatalogue::load(QString::fromUtf8(TRAINTYPES_JSON), &error);
+    if (argc < 2)
+    {
+        printf("usage: traintypes <repository folder>\nFAIL\n");
+        return 1;
+    }
+    const QString jsonPath = QDir(QString::fromLocal8Bit(argv[1])).filePath("data/traintypes.json");
+    const QList<trainType> trains = trainCatalogue::load(jsonPath, &error);
     check("data/traintypes.json loads with no error", !trains.isEmpty() && error.isEmpty(), error);
 
     check("it holds exactly the 38 seeded entries", trains.size() == OWNER_COUNT && OWNER_COUNT == 38,
