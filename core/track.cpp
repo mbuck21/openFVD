@@ -353,6 +353,18 @@ void track::applyRollSmoothFilter(smoothHandler* _handler)
     delete last;
 }
 
+// Brings every roll smoothing entry up to date from the track (range, label,
+// name; see smoothHandler::update()), first to last, labelling the custom
+// regions 'a', 'b', ... through *customChar, which ends one past the last
+// letter used. Was the model part of the smoothing dialog's updateUi().
+void track::updateSmoothEntries(char* customChar)
+{
+    *customChar = 'a';
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        this->smoothList[i]->update(customChar);
+    }
+}
+
 bool track::smoothingActive()
 {
     for(int i = 0; i < this->smoothList.size(); ++i) {

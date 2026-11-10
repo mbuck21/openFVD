@@ -68,6 +68,7 @@ public:
 
     void applyRollSmooth(int fromNode = 0);
     void applyRollSmoothFilter(smoothHandler* _handler);
+    void updateSmoothEntries(char* customChar);
     bool smoothingActive();
 
     void updateTrack(int index, int iNode);

@@ -43,6 +43,7 @@ public:
     ~smoothUi();
 
     void updateUi();
+    void showRows();
 
     void smoothHandlerChanged(smoothHandler* which, int fields);
     void smoothHandlerDeleted(smoothHandler* which);

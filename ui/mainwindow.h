@@ -27,7 +27,7 @@
 #include <QtGlobal>
 
 #include "track.h"
-#include "saver.h"
+#include "projectwidget.h"
 
 #include <fstream>
 #include <QStyledItemDelegate>

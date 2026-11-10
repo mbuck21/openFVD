@@ -20,6 +20,7 @@
 #include "ui_exportui.h"
 #include "mainwindow.h"
 #include "exportfuncs.h"
+#include "elementfile.h"
 #include "lenassert.h"
 #include "trackwidget.h"
 #include <QFileDialog>
@@ -93,6 +94,8 @@ exportUi::exportUi(QWidget *parent, projectWidget* _project): QDialog(parent), u
     phantomChanges = false;
 }
 
+// The element files are written in core (core/elementfile.cpp); the dialog
+// reads its settings, then saves the project's backup and shows the message.
 void exportUi::doExport()
 {
     this->fPerNode = ui->segmentLengthBox->value();
@@ -101,40 +104,8 @@ void exportUi::doExport()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        QByteArray localFileName = fileName.toLocal8Bit();
-        this->cFile = localFileName.constData();
-        fstream* fout = new fstream(this->cFile, ios::out | ios::binary);
+        writeNL1TangentElement(fileName, tTrack, this->fPerNode, curFromIndex, curToIndex+curFromIndex, fRollThresh, ui->noHeartLineBox->isChecked());
 
-        if(fout == NULL) {
-            lenAssert(0 && "File Stream is NULL");
-            return;
-        }
-
-        writeBytes(fout, (const char*)"MELE", 4);
-        writeNulls(fout, 4); // will be replaced with length of data
-        writeNulls(fout, 64);
-        writeNulls(fout, 4); // will be replaced with No of NL beziers
-
-        float oldHeartLine = tTrack->fHeart;
-        if(ui->noHeartLineBox->isChecked())
-        {
-            tTrack->fHeart = 0.f;
-        }
-        int iNodes = tTrack->exportTrack4(fout, this->fPerNode, curFromIndex, curToIndex+curFromIndex, fRollThresh);
-
-        tTrack->fHeart = oldHeartLine;
-
-        int iDataLength = iNodes*50+132;
-
-        writeNulls(fout, 69);
-
-        fout->seekp(4);
-        writeBytes(fout, (const char*)&iDataLength, 4); // replaced with length of data
-        fout->seekp(72);
-        writeBytes(fout, (const char*)&iNodes, 4); // replaced with no of NL beziers
-
-        fout->close();
-        delete fout;
         gloParent->backupSave();
         gloParent->displayStatusMessage(QString("Export to ").append(fileName).append(" successful!"));
     } else {
@@ -151,39 +122,8 @@ void exportUi::doExport2()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        QByteArray localFileName = fileName.toLocal8Bit();
-        this->cFile = localFileName.constData();
-        fstream* fout = new fstream(this->cFile, ios::out | ios::binary);
+        writeNL1SplineElement(fileName, tTrack, this->fPerNode, curFromIndex, curToIndex+curFromIndex, fRollThresh, ui->noHeartLineBox->isChecked());
 
-        if(fout == NULL) {
-            lenAssert(0 && "File Stream is NULL");
-            return;
-        }
-
-        writeBytes(fout, (const char*)"MELE", 4);
-        writeNulls(fout, 4); // will be replaced with length of data
-        writeNulls(fout, 64);
-        writeNulls(fout, 4); // will be replaced with No of NL beziers
-
-        float oldHeartLine = tTrack->fHeart;
-        if(ui->noHeartLineBox->isChecked()) {
-            tTrack->fHeart = 0.f;
-        }
-        int iNodes = tTrack->exportTrack3(fout, this->fPerNode, curFromIndex, curToIndex+curFromIndex, fRollThresh);
-
-        tTrack->fHeart = oldHeartLine;
-
-        int iDataLength = iNodes*50+132;
-
-        writeNulls(fout, 69);
-
-        fout->seekp(4);
-        writeBytes(fout, (const char*)&iDataLength, 4); // replaced with length of data
-        fout->seekp(72);
-        writeBytes(fout, (const char*)&iNodes, 4); // replaced with no of NL beziers
-
-        fout->close();
-        delete fout;
         gloParent->backupSave();
         gloParent->displayStatusMessage(QString("Export to ").append(fileName).append(" successful!"));
     } else {
@@ -199,22 +139,10 @@ void exportUi::doNL2Export()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        QByteArray localFileName = fileName.toLocal8Bit();
-        this->cFile = localFileName.constData();
-        FILE* fout = fopen(cFile, "w");
+        writeNL2Element(fileName, tTrack, fPerNode, curFromIndex, curFromIndex+curToIndex);
 
-        fprintf(fout, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-        fprintf(fout, "<root>\n");
-        fprintf(fout, "\t<element>\n");
-        fprintf(fout, "\t\t<description>FVD++ Export Data</description>\n");
-
-        tTrack->exportNL2Track(fout, fPerNode, curFromIndex, curFromIndex+curToIndex);
-
-        fprintf(fout, "\t</element>\n");
-        fprintf(fout, "</root>\n");
         gloParent->backupSave();
         gloParent->displayStatusMessage(QString("Export to ").append(fileName).append(" successful!"));
-        fclose(fout);
     } else {
         return;
     }

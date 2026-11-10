@@ -28,7 +28,7 @@
 #include "undoaction.h"
 #include "qcustomplot.h"
 #include "track.h"
-#include "saver.h"
+#include "elementfile.h"
 #include "exportfuncs.h"
 #include "glviewwidget.h"
 #include "optionsmenu.h"
@@ -179,9 +179,9 @@ int batchRunner::runExport()
         return finish(false, QString("could not set up OpenGL"));
     }
 
-    // saver() directly, not MainWindow::loadProject(), which shows a message box
+    // projectWidget::loadProject(), not MainWindow::loadProject(), which shows a message box
     // on any warning and remembers the file name (the .bak autosave uses it).
-    QString loadResult = saver(projectFile, w->project, w).doLoad();
+    QString loadResult = w->project->loadProject(projectFile);
     qDebug("batch mode: loaded %s: %s", qPrintable(projectFile), qPrintable(loadResult));
     if(loadResult.contains("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
@@ -243,7 +243,7 @@ bool batchRunner::writeProjectFiles(MainWindow* w, const QDir& dir, const QStrin
     // After the exports, which leave the track as it was (the heartline is
     // never switched off here, unlike the dialog's "without heartlining").
     QString resavedName = stem + ".resaved.fvd";
-    QString saveResult = saver(dir.filePath(resavedName), w->project, w).doSave();
+    QString saveResult = w->project->saveProject(dir.filePath(resavedName));
     if(saveResult.contains("Error")) {
         error = QString("saving ") + resavedName + ": " + saveResult;
         return false;
@@ -405,34 +405,20 @@ bool batchRunner::writeLines(const QString& fileName, const QStringList& lines)
     return true;
 }
 
-// Same framing as exportUi::doNL2Export() (ui/exportui.cpp), for the whole track.
+// What exportUi::doNL2Export() (ui/exportui.cpp) writes, for the whole track,
+// through the same core function.
 bool batchRunner::exportNL2(track* tTrack, const QString& fileName)
 {
     float fPerNode = EXPORT_SEGMENT_LENGTH;
     int fromIndex = 0;
     int toIndex = tTrack->lSections.size()-1;
 
-    QByteArray localFileName = fileName.toLocal8Bit();
-    FILE* fout = fopen(localFileName.constData(), "w");
-    if(fout == NULL) {
-        return false;
-    }
-
-    fprintf(fout, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    fprintf(fout, "<root>\n");
-    fprintf(fout, "\t<element>\n");
-    fprintf(fout, "\t\t<description>FVD++ Export Data</description>\n");
-
-    tTrack->exportNL2Track(fout, fPerNode, fromIndex, fromIndex+toIndex);
-
-    fprintf(fout, "\t</element>\n");
-    fprintf(fout, "</root>\n");
-    fclose(fout);
-    return true;
+    return writeNL2Element(fileName, tTrack, fPerNode, fromIndex, fromIndex+toIndex);
 }
 
-// Same framing as exportUi::doExport() (tangent) and exportUi::doExport2()
-// (spline) in ui/exportui.cpp, for the whole track.
+// What exportUi::doExport() (tangent) and exportUi::doExport2() (spline) in
+// ui/exportui.cpp write, for the whole track, through the same core functions;
+// the heartline is never switched off here.
 bool batchRunner::exportNL1(track* tTrack, const QString& fileName, bool tangent)
 {
     float fPerNode = EXPORT_SEGMENT_LENGTH;
@@ -440,38 +426,11 @@ bool batchRunner::exportNL1(track* tTrack, const QString& fileName, bool tangent
     int fromIndex = 0;
     int toIndex = tTrack->lSections.size()-1;
 
-    QByteArray localFileName = fileName.toLocal8Bit();
-    fstream* fout = new fstream(localFileName.constData(), ios::out | ios::binary);
-    if(!fout->is_open()) {
-        delete fout;
-        return false;
-    }
-
-    writeBytes(fout, (const char*)"MELE", 4);
-    writeNulls(fout, 4); // will be replaced with length of data
-    writeNulls(fout, 64);
-    writeNulls(fout, 4); // will be replaced with No of NL beziers
-
-    int iNodes;
     if(tangent) {
-        iNodes = tTrack->exportTrack4(fout, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh);
+        return writeNL1TangentElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
     } else {
-        iNodes = tTrack->exportTrack3(fout, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh);
+        return writeNL1SplineElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
     }
-
-    int iDataLength = iNodes*50+132;
-
-    writeNulls(fout, 69);
-
-    fout->seekp(4);
-    writeBytes(fout, (const char*)&iDataLength, 4); // replaced with length of data
-    fout->seekp(72);
-    writeBytes(fout, (const char*)&iNodes, 4); // replaced with no of NL beziers
-
-    bool ok = !fout->fail();
-    fout->close();
-    delete fout;
-    return ok;
 }
 
 // Fails when a window reached the screen (the filter above should prevent it).
@@ -542,7 +501,7 @@ int batchRunner::runMakeFixtures()
             if(firstError.isEmpty()) firstError = trackError;
             continue;
         }
-        QString saveResult = saver(dir.filePath(fileName), w->project, w).doSave();
+        QString saveResult = w->project->saveProject(dir.filePath(fileName));
         if(saveResult.contains("Error")) {
             return finish(false, QString("saving ") + fileName + ": " + saveResult);
         }
@@ -587,7 +546,7 @@ bool batchRunner::writeState(const QString& dirName, const QString& base, batchS
         files << prefix + ".nl2elem" << prefix + ".tangent.nlelem" << prefix + ".spline.nlelem";
         state.lNames << label + "nl2elem" << label + "tangent.nlelem" << label + "spline.nlelem";
     }
-    QString saveResult = saver(dir.filePath(base + ".fvd"), w->project, w).doSave();
+    QString saveResult = w->project->saveProject(dir.filePath(base + ".fvd"));
     if(saveResult.contains("Error")) {
         error = QString("saving ") + base + ".fvd: " + saveResult;
         return false;
@@ -698,7 +657,7 @@ int batchRunner::runUndoCheck()
     if(!w) {
         return finish(false, QString("could not set up OpenGL"));
     }
-    QString loadResult = saver(projectFile, w->project, w).doLoad();
+    QString loadResult = w->project->loadProject(projectFile);
     if(loadResult.contains("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
     }

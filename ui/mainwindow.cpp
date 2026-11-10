@@ -187,8 +187,7 @@ void MainWindow::loadProject(QString fileName)
 {
     currentFileName.clear();
 
-    saver* gott = new saver(fileName, ui->projectTab, this);
-    QString output = gott->doLoad();
+    QString output = ui->projectTab->loadProject(fileName);
 
     if(output.contains("Warning:") || output.contains("Error:")) {
         QMessageBox mb(this);
@@ -207,7 +206,6 @@ void MainWindow::loadProject(QString fileName)
 
     glView->paintMode = true;
 
-    delete gott;
     this->setWindowTitle(QString("FVD++ - " + currentFileName));
 }
 
@@ -230,8 +228,7 @@ void MainWindow::on_actionLoad_triggered()
 
     currentFileName.clear();
 
-    saver* gott = new saver(fileName, ui->projectTab, this);
-    QString output = gott->doLoad();
+    QString output = ui->projectTab->loadProject(fileName);
 
     if(output.contains("Warning:") || output.contains("Error:")) {
         QMessageBox mb(this);
@@ -250,7 +247,6 @@ void MainWindow::on_actionLoad_triggered()
 
     glView->paintMode = true;
 
-    delete gott;
     this->setWindowTitle(QString("FVD++ - " + currentFileName));
 }
 
@@ -264,12 +260,10 @@ void MainWindow::on_actionSave_triggered()
     if(currentFileName.isEmpty()) {
         on_actionSave_As_triggered();
     }
-    saver* gott = new saver(currentFileName, ui->projectTab, this);
-    QString output = gott->doSave();
+    QString output = ui->projectTab->saveProject(currentFileName);
 
     ui->statusBar->showMessage(output, 5000);
 
-    delete gott;
     this->setWindowTitle(QString("FVD++ - " + currentFileName));
 }
 
@@ -278,9 +272,7 @@ void MainWindow::backupSave()
     if(currentFileName.isEmpty()) {
         return;
     }
-    saver* gott = new saver(QString().append(currentFileName).append(".bak"), ui->projectTab, this);
-    gott->doSave();
-    delete gott;
+    ui->projectTab->saveProject(QString().append(currentFileName).append(".bak"));
     this->setWindowTitle(QString("FVD++ - " + currentFileName));
     showMessage(QString("Executed autosave to ").append(currentFileName).append(".bak"));
 }
@@ -299,12 +291,10 @@ void MainWindow::on_actionSave_As_triggered()
         return;
     }
     currentFileName = fileName;
-    saver* gott = new saver(currentFileName, ui->projectTab, this);
-    QString output = gott->doSave();
+    QString output = ui->projectTab->saveProject(currentFileName);
 
     showMessage(output);
 
-    delete gott;
     this->setWindowTitle(QString("FVD++ - " + currentFileName));
 }
 
