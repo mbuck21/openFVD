@@ -7,19 +7,19 @@
     <x>0</x>
     <y>0</y>
     <width>320</width>
-    <height>284</height>
+    <height>344</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>320</width>
-    <height>284</height>
+    <height>344</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>320</width>
-    <height>284</height>
+    <height>344</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -77,13 +77,50 @@
        </widget>
       </item>
       <item row="2" column="0">
+       <widget class="QLabel" name="trainTypeLabel">
+        <property name="text">
+         <string>Train type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QComboBox" name="trainTypeBox">
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <property name="minimumContentsLength">
+         <number>12</number>
+        </property>
+        <item>
+         <property name="text">
+          <string>Custom</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QLabel" name="trainSourceLabel">
+        <property name="font">
+         <font>
+          <pointsize>7</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
        <widget class="QLabel" name="heartlineLabel">
         <property name="text">
          <string>Heartline Height</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1" colspan="2">
+      <item row="4" column="1" colspan="2">
        <widget class="myQDoubleSpinBox" name="heartlineBox">
         <property name="contextMenuPolicy">
          <enum>Qt::NoContextMenu</enum>
@@ -108,14 +145,14 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="8" column="0">
        <widget class="QLabel" name="colorLabel">
         <property name="text">
          <string>Track Colors</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1" colspan="2">
+      <item row="9" column="1" colspan="2">
        <widget class="QPushButton" name="transitionColorButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -134,7 +171,7 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="1" colspan="2">
+      <item row="8" column="1" colspan="2">
        <widget class="QPushButton" name="defaultColorButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -153,7 +190,7 @@
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="9" column="0">
        <widget class="QPushButton" name="sectionColorButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -172,14 +209,14 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
          <string>Draw ...</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1" colspan="2">
+      <item row="6" column="1" colspan="2">
        <widget class="QComboBox" name="drawBox">
         <item>
          <property name="text">
@@ -198,14 +235,14 @@
         </item>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>Track Style</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1" colspan="2">
+      <item row="5" column="1" colspan="2">
        <widget class="QComboBox" name="styleBox">
         <item>
          <property name="text">
@@ -249,7 +286,7 @@
         </item>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="7" column="1">
        <widget class="QCheckBox" name="wireframeBox">
         <property name="text">
          <string/>
@@ -259,7 +296,7 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>Wireframe</string>

@@ -46,6 +46,8 @@ public slots:
 
     void on_heartlineBox_valueChanged(double arg1);
 
+    void on_trainTypeBox_currentIndexChanged(int index);
+
     void on_defaultColorButton_released();
 
     void ondefaultColor_received();
@@ -70,6 +72,9 @@ private slots:
     void on_buttonBox_rejected();
 
 private:
+    void fillTrainList();
+
+    bool bSettingHeartline; // true while the train list is setting the heartline box
     QColorDialog* colorPicker;
     Ui::TrackProperties *ui;
 };
