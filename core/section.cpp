@@ -19,6 +19,7 @@
 #include "section.h"
 #include "exportfuncs.h"
 #include <cmath>
+#include "fvdmath.h"
 
 #include <QDebug>
 #include "track.h"
@@ -290,9 +291,9 @@ void section::calcDirFromLast(int i)
 
 	glm::vec3 curDirHeart = lNodes[i].vDirHeart(parent->fHeart);
 	glm::vec3 prevDirHeart = lNodes[i-1].vDirHeart(parent->fHeart);
-    float fTrackPitchFromLast = 180.f/F_PI*(asin(curDirHeart.y) - asin(prevDirHeart.y));
+    float fTrackPitchFromLast = 180.f/F_PI*(fvdmath::asin2016(curDirHeart.y) - fvdmath::asin2016(prevDirHeart.y));
     float fTrackYawFromLast = 180.f/F_PI*(glm::atan(-curDirHeart.x, -curDirHeart.z) - glm::atan(-prevDirHeart.x, -prevDirHeart.z));
-    float temp = cos(fabs(asin(curDirHeart.y)));
+    float temp = cos(fabs(fvdmath::asin2016(curDirHeart.y)));
 	lNodes[i].fTrackAngleFromLast = sqrt(temp*temp*fTrackYawFromLast*fTrackYawFromLast + fTrackPitchFromLast * fTrackPitchFromLast);
 	if(lNodes[i].fYawFromLast > 270.f) {
 		lNodes[i].fYawFromLast -= 360.f;

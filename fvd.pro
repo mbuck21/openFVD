@@ -264,3 +264,5 @@ HEADERS += ui/batchrunner.h ui/batchscenarios.h
 HEADERS += core/tracklistener.h
 SOURCES += core/projectfile.cpp core/elementfile.cpp
 HEADERS += core/projectfile.h core/elementfile.h
+SOURCES += core/fvdmath.cpp
+HEADERS += core/fvdmath.h
