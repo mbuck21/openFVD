@@ -25,19 +25,17 @@ The plan and its order are in [`docs/roadmap.md`](docs/roadmap.md); what was ask
 
 - **It builds again.** One command builds the program with a current toolchain (MSYS2 UCRT64: GCC 16, Qt 5.15, glm 1.0, GLEW 2.3). The original pointed at library folders on its author's PC and no longer compiled against current glm. See [`docs/building.md`](docs/building.md).
 - **Nine defects that a current compiler found** in the original code, among them a function in the NoLimits 2 CSV import that returned no value and used a counter before setting it, an export file name that was read after its memory had been released, and several pointers used before they were set. The fixes change no output: the exports are byte for byte the same before and after.
-- **Checked against the 2016 release.** The rebuilt program reproduces the original binary's exports on the test tracks (identical, except one curve handle that moves by under a millimetre). See [`docs/testing.md`](docs/testing.md).
+- **Checked against the 2016 release, and made to match it exactly.** A rebuild with a current toolchain came out a few centimetres different on a project with a negative transition tension, because one maths function now comes from Windows where the 2016 program carried its own. The fork computes it exactly as the 2016 program did. On every project tested, the exports and the re-saved project are identical to the 2016 program's. See [`docs/testing.md`](docs/testing.md).
 
 **Added**
 
 - **A batch mode:** `FVD.exe --batch-export project.fvd outdir` writes the NoLimits 2 and NoLimits 1 exports with no window and no clicking, and `tools/run-baseline.py` compares them with the reference files in one command.
 - **A train catalogue** ([`data/traintypes.json`](data/traintypes.json)): NoLimits 2's train styles and the main models of Mack, Vekoma, B&M, Intamin and RMC, each heartline with its source and how sure it is. Most values are not independently verified and say so.
 - **A "Train type" list in Track Properties** that fills in the heartline height from the catalogue.
-- **The first automated test** (`tests/`), and research notes behind the planned features in [`docs/research/`](docs/research/): heartlines, minimum radii, ride-force limits (ASTM F2291 and EN 13814), NoLimits 2 block logic, and how force vector design could be made faster.
+- **The model runs without a window.** The track model, the physics, the project file and the exporters no longer depend on the program's windows; a small console program built from them alone loads, computes, exports and saves with identical results. Nothing a user sees changes; it is the foundation for the checks and the automation that come next.
+- **A safety net in one command:** eight test projects compared with the 2016 program, an undo and redo round trip, the importers, and automated tests (`tools/run-baseline.py`, `tools/run-tests.cmd`).
+- **Research notes** behind the planned features in [`docs/research/`](docs/research/): heartlines, minimum radii, ride-force limits (ASTM F2291 and EN 13814), NoLimits 2 block logic, how force vector design could be made faster, and parametric elements.
 - **Documentation for working on the code:** a map of the code base, a glossary, how to build and test, and a record of the decisions taken (`CLAUDE.md`, [`docs/`](docs/README.md)).
-
-**In progress**
-
-- Separating the model and the physics from the windows, so the program can load, compute and export without a screen. Nothing a user sees changes; it is the foundation for the checks and the automation.
 
 **Not maintained here**
 
