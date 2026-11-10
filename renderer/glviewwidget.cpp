@@ -1482,7 +1482,7 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 	glm::mat4 anchorBase = glm::translate(myTrack->startPos) * glm::rotate(TO_RAD(myTrack->startYaw-90.f), glm::vec3(0.f, 1.f, 0.f));
 	glm::vec4 curPos;
 
-	float meshQuality;
+	float meshQuality = 2;
 	switch(gloParent->mOptions->meshQuality)
 	{
 	case 0:

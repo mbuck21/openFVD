@@ -629,7 +629,7 @@ void graphWidget::setBezPoints()
         return;
     }
     if(selFunc && selFunc->degree == freeform) {
-        QCPAxis* yAxis;
+        QCPAxis* yAxis = yAxes[0];
         switch(selFunc->parent->type) {
         case funcRoll:
             yAxis = yAxes[0];

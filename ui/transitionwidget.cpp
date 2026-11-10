@@ -307,7 +307,7 @@ void transitionWidget::on_transitionBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
     trackHandler* inTrack = mParent->selTrack;
-    undoAction* temp1;
+    undoAction* temp1 = NULL;
     if(!inTrack->mUndoHandler->busy) {
         temp1 = new undoAction(inTrack, onArg1);
         temp1->fromValue = QVariant(selectedFunc->arg1);

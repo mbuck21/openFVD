@@ -26,6 +26,7 @@ myFramebuffer::myFramebuffer(int _width, int _height, GLuint _format, GLuint _in
     format = _format;
     intFormat = _intFormat;
     clearColor = glm::vec3(1, 1, 1);
+    renderbuffer = 0;
 
     glGenFramebuffers(1, &handle);
     glBindFramebuffer(GL_FRAMEBUFFER, handle);
@@ -44,7 +45,7 @@ myFramebuffer::myFramebuffer(int _width, int _height, GLuint _format, GLuint _in
     GLuint attachments[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, attachments);
 
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    if(width > 0 && height > 0 && glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         printFBStatus();
     }
@@ -56,7 +57,7 @@ myFramebuffer::~myFramebuffer()
 {
     glDeleteFramebuffers(1, &handle);
     delete target;
-    glDeleteRenderbuffers(1, &renderbuffer);
+    if(renderbuffer) glDeleteRenderbuffers(1, &renderbuffer);
 }
 
 void myFramebuffer::resize(int _width, int _height)
@@ -68,14 +69,17 @@ void myFramebuffer::resize(int _width, int _height)
     target->resize(width, height, format, intFormat);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target->getHandle(), 0);
 
-    glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, width, height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, renderbuffer);
+    if(renderbuffer)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, renderbuffer);
+    }
 
     GLuint attachments[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, attachments);
 
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    if(width > 0 && height > 0 && glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         printFBStatus();
     }

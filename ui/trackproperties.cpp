@@ -151,7 +151,7 @@ void TrackProperties::on_buttonBox_accepted()
         float y = temp.y+curTrack->trackData->startPos.y;
         float z = cos(yaw)*temp.x+sin(yaw)*temp.z+curTrack->trackData->startPos.z;
 
-        undoAction *tempx, *tempy, *tempz;
+        undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
         if(!curTrack->mUndoHandler->busy) {
             tempx = new undoAction(curTrack, changeAnchorPosX);
             tempx->fromValue = QVariant(curTrack->trackData->startPos.x);

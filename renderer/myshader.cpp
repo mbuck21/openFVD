@@ -47,8 +47,8 @@ myShader::myShader(const char* _vertex, const char* _fragment)
     glShaderSource(sources[0], 1, &strings[0], 0);
     glShaderSource(sources[1], 1, &strings[1], 0);
 
-    delete v1;
-    delete v2;
+    delete[] v1;
+    delete[] v2;
 
     glCompileShader(sources[0]);
     printGLSLCompileLog(sources[0]);

@@ -71,6 +71,8 @@ int secnlcsv::updateSection(int node)
 
         numNode++;
     }
+
+    return 0;
 }
 
 void secnlcsv::initDistances() {
@@ -92,12 +94,18 @@ mnode secnlcsv::getNodeAtDistance(float distance) {
     int left = 0;
     int right = csvNodes.size() - 1;
     float range;
-    int pos;
+    // Outside the sampled range: the first node, or (below) the last one.
+    int pos = 0;
 
     if(!csvNodes.size()) return mnode();
+    if(distance > csvNodes.last().fTotalLength) return csvNodes.last();
 
     while(distance >= csvNodes.at(left).fTotalLength && distance <= csvNodes.at(right).fTotalLength) {
         range = csvNodes.at(right).fTotalLength - csvNodes.at(left).fTotalLength;
+        if(range <= 0.f) {
+            pos = left;
+            break;
+        }
 
         pos = left + (int)(((double)right - left) * (distance - csvNodes.at(left).fTotalLength) / range);
 

@@ -77,7 +77,7 @@ Because structs and `QColor` are dumped raw, the format is tied to the compiler'
 | Recompute geometry | `track::updateTrack()` in `core/track.cpp` | re-runs `updateSection()` on the changed section from the changed node and on every later section from node 0, re-applies smoothing, then `trackMesh::buildMeshes(fromNode)`. The status bar shows the milliseconds used. |
 | Render | `glViewWidget::paintGL()` in `renderer/glviewwidget.cpp` | shadow passes, floor, sky, then `drawTrack()` per track using `trackMesh` vertex buffers; `curTrackShader` (menu Visualize, Ctrl+1 to Ctrl+6) picks which per-node value the track shader colours: nothing, velocity, roll speed, normal force, lateral force, flexion. `legacyMode` draws with fixed-function GL when no GL 3 context exists. Camera and fly mode: `moveCamera()`, `keyPressEvent()`. |
 | Plot | `graphWidget` (`ui/graphwidget.cpp`) with one `graphHandler` per curve type (`enum graphType` in `ui/graphhandler.h`) | draws the per-node values with QCustomPlot; dragging on the plot edits the active `subfunc`. |
-| Export to NoLimits | `MainWindow::on_actionExportAs_triggered()` opens `exportUi` (`ui/exportui.cpp`); `doFastExport()` for Ctrl+E | type 0 **NoLimits 2** (`.nl2elem`): `track::exportNL2Track()` fits a cubic spline through sampled heartline points and writes text; type 1 **Tangent** (`.nlelem`): `track::exportTrack4()`, then `mnode::exportNode()`, then `writeToExportFile()` in `core/exportfuncs.cpp` (binary NL1 element); type 2 **Spline** (`.nlelem`): `track::exportTrack3()`. `exportTrack()` and `exportTrack2()` are older variants no longer called. The segment length and the RelRoll threshold come from the dialog. |
+| Export to NoLimits | `MainWindow::on_actionExportAs_triggered()` opens `exportUi` (`ui/exportui.cpp`); `doFastExport()` for Ctrl+E | type 0 **NoLimits 2** (`.nl2elem`): `track::exportNL2Track()` fits a cubic spline through sampled heartline points and writes text; type 1 **Tangent** (`.nlelem`): `track::exportTrack4()`, then `mnode::exportNode()`, then `writeToExportFile()` in `core/exportfuncs.cpp` (binary NL1 element); type 2 **Spline** (`.nlelem`): `track::exportTrack3()`. The segment length and the RelRoll threshold come from the dialog. |
 | Export 3D model | `MainWindow::on_actionExport_Model_As_triggered()` opens `objectExporter` (`ui/objectexporter.cpp`) | `trackMesh::build3ds()` then lib3ds writes a `.3ds` file. Experimental. |
 | Import | `projectWidget::importNLTrack()`, `importPointList()`, `importNoLimitsCSV()`, `importFromProject()` (`ui/projectwidget.cpp`) | `noLimitsImporter` (`core/nolimitsimporter.cpp`) reads `.nltrack` or a point-list text file into a `secbezier`; CSV goes to `secnlcsv::loadTrack()`. |
 | Options | `optionsMenu` (`ui/optionsmenu.cpp`) | colours, mesh and shadow quality, field of view, undo depth, GL policy; persisted to `options.cfg` beside the executable. |
@@ -100,10 +100,11 @@ Global state to know about: `MainWindow* gloParent` (defined in `ui/mainwindow.c
 
 ## Known rough edges (not yet fixed)
 
-The defects a current compiler pointed at (a missing return value, mismatched frees, uninitialised values, a dangling file-name pointer in the exporters) are listed in issue #8.
+The defects a current compiler pointed at were fixed for issue #8. What a build still warns about in the project's own files: deprecated Qt 5 calls (`QWheelEvent::delta()`, `qVariantFromValue()`, `QTreeWidgetItem::setBackgroundColor()`), which matter for a Qt 6 port (issue #3), and a few variables that are set and never read.
 
 - Raw-struct file writes, including `QColor` and `bool`, make `.fvd` files compiler- and platform-specific.
 - `core/secbezier.cpp.orig` is a leftover merge file that is not in `fvd.pro`.
 - `ui/mainwindow.h` keeps a set of `#define` type codes (`STR_SEC`, `CUR_SEC`, ...) that duplicate `enum secType` with different numbering.
-- `main.cpp` still logs "FVD++ v0.77" although the release is 0.79.
 - Every GL call assumes GLEW initialised; `exit(4)` on failure.
+- The Tangent exporter's handle length is `radius * tan(angle / 2)` (`mnode::exportNode()`), which blows up as a segment turns toward 180 degrees: in the baseline's tight loop it gives handles of about 8 m on a 2 m segment (`docs/testing.md`).
+- The saved project keeps `"v0.77"` as its format version (`projectWidget::saveProject()`); that is the file format's number, not the program's.
