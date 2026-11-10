@@ -36,6 +36,8 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/research/r3-force-limits.md` | R3: ASTM F2291 and EN 13814 acceleration limits and restraint classes, what can be encoded. | current |
 | `docs/research/r4-nl2-blocks.md` | R4: NoLimits 2 sections, blocks and block scripts; how much compatibility is feasible. | current |
 | `docs/research/r5-fvd-workflow.md` | R5: why an early change knocks on, how other tools work, a ranked shortlist of directions. | current |
+| `docs/research/n1-difference-from-2016-on-an-owner-project.md` | N1: why the rebuild differs from the 2016 binary on one of the owner's projects (the C runtime's `asinhf`), and the two-line remedy for the owner to decide. | current |
+| `samples/investigations/` | Synthetic projects made to test one explanation each (N1); not part of the baseline. | current |
 | `docs/development-workflow.md` | How a session runs a task here. | current |
 | `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-9`) with the architect's notes on what each needs. | current |
 | `docs/roadmap.md` | The stages, the dependencies, what is serial and what runs together. | current |
