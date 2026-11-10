@@ -257,3 +257,7 @@ OTHER_FILES += \
     sky/posx.jpg \
     sky/posy.jpg \
     sky/posz.jpg
+
+# Batch mode for testing (docs/testing.md)
+SOURCES += ui/batchrunner.cpp
+HEADERS += ui/batchrunner.h
