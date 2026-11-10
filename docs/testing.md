@@ -28,7 +28,7 @@ py -3 tools/compare_exports.py samples/baseline/four-sections.2016.spline.nlelem
 py -3 tools/compare_exports.py --tolerance-mm 1 samples/baseline/four-sections.2016.tangent.nlelem my-tangent.nlelem
 ```
 
-Each prints what differs and ends with `MATCH` or `NO MATCH` (exit code 0 or 1).
+Each prints what differs and ends with `MATCH` or `NO MATCH` (exit code 0 or 1). Positions are compared in millimetres and roll in radians (`--tolerance-rad`, default exact). A value that is not a finite number never matches.
 
 ### Expected result
 

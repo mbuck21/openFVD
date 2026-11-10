@@ -21,7 +21,7 @@ Either one runs qmake and make in `build/` and then collects a copy that runs on
 - `build/release/FVD.exe` is the program. It needs `C:\msys64\ucrt64\bin` on the `PATH` to find Qt.
 - `build/dist/FVD.exe` is the same program with every DLL it needs beside it (about 75 MB). Double-click this one.
 
-The first build takes a few minutes (the plot library alone is 25,000 lines). Later builds only recompile what changed. `build/` is ignored by git.
+The first build takes a few minutes (the plot library alone is 25,000 lines). Later builds only recompile what changed; the script never empties `build/`, only `build/dist/`. For a clean rebuild, delete the `build` folder first. `build/` is ignored by git.
 
 By hand, in the MSYS2 UCRT64 shell, the script does this:
 
