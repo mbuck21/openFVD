@@ -22,6 +22,8 @@
 
 #include <QString>
 #include <QStringList>
+#include <QList>
+#include <QByteArray>
 
 class MainWindow;
 class track;
@@ -31,6 +33,8 @@ class track;
 // The full program with its window classes is built, but no window is shown.
 //
 //   FVD.exe --batch-export <project.fvd> <outdir>
+//   FVD.exe --batch-make-fixtures <outdir>
+//   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits]
 //
 // The result is reported in a text file and the exit code (0 or 1), because
 // the program has no console.
@@ -45,7 +49,21 @@ public:
     int run();
 
 private:
+    // the files of one state of a project: three exports per track and the re-saved project
+    struct batchState
+    {
+        QStringList lNames;
+        QList<QByteArray> lData;
+    };
+
     int runExport();
+    int runMakeFixtures();
+    int runUndoCheck();
+
+    bool writeState(const QString& dirName, const QString& base, batchState& state, QString& error);
+    static QStringList differences(const batchState& a, const batchState& b);
+    static void writeFiles(const QString& dirName, const QString& base, const batchState& state, const QStringList& kinds);
+    bool windowsStayedHidden(QString& error);
 
     MainWindow* createHiddenWindow();
     bool exportNL2(track* tTrack, const QString& fileName);

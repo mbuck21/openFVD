@@ -18,6 +18,7 @@
 """Run a build's batch export on every baseline project and compare with the references.
 
     py -3 tools/run-baseline.py [--exe <FVD.exe>] [--extra <dir>] [--record] [--keep <dir>]
+                                [--undo-check] [--fixtures]
 
 For every *.fvd in samples/baseline/ (and in the --extra folder) this runs
     FVD.exe --batch-export <project> <temporary folder>
@@ -31,7 +32,17 @@ compares each file with its reference using tools/compare_exports.py:
                                         from this build (never overwrites)
 
 Tolerances: exact, unless tolerances.json next to the references lists the file.
-Prints MATCH or NO MATCH per file and ends with PASS or FAIL (exit code 0 or 1).
+
+--undo-check  then runs FVD.exe --batch-undo-check on every project in
+              samples/baseline/: scripted edits through the windows, undo all,
+              redo all; each must report OK (the files after undoing equal the
+              files before the edits, byte for byte, and the same after redoing).
+--fixtures    then runs FVD.exe --batch-make-fixtures and compares each generated
+              project with the committed samples/baseline/gen-<name>.fvd, byte
+              for byte. Until the generated projects are committed it says so and
+              does not fail.
+
+Prints one line per comparison and ends with PASS or FAIL (exit code 0 or 1).
 See docs/testing.md.
 """
 import argparse
@@ -55,6 +66,7 @@ import compare_exports  # noqa: E402  (the decoding lives there)
 BASELINE = ROOT / "samples" / "baseline"
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
 TIME_LIMIT_S = 60
+FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
 
 
@@ -166,6 +178,100 @@ def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
         return all_ok
 
 
+def run_batch(exe: Path, args: list, work: Path):
+    """Runs FVD.exe with batch arguments in work. Returns the exit code, or None after the time limit."""
+    try:
+        proc = subprocess.run([str(exe)] + args, cwd=work, timeout=TIME_LIMIT_S,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return proc.returncode
+    except subprocess.TimeoutExpired:
+        return None
+
+
+def report_lines(path: Path) -> list:
+    return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+
+
+def undo_check(exe: Path, project: Path, keep: Optional[Path]) -> bool:
+    """Runs the undo and redo round trip on one project. True when it reports OK."""
+    stem = project.name[:-len(".fvd")]
+    before = file_hash(project)
+    with tempfile.TemporaryDirectory(prefix="fvd-undo-") as tmp:
+        work = Path(tmp)
+        out = work / "out"
+        code = run_batch(exe, ["--batch-undo-check", str(project), str(out)], work)
+        report = out / f"{stem}.undo.batch.txt"
+        if keep is not None and report.is_file():
+            keep.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(report, keep / report.name)
+        if code is None:
+            print(f"UNDO FAIL {project.name}: no result after {TIME_LIMIT_S} s, the program was stopped")
+            return False
+        if file_hash(project) != before:
+            print(f"UNDO FAIL {project.name}: the undo check changed the project file")
+            return False
+        lines = report_lines(report)
+        last = lines[-1] if lines else "no result file"
+        summary = next((line for line in lines if line.startswith("undo action types exercised")), "")
+        summary = summary.split(":")[0].replace("undo action types exercised", "action types exercised")
+        if code != 0 or last != "OK":
+            print(f"UNDO FAIL {project.name}: exit code {code}, {last}")
+            for line in lines:
+                if line.startswith("A2 ") or line.startswith("B2 ") or "FAILED" in line or "not available" in line:
+                    print(f"            {line}")
+            return False
+        a2 = next((line for line in lines if line.startswith("A2 ")), "")
+        b2 = next((line for line in lines if line.startswith("B2 ")), "")
+        print(f"UNDO OK   {project.name}: {a2}; {b2}; {summary}")
+        return True
+
+
+def fixtures_check(exe: Path, keep: Optional[Path]) -> bool:
+    """Regenerates the scripted test projects and compares them with the committed ones."""
+    committed = sorted(BASELINE.glob(f"{FIXTURE_PREFIX}*.fvd"))
+    committed = [p for p in committed if p in projects_in(BASELINE)]
+    with tempfile.TemporaryDirectory(prefix="fvd-fixtures-") as tmp:
+        work = Path(tmp)
+        out = work / "out"
+        code = run_batch(exe, ["--batch-make-fixtures", str(out)], work)
+        report = out / "make-fixtures.batch.txt"
+        if keep is not None and out.is_dir():
+            keep.mkdir(parents=True, exist_ok=True)
+            for produced in out.iterdir():
+                shutil.copy2(produced, keep / produced.name)
+        if code is None:
+            print(f"FIXTURES FAIL: no result after {TIME_LIMIT_S} s, the program was stopped")
+            return False
+        lines = report_lines(report)
+        last = lines[-1] if lines else "no result file"
+        if code != 0 or last != "OK":
+            print(f"FIXTURES FAIL: exit code {code}, {last}")
+            return False
+        generated = sorted(out.glob(f"{FIXTURE_PREFIX}*.fvd"))
+        print(f"generated {len(generated)} projects: {', '.join(p.name for p in generated)}")
+        if not committed:
+            print(f"note      no {FIXTURE_PREFIX}*.fvd is committed in {BASELINE} yet: nothing to compare "
+                  f"(the lead commits them with their 2016 exports)")
+            return True
+        all_ok = True
+        names = {p.name for p in generated}
+        for reference in committed:
+            if reference.name not in names:
+                print(f"NO MATCH  {reference.name}: committed, but this build no longer generates it")
+                all_ok = False
+        for candidate in generated:
+            reference = BASELINE / candidate.name
+            if not reference.is_file():
+                print(f"NO REFERENCE {candidate.name}: generated, but not committed in {BASELINE}")
+                all_ok = False
+                continue
+            ok, details = compare(reference, candidate, {})
+            summary = details[-1] if details else ""
+            print(f"{'MATCH' if ok else 'NO MATCH':9} {candidate.name} against the committed file (exact): {summary}")
+            all_ok = all_ok and ok
+        return all_ok
+
+
 def projects_in(folder: Path):
     return sorted(p for p in folder.glob("*.fvd")
                   if not p.name.endswith(".resaved.fvd") and ".ref." not in p.name and ".2016." not in p.name)
@@ -181,6 +287,10 @@ def main() -> int:
     parser.add_argument("--record", action="store_true",
                         help="with --extra: write the references that do not exist yet from this build")
     parser.add_argument("--keep", type=Path, help="copy the files the build wrote into this folder")
+    parser.add_argument("--undo-check", action="store_true",
+                        help="also run the undo and redo round trip on every project in samples/baseline/")
+    parser.add_argument("--fixtures", action="store_true",
+                        help="also regenerate the scripted test projects and compare them with the committed ones")
     args = parser.parse_args()
 
     exe = args.exe.resolve()
@@ -213,6 +323,15 @@ def main() -> int:
     for project, infix, record, tolerances in runs:
         print(f"--- {project}")
         passed = run_project(exe, project.resolve(), infix, record, tolerances, keep) and passed
+
+    if args.undo_check:
+        print("--- undo and redo round trip (--batch-undo-check)")
+        for project in projects_in(BASELINE):
+            passed = undo_check(exe, project.resolve(), keep) and passed
+
+    if args.fixtures:
+        print("--- scripted test projects (--batch-make-fixtures)")
+        passed = fixtures_check(exe, keep) and passed
 
     print("PASS" if passed else "FAIL")
     return 0 if passed else 1
