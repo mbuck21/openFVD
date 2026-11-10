@@ -186,12 +186,17 @@ void projectWidget::importNLTrack()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-        noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
-        importer->importAsNlTrack();
-        delete importer;
+        importNLTrackFile(fileName);
     }
+}
+
+void projectWidget::importNLTrackFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+    noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
+    importer->importAsNlTrack();
+    delete importer;
 }
 
 void projectWidget::importNoLimitsCSV()
@@ -211,14 +216,19 @@ void projectWidget::importNoLimitsCSV()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-
-        newTrack->trackData->fHeart = 0.0f;
-        newTrack->trackWidgetItem->addSection(nolimitscsv);
-
-        dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+        importNoLimitsCSVFile(fileName);
     }
+}
+
+void projectWidget::importNoLimitsCSVFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+
+    newTrack->trackData->fHeart = 0.0f;
+    newTrack->trackWidgetItem->addSection(nolimitscsv);
+
+    dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
 }
 
 void projectWidget::importPointList()
@@ -238,12 +248,17 @@ void projectWidget::importPointList()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-        noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
-        importer->importAsTxt();
-        delete importer;
+        importPointListFile(fileName);
     }
+}
+
+void projectWidget::importPointListFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+    noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
+    importer->importAsTxt();
+    delete importer;
 }
 
 void projectWidget::appendTracks(QList<trackHandler *> &_list)

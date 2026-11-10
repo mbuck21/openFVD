@@ -26,6 +26,7 @@
 #include <QByteArray>
 
 class MainWindow;
+class QDir;
 class track;
 
 // Runs FVD++ without user interaction for testing (docs/testing.md).
@@ -35,6 +36,7 @@ class track;
 //   FVD.exe --batch-export <project.fvd> <outdir>
 //   FVD.exe --batch-make-fixtures <outdir>
 //   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
+//   FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>
 //
 // The result is reported in a text file and the exit code (0 or 1), because
 // the program has no console.
@@ -59,6 +61,11 @@ private:
     int runExport();
     int runMakeFixtures();
     int runUndoCheck();
+    int runImport();
+
+    bool writeProjectFiles(MainWindow* w, const QDir& dir, const QString& stem, QString& error);
+    static QStringList panelState(MainWindow* w);
+    static bool writeLines(const QString& fileName, const QStringList& lines);
 
     bool writeState(const QString& dirName, const QString& base, batchState& state, QString& error);
     static QStringList differences(const batchState& a, const batchState& b);
