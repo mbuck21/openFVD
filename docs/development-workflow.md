@@ -13,17 +13,14 @@ The owner gives the goal: an issue, a fix, a feature. The session that takes it:
 
 One task per pull request. A finding that does not belong to the task becomes an issue (`claude` or `owner`, with an area label) instead of widening the pull request.
 
-## 2. Until there is a build
+## 2. Where there is no build
 
-No toolchain is installed on the owner's PC (`docs/building.md`). Until the owner chooses one:
+The owner's PC builds the program (`tools\build-windows.cmd`, `docs/building.md`). A GitHub `@claude` run and a cloud session do not: their machines have no Qt toolchain. A C++ change written there starts its pull request with "not compiled" and stays a draft until a session on the PC has built and run it. Reading the code carefully is no substitute: it is C++03 with raw pointers and a 25,000-line vendored plot library.
 
-- Documentation, `fvd.pro`, `.gitignore` and `.github/` changes are the normal work.
-- A C++ change can be written, but its pull request starts with "not compiled" and stays a draft until someone has built and run it. Reading the code carefully is no substitute: the code is C++03 with raw pointers and a 25,000-line vendored plot library, and a 2026 compiler will have opinions.
-- Nothing is verified against the program except by running `bin/win64/FVD.exe`, the 2016 binary.
+## 3. Building and checking a change
 
-## 3. Once there is a build
-
-- Build before and after the change. Open a project saved by the 2016 binary, change something, export, and check the result in NoLimits if the change touches geometry or export. Write what you did in the "Tests" part of the pull request.
+- Build before and after the change. Run the baseline comparison in `docs/testing.md` after it, and paste the last lines of `tools/compare_exports.py` in the "Tests" part of the pull request. Check the result in NoLimits if the change touches geometry or export.
+- Driving the program's window from a session needs screen access, which the owner approves per session. Ask for the FVD++ window only, work on a copy of the program outside the repository, and close it when done.
 - A change to the physics (`core/sec*.cpp`, `core/mnode.cpp`, `core/subfunction.cpp`) or the exporters (`core/track.cpp` export functions, `core/exportfuncs.cpp`) deserves a before/after export of the same project and a diff of the files. Say so and ask for the `review` label.
 - A change to the `.fvd` format (`track::saveTrack()`, any `saveSection()`) needs a version bump and a load test of an old file.
 

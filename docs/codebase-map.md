@@ -10,10 +10,10 @@ FVD++ builds roller-coaster track geometry from the forces the rider should feel
 
 - **`fvd.pro`** is the only build file: qmake, `TEMPLATE = app`, `TARGET = FVD`, Qt modules `core gui widgets printsupport opengl`. There is no CMake file and no test target.
 - **Qt 5.** `fvd.pro` says "tested with 5.4.0"; `readme.txt` says v0.77 moved to Qt 5.2.1. The renderer is written against the Qt 4-era `QGLWidget`, `QGLShaderProgram`, `QGLBuffer` and `QGLFormat` from the `QtOpenGL` module (`renderer/glviewwidget.h`, `renderer/mytexture.cpp`, `main.cpp`). Those classes exist through Qt 5.15 and are gone in Qt 6, so a Qt 6 port means moving to `QOpenGLWidget` and friends.
-- **Libraries outside the tree** (none vendored; the Windows paths in `fvd.pro` are hard-coded to `C:\Development\Libraries\...`):
+- **Libraries outside the tree** (none vendored; on Windows they come from the MSYS2 packages or a machine-local `libs.pri`, see `docs/building.md`; `fvd.pro` defines `GLM_ENABLE_EXPERIMENTAL` and `GLM_FORCE_CTOR_INIT` so current glm behaves like the 0.9.5 the code was written for):
   - **GLEW 1.12.0** (Windows and Linux only; macOS uses the system GL3 headers). `bin/win64/glew32.dll` ships beside the binary.
   - **glm 0.9.5.1** (header-only maths; `lenassert.h` includes `glm/glm.hpp` and `glm/ext.hpp` with `GLM_FORCE_RADIANS`). Upstream issue altlenny/openFVD#5 reports that a current glm no longer compiles `core/track.cpp`.
-  - **lib3ds 20080909** (the 2.0 API, `lib3ds.h`), used only by `ui/objectexporter.cpp` for the experimental `.3ds` export. `bin/osx64.zip` carries `lib3ds-2.0.dylib`.
+  - **lib3ds 20080909** (the 2.0 API, `lib3ds.h`), used only by `ui/objectexporter.cpp` for the experimental `.3ds` export. `bin/osx64.zip` carries `lib3ds-2.0.dylib`. Optional on Windows: compiled in only with `qmake CONFIG+=with3ds` (`FVD_WITH_3DS`).
   - System OpenGL and GLU (`-lOpenGL32 -lGlU32` on Windows).
 - **Vendored in the tree:** `ui/qcustomplot.cpp` and `.h`, QCustomPlot 1.2.1 (25,000 lines, half the repository). Never edit it; treat it as a library.
 - **Resources:** `resources.qrc` embeds the shaders, `metal.png`, `background.png` and the six `sky/*.jpg` faces into the binary; `common::getResource()` in `osx/common.cpp` (built on every platform) resolves files such as `options.cfg` next to the executable.
@@ -56,7 +56,7 @@ Ownership runs project, then track, then section, then node. Everything is owned
 
 ### Saved project file (`.fvd`)
 
-Binary, little-endian, written field by field with the helpers in `core/exportfuncs.cpp` (`writeBytes`, `readInt`, `readFloat`, `readVec3`, ...). Layout, from `projectWidget::saveProject()` and `track::saveTrack()`:
+Binary, written field by field with the helpers in `core/exportfuncs.cpp` (`writeBytes`, `readInt`, `readFloat`, `readVec3`, ...). `writeBytes()` writes each block **back to front**, so numbers are big-endian in the file and a block of several values (a `vec3`, the three `QColor`s, the `"MELE"` tag of an export) appears in reverse order. Layout, from `projectWidget::saveProject()` and `track::saveTrack()`:
 
 1. `"FVD"` then the version string `"v0.77"` (five bytes). `loadProject()` accepts `v0.77` and the legacy `v0.30` (routed to `legacyLoad*` functions).
 2. The ground-texture path: `int` length, then the bytes.
@@ -98,7 +98,9 @@ Global state to know about: `MainWindow* gloParent` (defined in `ui/mainwindow.c
 - **File format:** `track::saveTrack()`/`loadTrack()` and the per-section writers; bump the version string in `projectWidget::saveProject()` and add a branch in `loadProject()` so old files still open.
 - **Build or dependency:** `fvd.pro` only. See `docs/building.md`.
 
-## Known rough edges (from reading, not yet fixed)
+## Known rough edges (not yet fixed)
+
+The defects a current compiler pointed at (a missing return value, mismatched frees, uninitialised values, a dangling file-name pointer in the exporters) are listed in issue #8.
 
 - Raw-struct file writes, including `QColor` and `bool`, make `.fvd` files compiler- and platform-specific.
 - `core/secbezier.cpp.orig` is a leftover merge file that is not in `fvd.pro`.
