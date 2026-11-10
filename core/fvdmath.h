@@ -21,7 +21,11 @@
 #define FVDMATH_H
 
 // Maths functions that must give the same last bit as the 2016 release
-// binary (bin/win64/FVD.exe), whatever C runtime the program is built with.
+// binary (bin/win64/FVD.exe). They do not use the C runtime's float versions,
+// which differ between runtimes; they do use its double-precision log, log1p,
+// sqrt and asin, and were proven against the 2016 machine code on Windows'
+// current runtime only. On another runtime or platform, run tests/fvdmath
+// before trusting them (docs/research/n2-matching-the-2016-maths.md).
 //
 // The 2016 binary linked its float maths statically from the mingw-w64
 // runtime of the time; a current build gets them from the C runtime it runs

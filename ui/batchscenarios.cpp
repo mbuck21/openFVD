@@ -1508,7 +1508,7 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
 }
 
 // ---------------------------------------------------------------------------
-// Undo action types (core/undoaction.h), for the report only
+// Undo action types (ui/undoaction.h), for the report only
 // ---------------------------------------------------------------------------
 
 static const char* ACTION_NAMES[] = {

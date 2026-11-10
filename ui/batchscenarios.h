@@ -157,7 +157,7 @@ namespace batchScenarios
     // true for an edit left out of the default list on this project (KNOWN_BROKEN in the .cpp)
     bool editIsKnownBroken(int i, batchDriver& d, QString& reason, int& type);
 
-    // names of the undo action types (core/undoaction.h), for the coverage list
+    // names of the undo action types (ui/undoaction.h), for the coverage list
     QString actionTypeName(int type);
     int actionTypeCount();
     bool actionTypeHandled(int type);
