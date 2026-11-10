@@ -21,7 +21,9 @@
 #include <QFile>
 #include <QTextStream>
 #include "mainwindow.h"
+#include "batchrunner.h"
 #include "lenassert.h"
+#include <cstdlib>
 
 QApplication* application;
 
@@ -84,6 +86,13 @@ int main(int argc, char *argv[])
     fmt.setSamples(4);
     QGLFormat::setDefaultFormat(fmt);
 #endif
+
+    // FVD.exe --batch-...: run without user interaction (docs/testing.md).
+    // std::exit, because ~MainWindow() would call exit(0) whatever happened.
+    if(batchRunner::isBatchCommand(argc, argv)) {
+        batchRunner runner(argc, argv);
+        std::exit(runner.run());
+    }
 
     MainWindow w;
     w.show();

@@ -71,6 +71,9 @@ public:
 
     void setBackgroundColor(QColor _background);
 
+    // batch mode (ui/batchrunner.cpp): set up OpenGL without showing the window
+    void initializeWithoutShowing();
+
     int curTrackShader;
     bool povMode;
     mnode* povNode;
