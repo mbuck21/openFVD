@@ -7,7 +7,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` (the "Render" flow)
 ## What renderer may depend on
 
 - **Allowed:** `core/` (reads `track`, `section`, `mnode`), Qt (`QGLWidget` and the `QtOpenGL` classes), GLEW, glm.
-- **Reaches into `ui/`:** it includes `mainwindow.h` and `optionsmenu.h` and reads the globals `gloParent` (track list, current track, selected transition, options such as `meshQuality` and `fov`) and `glView` (for `legacyMode`). This is the one folder allowed to do that; `core/` is not (`tools/check-core.py`).
+- **Reaches into `ui/`:** it includes `mainwindow.h`, `optionsmenu.h` and `graphwidget.h`; it tells the plot to redraw when the point of view moves (`gloParent->mGraphWidget->setBezPoints()` and `drawGraph()` in `glviewwidget.cpp`), so a change to `graphWidget` can break the renderer; and it reads the globals `gloParent` (track list, current track, selected transition, options such as `meshQuality` and `fov`) and `glView` (for `legacyMode`). This is the one folder allowed to do that; `core/` is not (`tools/check-core.py`).
 - **Reached by:** `ui/`. `trackHandler` creates the `trackMesh`; `MainWindow` creates the `glViewWidget`; `objectExporter` calls `trackMesh::build3ds()`.
 - **How the model reaches it:** only through `trackHandler::trackGeometryChanged()` (`ui/trackhandler.cpp`), which calls `trackMesh::buildMeshes(fromNode)`. The model does not know about meshes.
 
