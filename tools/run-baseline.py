@@ -19,6 +19,7 @@
 
     py -3 tools/run-baseline.py [--exe <FVD.exe>] [--extra <dir>] [--record] [--keep <dir>]
                                 [--undo-check] [--fixtures] [--imports]
+    py -3 tools/run-baseline.py --core [--core-exe <fvdcore.exe>] [--extra <dir>] [--keep <dir>]
 
 For every *.fvd in samples/baseline/ (and in the --extra folder) this runs
     FVD.exe --batch-export <project> <temporary folder>
@@ -46,6 +47,14 @@ Tolerances: exact, unless tolerances.json next to the references lists the file.
               <stem>.ref.<kind> files there, byte for byte (references recorded
               with a rebuilt program, not the 2016 binary; see the README there).
 
+--core        runs every comparison above with the console program fvdcore
+              (tests/coreonly/, built from core/ alone; tools/run-tests.sh builds it
+              into build/tests/coreonly/) in place of FVD.exe --batch-export:
+                  fvdcore export <project> <temporary folder>
+              It writes the same files, so the same references apply. --core-exe
+              names another fvdcore. It does not combine with --undo-check,
+              --fixtures or --imports, which need the windows.
+
 Prints one line per comparison and ends with PASS or FAIL (exit code 0 or 1).
 See docs/testing.md.
 """
@@ -54,6 +63,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -76,6 +86,7 @@ UNSTABLE_IMPORTS = {
                      "so the exports change from run to run",
 }
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
+CORE_DIR = ROOT / "build" / "tests" / "coreonly"  # where tools/run-tests.sh builds fvdcore
 TIME_LIMIT_S = 60
 FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
@@ -112,8 +123,27 @@ def compare(reference: Path, candidate: Path, tolerance: dict):
     return ok, [line for line in out.getvalue().splitlines() if line.strip()]
 
 
+def default_core_exe() -> Path:
+    """fvdcore as tools/run-tests.sh builds it (in a release folder on Windows)."""
+    for name in ("release/fvdcore.exe", "fvdcore.exe", "release/fvdcore", "fvdcore"):
+        if (CORE_DIR / name).is_file():
+            return CORE_DIR / name
+    return CORE_DIR / "release" / "fvdcore.exe"
+
+
+def core_environment() -> dict:
+    """fvdcore is not deployed with its Qt libraries (build/dist/ is the windowed
+    program's): it finds them on the PATH. Adds the MSYS2 UCRT64 folder, where
+    docs/building.md installs Qt, when a PATH without it was inherited."""
+    env = dict(os.environ)
+    extra = [str(Path(found).parent) for found in [shutil.which("qmake-qt5")] if found]
+    extra.append("C:/msys64/ucrt64/bin")
+    env["PATH"] = os.pathsep.join([folder for folder in extra if Path(folder).is_dir()] + [env.get("PATH", "")])
+    return env
+
+
 def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
-                tolerances: dict, keep: Optional[Path]) -> bool:
+                tolerances: dict, keep: Optional[Path], core: bool = False) -> bool:
     """Batch-exports one project and compares every file it wrote. True when all match."""
     stem = project.name[:-len(".fvd")]
     before = file_hash(project)
@@ -121,8 +151,10 @@ def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
         work = Path(tmp)
         out = work / "out"
         try:
-            proc = subprocess.run([str(exe), "--batch-export", str(project), str(out)],
-                                  cwd=work, timeout=TIME_LIMIT_S,
+            command = [str(exe), "export", str(project), str(out)] if core \
+                else [str(exe), "--batch-export", str(project), str(out)]
+            proc = subprocess.run(command,
+                                  cwd=work, env=core_environment() if core else None, timeout=TIME_LIMIT_S,
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             code = proc.returncode
         except subprocess.TimeoutExpired:
@@ -355,11 +387,28 @@ def main() -> int:
                         help="also regenerate the scripted test projects and compare them with the committed ones")
     parser.add_argument("--imports", action="store_true",
                         help="also import every input in samples/import/ and compare with the references there")
+    parser.add_argument("--core", action="store_true",
+                        help="export with fvdcore (tests/coreonly, core/ alone) instead of FVD.exe --batch-export")
+    parser.add_argument("--core-exe", type=Path,
+                        help="the fvdcore to test (default: where tools/run-tests.sh builds it)")
     args = parser.parse_args()
 
-    exe = args.exe.resolve()
+    if args.core and (args.undo_check or args.fixtures or args.imports):
+        print("--core does not combine with --undo-check, --fixtures or --imports: "
+              "those drive the windows, which fvdcore does not have")
+        print("FAIL")
+        return 1
+    if args.core_exe is not None and not args.core:
+        parser.error("--core-exe only applies together with --core")
+    if args.core:
+        exe = (args.core_exe if args.core_exe is not None else default_core_exe()).resolve()
+    else:
+        exe = args.exe.resolve()
     if not exe.is_file():
-        print(f"{exe} not found: build first (docs/building.md) or give --exe")
+        if args.core:
+            print(f"{exe} not found: build it with tools\\run-tests.cmd or give --core-exe")
+        else:
+            print(f"{exe} not found: build first (docs/building.md) or give --exe")
         print("FAIL")
         return 1
     if args.record and args.extra is None:
@@ -386,7 +435,7 @@ def main() -> int:
     passed = True
     for project, infix, record, tolerances in runs:
         print(f"--- {project}")
-        passed = run_project(exe, project.resolve(), infix, record, tolerances, keep) and passed
+        passed = run_project(exe, project.resolve(), infix, record, tolerances, keep, args.core) and passed
 
     if args.undo_check:
         print("--- undo and redo round trip (--batch-undo-check)")

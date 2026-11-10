@@ -48,19 +48,6 @@ SOURCES += main.cpp\
     ui/undohandler.cpp \
     ui/undoaction.cpp \
     ui/trackhandler.cpp \
-    core/track.cpp \
-    core/subfunction.cpp \
-    core/smoothhandler.cpp \
-    core/section.cpp \
-    core/secstraight.cpp \
-    core/secgeometric.cpp \
-    core/secforced.cpp \
-    core/seccurved.cpp \
-    core/secbezier.cpp \
-    core/nolimitsimporter.cpp \
-    core/mnode.cpp \
-    core/function.cpp \
-    core/exportfuncs.cpp \
     osx/common.cpp \
     renderer/trackmesh.cpp \
     renderer/mytexture.cpp \
@@ -84,25 +71,11 @@ SOURCES += main.cpp\
     ui/graphhandler.cpp \
     ui/exportui.cpp \
     ui/draglabel.cpp \
-    ui/conversionpanel.cpp \
-    core/secnlcsv.cpp
+    ui/conversionpanel.cpp
 
 HEADERS  += ui/undohandler.h \
     ui/undoaction.h \
     ui/trackhandler.h \
-    core/track.h \
-    core/subfunction.h \
-    core/smoothhandler.h \
-    core/section.h \
-    core/secstraight.h \
-    core/secgeometric.h \
-    core/secforced.h \
-    core/seccurved.h \
-    core/secbezier.h \
-    core/nolimitsimporter.h \
-    core/mnode.h \
-    core/function.h \
-    core/exportfuncs.h \
     osx/common.h \
     renderer/trackmesh.h \
     renderer/mytexture.h \
@@ -127,11 +100,8 @@ HEADERS  += ui/undohandler.h \
     ui/exportui.h \
     ui/draglabel.h \
     ui/conversionpanel.h \
-    lenassert.h \
-    core/secnlcsv.h
+    lenassert.h
 
-SOURCES += core/traintype.cpp
-HEADERS += core/traintype.h
 
 FORMS    += ui/transitionwidget.ui \
     ui/trackwidget.ui \
@@ -260,9 +230,6 @@ OTHER_FILES += \
 SOURCES += ui/batchrunner.cpp ui/batchscenarios.cpp
 HEADERS += ui/batchrunner.h ui/batchscenarios.h
 
-# Core separation (docs/decisions/0007)
-HEADERS += core/tracklistener.h
-SOURCES += core/projectfile.cpp core/elementfile.cpp
-HEADERS += core/projectfile.h core/elementfile.h
-SOURCES += core/fvdmath.cpp
-HEADERS += core/fvdmath.h
+# Core separation (docs/decisions/0007): the model builds from this one list,
+# which tests/coreonly/coreonly.pro uses as well.
+include(core/core.pri)

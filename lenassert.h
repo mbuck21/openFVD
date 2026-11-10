@@ -19,7 +19,7 @@
 #    along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <QErrorMessage>
+#include <QtGlobal> // qCritical() for lenAssert; nothing from QtWidgets: core/ builds without it
 #include "assert.h"
 
 #define F_PI (3.141592653589793f)

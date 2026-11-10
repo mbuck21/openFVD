@@ -35,6 +35,7 @@ Options:
 - `--undo-check` then runs the undo and redo check (below) on every project in `samples/baseline/` and requires `OK` from each: one line per project, `UNDO OK` or `UNDO FAIL` with the failing lines of its report.
 - `--fixtures` then regenerates the scripted test projects (below) in a temporary folder and compares each with the committed `samples/baseline/gen-<name>.fvd`, byte for byte. Until those are committed it says so and does not fail.
 - `--imports` then imports every input in `samples/import/` with the batch import (below) and compares the files and the report with the references there, byte for byte. Those references come from a rebuilt program, not the 2016 binary; `samples/import/README.md` says how they were made.
+- `--core` runs every comparison above with the core-only program (next section) in place of `FVD.exe --batch-export`, against the same references; `--core-exe <path>` names another `fvdcore` (default: `build/tests/coreonly/release/fvdcore.exe`, where `tools\run-tests.cmd` leaves it). It cannot be combined with `--undo-check`, `--fixtures` or `--imports`, which need the windows, and says so.
 - `--record` (only with `--extra`) writes the references that do not exist yet from the build being tested; it never overwrites one. Run it once with a build you trust, and every later build is compared with that one:
 
 ```
@@ -139,6 +140,21 @@ Options: `--all-edits` puts the left-out edits back (to check a fix); `--edits 3
 
 **Why the check compares only the end states.** The program recomputes the part of the track after an edit from the edited point onward, so after undoing one edit the recomputed nodes can differ from the ones stored before it in the last digits (seen: 0.001 mm on one tangent handle). Undoing everything ends with the first edit, which recomputes the whole track; that is the state compared. `--each` shows the per-edit differences for anyone chasing a failure.
 
+
+## The core-only program
+
+`tests/coreonly/` builds `fvdcore`, a console program made from `core/` alone (the list of files is `core/core.pri`; no `ui/`, no `renderer/`, no QtWidgets, no OpenGL). It proves that the model does not need the windows, and later stages build the command line and the automation interface on the same footing.
+
+```
+fvdcore export <project.fvd> <outdir>
+fvdcore <repository folder>
+```
+
+`export` does what `FVD.exe --batch-export` does, in the same order, and writes the same files with the same names (the exports, `<project>.resaved.fvd`, `<project>.batch.txt` with the same lines) and the same exit code, except `<project>.loadstate.txt`, which describes the windows. The two programs' files are identical byte for byte, also for a missing, empty, cut-off or wrong file. It writes no `fvd.log` and nothing else beside its output; `--log <file>` keeps Qt's debug output, which is otherwise dropped.
+
+With a repository folder as its only argument (how `tools\run-tests.cmd` runs every test) it exports `samples/baseline/four-sections.fvd` into a temporary folder and compares the Spline export and the re-saved project with the 2016 binary's files, byte for byte. `py -3 tools/run-baseline.py --core` does the full baseline comparison with it.
+
+`py -3 tools/check-core.py` is the quick guard that goes with it: it fails, naming file and line, when a file in `core/` includes a header from `ui/` or `renderer/`, names `gloParent` or `glView`, or includes a QtWidgets or OpenGL header (`lenassert.h` too). `tools\run-tests.cmd` runs it first, then builds and runs the tests.
 
 ## Check a build by hand
 
