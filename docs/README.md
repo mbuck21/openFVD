@@ -33,6 +33,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
 | `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | accepted |
 | `docs/decisions/0003-msys2-toolchain-and-optional-lib3ds.md` | MSYS2 UCRT64 is the Windows build; lib3ds is optional there; the 2016 binary is the reference. | accepted |
+| `docs/decisions/0004-integration-branch-team-and-invoked-review.md` | Multi-piece work runs on an integration branch; sub-agents use Opus, Sonnet or Haiku; sessions invoke the GitHub review by label. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secrets `ANTHROPIC_API_KEY` (first) and `CLAUDE_CODE_OAUTH_TOKEN` (fallback), plus the Claude GitHub App. | current |
