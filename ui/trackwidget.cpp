@@ -595,7 +595,7 @@ void trackWidget::on_rBox_valueChanged(double arg1)
     if(phantomChanges) return;
     inTrack->trackData->anchorNode->setRoll(arg1-inTrack->trackData->anchorNode->fRoll);
 
-    undoAction *tempx, *tempy, *tempz;
+    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
     if(!inTrack->mUndoHandler->busy) {
         tempx = new undoAction(inTrack, changeAnchorPosX);
         tempx->fromValue = QVariant(inTrack->trackData->startPos.x);
@@ -644,7 +644,7 @@ void trackWidget::on_rBox_valueChanged(double arg1)
 void trackWidget::on_pBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    undoAction *tempx, *tempy, *tempz;
+    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
     if(!inTrack->mUndoHandler->busy) {
         tempx = new undoAction(inTrack, changeAnchorPosX);
         tempx->fromValue = QVariant(inTrack->trackData->startPos.x);
@@ -706,7 +706,7 @@ void trackWidget::on_jBox_valueChanged(double arg1)
     }
     if(phantomChanges) return;
 
-    undoAction *tempx, *tempy, *tempz;
+    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
     if(!inTrack->mUndoHandler->busy) {
         tempx = new undoAction(inTrack, changeAnchorPosX);
         tempx->fromValue = QVariant(inTrack->trackData->startPos.x);

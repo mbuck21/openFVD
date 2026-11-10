@@ -7,17 +7,17 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 ## Where the knowledge is
 
 - **The map:** `docs/codebase-map.md` (layout, data model, file format, the flows and their entry functions, where each kind of change lands). Terms: `docs/glossary.md`.
-- **Building:** `docs/building.md`. No toolchain is installed on the owner's PC yet; the choice is an open `owner` issue.
+- **Building:** `docs/building.md` (MSYS2 UCRT64; one command, `tools\build-windows.cmd`). **Testing:** `docs/testing.md`, against the 2016 baseline in `samples/baseline/`.
 - **Status:** `STATUS.md`, rewritten in place, never appended. Deferred ideas: `docs/maybe-later.md`. How a session runs the work: `docs/development-workflow.md`.
 - **Upstream:** altlenny/openFVD, its five issues and the `readme.txt` changelog. The official FVD++ documentation and the NoLimits Exchange forum it pointed to are gone.
 
 ## Rules that do not bend
 
-1. **A C++ change is not done until it compiles and the program was run.** Until a toolchain exists on the owner's PC, a pull request that changes `.cpp`, `.h`, `.ui`, `.pro` or shader files says so at the top of its description, in plain words: "not compiled". Prefer documentation, build-system and GitHub work until then.
+1. **A C++ change is not done until it compiles, the program was run, and the baseline comparison in `docs/testing.md` gives the expected result.** A pull request that changes `.cpp`, `.h`, `.ui`, `.pro` or shader files says at the top what was built and run. One written where no build was possible (a GitHub `@claude` run has no toolchain) says "not compiled" and stays a draft until someone builds it.
 2. **The committed binaries stay out of pull requests** (`bin/win64/FVD.exe`, `bin/win64/glew32.dll`, `bin/osx64.zip`) unless the pull request rebuilt them, says from which commit and with which toolchain, and the owner asked for new binaries. The 2016 Windows binary is the baseline every rebuild is compared against.
 3. **Never edit `ui/qcustomplot.cpp` or `ui/qcustomplot.h`.** They are the vendored QCustomPlot 1.2.1 library. Upgrading it is its own issue.
 4. **The `.fvd` file format changes only with a version bump and a load path for old files** (`projectWidget::saveProject()` / `loadProject()`, `docs/codebase-map.md` "Saved project file"). Projects the owner saved must keep opening.
-5. **Keep the GPL header** on every source file and the license on the repository. New files get the same header with the fork's author line added below the original.
+5. **Keep the GPL header** on every source file and the license on the repository. New source files and scripts (`tools/`) get the same header with the fork's author line added below the original. Documentation, fixtures and configuration files carry no header.
 6. **Nothing the program writes gets committed:** `fvd.log`, `options.cfg`, `*.bak`, build directories. `.gitignore` lists them; add to it rather than committing around it.
 7. **No new dependency without a one-line justification** in the pull request. The three external libraries (GLEW, glm, lib3ds) and Qt 5 are already a burden; see `docs/building.md`.
 
@@ -34,17 +34,20 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 
 ## Build and run
 
-- There is no build on this PC yet. `docs/building.md` holds the toolchain options and will hold the exact commands once one is chosen.
-- The committed `bin/win64/FVD.exe` runs on Windows 11 as-is. Run it from a copy outside the repository, or delete the `fvd.log` and `options.cfg` it writes.
-- There is no test suite. Testing is by hand: open a project, change something, export, and compare with the 2016 binary. Write down what you did in the pull request's "Tests" part. `docs/testing.md` is planned once a build exists.
+- Build: `tools\build-windows.cmd` from a normal terminal (or `tools/build-windows.sh` in the MSYS2 UCRT64 shell). It leaves `build/release/FVD.exe` and a copy that runs on its own in `build/dist/`. Details, versions and the lib3ds switch: `docs/building.md`.
+- Run: `build\dist\FVD.exe`. It writes `fvd.log` where it is started and `options.cfg` beside itself; both are ignored by git.
+- Test: there is no automated suite. `docs/testing.md` says how to export `samples/baseline/four-sections.fvd` and compare with the 2016 binary's files using `tools/compare_exports.py`. Write the tool's last lines in the pull request's "Tests" part.
+- The committed `bin/win64/FVD.exe` is the 2016 release and the reference. Run it from a copy outside the repository.
 
 ## Working with the owner
 
-- Every change reaches `master` by pull request, opened as a **draft** from a branch named `claude/<slug>` (`claude/0001-workflow-and-map`, `claude/fix-export-roll`). Commit subjects in plain words. The **owner merges**; a session never merges its own pull request here.
+- **Nothing reaches `master` except through a pull request the owner merges**, or one the owner tells a session to merge. Branches are named `claude/<slug>`; commit subjects are in plain words.
+- **Work with more than one piece runs on an integration branch** (decision record 0004). The lead session creates `claude/<topic>` from `master` and opens a draft pull request from it into `master` whose description lists every piece of the work and its state. Each piece is a branch of its own, opened as a pull request **into the integration branch**. The lead merges a piece once it is built, checked and reviewed. When every piece is in, the lead runs the baseline comparison on the integration branch, rewrites `STATUS.md`, invokes a final review, and tells the owner, **listing anything the owner must do before merging**.
+- **A single small task** (one fix, a doc correction) may go as one draft pull request straight into `master`.
+- **Reviews are done by `Claude Code Review` on GitHub, not by reviewer sub-agents.** It runs only when the `review` label is added to a pull request, never by itself on a commit. The lead adds the label to each piece that changes code and to the integration pull request at the end; taking the label off and adding it again reviews a later push. Documentation-only pieces need none. Every review comment is answered or fixed before the merge.
+- **Sub-agents and side sessions run on Opus, Sonnet or Haiku, the cheapest that does the piece well:** Haiku for mechanical edits from an exact brief, Sonnet by default, Opus where a mistake would be silent and costly (the physics, the exporters, the file format). `docs/development-workflow.md` has the details.
 - The pull request follows `.github/pull_request_template.md`: what it does, tests, and a "For the owner" part naming the files and what to look at. Say whether the code was compiled and run.
 - Anything that needs the owner's hands (a choice, an install, a check in NoLimits) is an issue labelled `owner`, with exact steps. A follow-up for Claude is an issue labelled `claude` (the "Task for Claude" template: What, Where, Why, Done when). Each gets one area label: `core`, `renderer`, `ui`, `build`, `export` or `docs`.
-- `Claude Code Review` runs only when the owner adds the `review` label to a pull request. Ask for it in the description, with the reason, when the change touches the physics, the exporters or the file format. Never add the label yourself.
 - `@claude` in an issue or pull request comment starts a separate GitHub run (`.github/workflows/claude.yml`). Sessions on the PC do not use it.
-- Both Claude workflows pay with Console API credits first (secret `ANTHROPIC_API_KEY`) and fall back to the owner's subscription (secret `CLAUDE_CODE_OAUTH_TOKEN`) when that step fails (decision record 0002). They also need the Claude GitHub App installed on the repository.
+- Both Claude workflows pay with Console API credits first (secret `ANTHROPIC_API_KEY`) and fall back to the owner's subscription (secret `CLAUDE_CODE_OAUTH_TOKEN`) when that step fails (decision record 0002). They also need the Claude GitHub App installed on the repository. A green run does not say which one paid: open the run and read the two "Run Claude Code" steps.
 - Keep GitHub Actions use light: there is no build or test workflow, and the two Claude workflows run only when asked.
-- Small pull requests, one task each. Open the draft after the first push so another session can pick the work up.

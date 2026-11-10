@@ -1,0 +1,12 @@
+# Copy this file to libs.pri (which git ignores) when GLEW, glm or lib3ds are
+# not on the compiler's default search path. fvd.pro includes libs.pri on
+# Windows if it exists. With the MSYS2 packages from docs/building.md no
+# libs.pri is needed.
+
+# INCLUDEPATH += "C:/libs/glew/include"
+# INCLUDEPATH += "C:/libs/glm"
+# LIBS += -L"C:/libs/glew/lib" -lglew32
+
+# Only with qmake CONFIG+=with3ds (the experimental .3ds model export):
+# INCLUDEPATH += "C:/libs/lib3ds/src"
+# LIBS += -L"C:/libs/lib3ds/lib" -l3ds

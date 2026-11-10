@@ -10,10 +10,10 @@ FVD++ builds roller-coaster track geometry from the forces the rider should feel
 
 - **`fvd.pro`** is the only build file: qmake, `TEMPLATE = app`, `TARGET = FVD`, Qt modules `core gui widgets printsupport opengl`. There is no CMake file and no test target.
 - **Qt 5.** `fvd.pro` says "tested with 5.4.0"; `readme.txt` says v0.77 moved to Qt 5.2.1. The renderer is written against the Qt 4-era `QGLWidget`, `QGLShaderProgram`, `QGLBuffer` and `QGLFormat` from the `QtOpenGL` module (`renderer/glviewwidget.h`, `renderer/mytexture.cpp`, `main.cpp`). Those classes exist through Qt 5.15 and are gone in Qt 6, so a Qt 6 port means moving to `QOpenGLWidget` and friends.
-- **Libraries outside the tree** (none vendored; the Windows paths in `fvd.pro` are hard-coded to `C:\Development\Libraries\...`):
+- **Libraries outside the tree** (none vendored; on Windows they come from the MSYS2 packages or a machine-local `libs.pri`, see `docs/building.md`; `fvd.pro` defines `GLM_ENABLE_EXPERIMENTAL` and `GLM_FORCE_CTOR_INIT` so current glm behaves like the 0.9.5 the code was written for):
   - **GLEW 1.12.0** (Windows and Linux only; macOS uses the system GL3 headers). `bin/win64/glew32.dll` ships beside the binary.
   - **glm 0.9.5.1** (header-only maths; `lenassert.h` includes `glm/glm.hpp` and `glm/ext.hpp` with `GLM_FORCE_RADIANS`). Upstream issue altlenny/openFVD#5 reports that a current glm no longer compiles `core/track.cpp`.
-  - **lib3ds 20080909** (the 2.0 API, `lib3ds.h`), used only by `ui/objectexporter.cpp` for the experimental `.3ds` export. `bin/osx64.zip` carries `lib3ds-2.0.dylib`.
+  - **lib3ds 20080909** (the 2.0 API, `lib3ds.h`), used only by `ui/objectexporter.cpp` for the experimental `.3ds` export. `bin/osx64.zip` carries `lib3ds-2.0.dylib`. Optional on Windows: compiled in only with `qmake CONFIG+=with3ds` (`FVD_WITH_3DS`).
   - System OpenGL and GLU (`-lOpenGL32 -lGlU32` on Windows).
 - **Vendored in the tree:** `ui/qcustomplot.cpp` and `.h`, QCustomPlot 1.2.1 (25,000 lines, half the repository). Never edit it; treat it as a library.
 - **Resources:** `resources.qrc` embeds the shaders, `metal.png`, `background.png` and the six `sky/*.jpg` faces into the binary; `common::getResource()` in `osx/common.cpp` (built on every platform) resolves files such as `options.cfg` next to the executable.
@@ -56,7 +56,7 @@ Ownership runs project, then track, then section, then node. Everything is owned
 
 ### Saved project file (`.fvd`)
 
-Binary, little-endian, written field by field with the helpers in `core/exportfuncs.cpp` (`writeBytes`, `readInt`, `readFloat`, `readVec3`, ...). Layout, from `projectWidget::saveProject()` and `track::saveTrack()`:
+Binary, written field by field with the helpers in `core/exportfuncs.cpp` (`writeBytes`, `readInt`, `readFloat`, `readVec3`, ...). `writeBytes()` writes each block **back to front**, so numbers are big-endian in the file and a block of several values (a `vec3`, the three `QColor`s, the `"MELE"` tag of an export) appears in reverse order. Layout, from `projectWidget::saveProject()` and `track::saveTrack()`:
 
 1. `"FVD"` then the version string `"v0.77"` (five bytes). `loadProject()` accepts `v0.77` and the legacy `v0.30` (routed to `legacyLoad*` functions).
 2. The ground-texture path: `int` length, then the bytes.
@@ -77,7 +77,7 @@ Because structs and `QColor` are dumped raw, the format is tied to the compiler'
 | Recompute geometry | `track::updateTrack()` in `core/track.cpp` | re-runs `updateSection()` on the changed section from the changed node and on every later section from node 0, re-applies smoothing, then `trackMesh::buildMeshes(fromNode)`. The status bar shows the milliseconds used. |
 | Render | `glViewWidget::paintGL()` in `renderer/glviewwidget.cpp` | shadow passes, floor, sky, then `drawTrack()` per track using `trackMesh` vertex buffers; `curTrackShader` (menu Visualize, Ctrl+1 to Ctrl+6) picks which per-node value the track shader colours: nothing, velocity, roll speed, normal force, lateral force, flexion. `legacyMode` draws with fixed-function GL when no GL 3 context exists. Camera and fly mode: `moveCamera()`, `keyPressEvent()`. |
 | Plot | `graphWidget` (`ui/graphwidget.cpp`) with one `graphHandler` per curve type (`enum graphType` in `ui/graphhandler.h`) | draws the per-node values with QCustomPlot; dragging on the plot edits the active `subfunc`. |
-| Export to NoLimits | `MainWindow::on_actionExportAs_triggered()` opens `exportUi` (`ui/exportui.cpp`); `doFastExport()` for Ctrl+E | type 0 **NoLimits 2** (`.nl2elem`): `track::exportNL2Track()` fits a cubic spline through sampled heartline points and writes text; type 1 **Tangent** (`.nlelem`): `track::exportTrack4()`, then `mnode::exportNode()`, then `writeToExportFile()` in `core/exportfuncs.cpp` (binary NL1 element); type 2 **Spline** (`.nlelem`): `track::exportTrack3()`. `exportTrack()` and `exportTrack2()` are older variants no longer called. The segment length and the RelRoll threshold come from the dialog. |
+| Export to NoLimits | `MainWindow::on_actionExportAs_triggered()` opens `exportUi` (`ui/exportui.cpp`); `doFastExport()` for Ctrl+E | type 0 **NoLimits 2** (`.nl2elem`): `track::exportNL2Track()` fits a cubic spline through sampled heartline points and writes text; type 1 **Tangent** (`.nlelem`): `track::exportTrack4()`, then `mnode::exportNode()`, then `writeToExportFile()` in `core/exportfuncs.cpp` (binary NL1 element); type 2 **Spline** (`.nlelem`): `track::exportTrack3()`. The segment length and the RelRoll threshold come from the dialog. |
 | Export 3D model | `MainWindow::on_actionExport_Model_As_triggered()` opens `objectExporter` (`ui/objectexporter.cpp`) | `trackMesh::build3ds()` then lib3ds writes a `.3ds` file. Experimental. |
 | Import | `projectWidget::importNLTrack()`, `importPointList()`, `importNoLimitsCSV()`, `importFromProject()` (`ui/projectwidget.cpp`) | `noLimitsImporter` (`core/nolimitsimporter.cpp`) reads `.nltrack` or a point-list text file into a `secbezier`; CSV goes to `secnlcsv::loadTrack()`. |
 | Options | `optionsMenu` (`ui/optionsmenu.cpp`) | colours, mesh and shadow quality, field of view, undo depth, GL policy; persisted to `options.cfg` beside the executable. |
@@ -98,10 +98,13 @@ Global state to know about: `MainWindow* gloParent` (defined in `ui/mainwindow.c
 - **File format:** `track::saveTrack()`/`loadTrack()` and the per-section writers; bump the version string in `projectWidget::saveProject()` and add a branch in `loadProject()` so old files still open.
 - **Build or dependency:** `fvd.pro` only. See `docs/building.md`.
 
-## Known rough edges (from reading, not yet fixed)
+## Known rough edges (not yet fixed)
+
+The defects a current compiler pointed at were fixed for issue #8. What a build still warns about in the project's own files: deprecated Qt 5 calls (`QWheelEvent::delta()`, `qVariantFromValue()`, `QTreeWidgetItem::setBackgroundColor()`), which matter for a Qt 6 port (issue #3), and a few variables that are set and never read.
 
 - Raw-struct file writes, including `QColor` and `bool`, make `.fvd` files compiler- and platform-specific.
 - `core/secbezier.cpp.orig` is a leftover merge file that is not in `fvd.pro`.
 - `ui/mainwindow.h` keeps a set of `#define` type codes (`STR_SEC`, `CUR_SEC`, ...) that duplicate `enum secType` with different numbering.
-- `main.cpp` still logs "FVD++ v0.77" although the release is 0.79.
 - Every GL call assumes GLEW initialised; `exit(4)` on failure.
+- The Tangent exporter's handle length is `radius * tan(angle / 2)` (`mnode::exportNode()`), which blows up as a segment turns toward 180 degrees: in the baseline's tight loop it gives handles of about 8 m on a 2 m segment (`docs/testing.md`).
+- The saved project keeps `"v0.77"` as its format version (`projectWidget::saveProject()`); that is the file format's number, not the program's.

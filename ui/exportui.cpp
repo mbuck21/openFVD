@@ -101,7 +101,8 @@ void exportUi::doExport()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        this->cFile = fileName.toLocal8Bit().data();
+        QByteArray localFileName = fileName.toLocal8Bit();
+        this->cFile = localFileName.constData();
         fstream* fout = new fstream(this->cFile, ios::out | ios::binary);
 
         if(fout == NULL) {
@@ -150,7 +151,8 @@ void exportUi::doExport2()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        this->cFile = fileName.toLocal8Bit().data();
+        QByteArray localFileName = fileName.toLocal8Bit();
+        this->cFile = localFileName.constData();
         fstream* fout = new fstream(this->cFile, ios::out | ios::binary);
 
         if(fout == NULL) {
@@ -197,7 +199,8 @@ void exportUi::doNL2Export()
     track* tTrack = project->trackList[curTrackIndex]->trackData;
 
     if (!fileName.isEmpty()) {
-        this->cFile = fileName.toLocal8Bit().data();
+        QByteArray localFileName = fileName.toLocal8Bit();
+        this->cFile = localFileName.constData();
         FILE* fout = fopen(cFile, "w");
 
         fprintf(fout, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
