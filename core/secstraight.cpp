@@ -19,7 +19,6 @@
 #include "secstraight.h"
 #include "exportfuncs.h"
 #include "mnode.h"
-#include "optionsmenu.h"
 
 #include <cmath>
 

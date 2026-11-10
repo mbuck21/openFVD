@@ -18,20 +18,16 @@
 
 #include "track.h"
 #include "exportfuncs.h"
-#include "optionsmenu.h"
-#include "mainwindow.h"
 #include "smoothhandler.h"
 #include "trackhandler.h"
-#include "trackmesh.h"
 #include "smoothui.h"
 #include "trackwidget.h"
+#include <QElapsedTimer>
 
 #define RELTHRESH 0.98f
 
 using namespace std;
 
-extern MainWindow* gloParent;
-extern glViewWidget* glView;
 
 track::track()
 {
@@ -54,7 +50,8 @@ track::track(trackHandler* _parent, glm::vec3 startPos, float startYaw, float he
     hasChanged = true;
     drawTrack = true;
     drawHeartline = 0;
-    mOptions = gloParent->mOptions;
+    mListener = NULL;
+    display.bWireframe = false;
     activeSection = NULL;
 
     smoothList.append(new smoothHandler(this, -1));
@@ -91,7 +88,8 @@ void track::removeSection(int index)
         this->lSections.removeAt(index);
         if(lSections.size() != 0) activeSection = lSections.at(index-1);
 
-        mParent->mMesh->buildMeshes(getNumPoints()-50 < 0 ? 0 : getNumPoints()-50);
+        if(mListener != NULL)
+            mListener->trackGeometryChanged(this, getNumPoints()-50 < 0 ? 0 : getNumPoints()-50);
 
         //updateTrack(index-1, lSections[index-1]->lNodes.size()-2);
     }
@@ -250,11 +248,12 @@ void track::updateTrack(int index, int iNode)
 
     nodeAt = nodeAt > getNumPoints(lSections[index])+updateFrom ? getNumPoints(lSections[index])+updateFrom : nodeAt;
 
-    if(mParent->mMesh != NULL)
-        mParent->mMesh->buildMeshes(nodeAt);
+    if(mListener != NULL)
+        mListener->trackGeometryChanged(this, nodeAt);
 
     mSec = timer.nsecsElapsed()/1000000.;
-    gloParent->showMessage(QString::number(mSec).append(QString("ms used to update %1 (%2) points").arg(count2).arg(count)), 3000);
+    if(mListener != NULL)
+        mListener->trackStatusMessage(QString::number(mSec).append(QString("ms used to update %1 (%2) points").arg(count2).arg(count)), 3000);
 
     hasChanged = true;
 }
@@ -651,6 +650,7 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
 
 QString track::saveTrack(fstream& file, trackWidget* _widget)
 {   
+    Q_UNUSED(_widget);
     file << "TRC";
 
     int namelength = name.length();
@@ -659,7 +659,10 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     writeBytes(&file, (const char*)&namelength, sizeof(int));
     file << stdName;
 
-    writeBytes(&file, (const char*)&(_widget->inTrack->trackColors), 3*sizeof(QColor));
+    // The three colours are written as the raw bytes of three QColor objects,
+    // so the project file format depends on the size of QColor (issue 18).
+    Q_STATIC_ASSERT_X(sizeof(QColor) == 16, "the .fvd format stores QColor as 16 raw bytes");
+    writeBytes(&file, (const char*)&(display.colors), 3*sizeof(QColor));
 
     // ANCHOR
     writeBytes(&file, (const char*)&startPos, sizeof(glm::vec3));
@@ -679,7 +682,7 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     writeBytes(&file, (const char*)&drawTrack, sizeof(bool));
     writeBytes(&file, (const char*)&drawHeartline, sizeof(int));
     writeBytes(&file, (const char*)&style, sizeof(int));
-    writeBytes(&file, (const char*)&mParent->mMesh->isWireframe, sizeof(bool));
+    writeBytes(&file, (const char*)&display.bWireframe, sizeof(bool));
 
     writeBytes(&file, (const char*)&povPos.x, sizeof(float));
     writeBytes(&file, (const char*)&povPos.y, sizeof(float));
@@ -711,7 +714,7 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
 
-    readBytes(&file, &_widget->inTrack->trackColors, 3*sizeof(QColor));
+    readBytes(&file, &display.colors, 3*sizeof(QColor));
 
     startPos = readVec3(&file);
     anchorNode->fRoll = readFloat(&file);
@@ -728,7 +731,7 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     drawTrack = readBool(&file);
     drawHeartline = readInt(&file);
     style = (enum trackStyle)readInt(&file);
-    mParent->mMesh->isWireframe = readBool(&file);
+    display.bWireframe = readBool(&file);
 
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
@@ -743,7 +746,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     anchorNode->updateNorm();
 
     string temp;
-    //gloParent->treeInit(this);
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
     {
@@ -754,7 +756,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(straight);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addStraightSec(activeSection);
         }
         else if(temp == "CUR")
         {
@@ -762,7 +763,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(curved);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addCurvedSec(activeSection);
         }
         else if(temp == "GEO")
         {
@@ -770,7 +770,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(geometric);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addGeometricSec(activeSection);
         }
         else if(temp == "FRC")
         {
@@ -778,7 +777,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "BEZ")
         {
@@ -786,7 +784,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "CSV")
         {
@@ -794,7 +791,6 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else
         {
@@ -829,7 +825,7 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
 
-    readBytes(&file, &_widget->inTrack->trackColors, 3*sizeof(QColor));
+    readBytes(&file, &display.colors, 3*sizeof(QColor));
 
     startPos = readVec3(&file);
     anchorNode->fRoll = readFloat(&file);
@@ -846,7 +842,7 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     drawTrack = readBool(&file);
     drawHeartline = readInt(&file);
     style = (enum trackStyle)readInt(&file);
-    mParent->mMesh->isWireframe = readBool(&file);
+    display.bWireframe = readBool(&file);
 
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
@@ -861,7 +857,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     anchorNode->updateNorm();
 
     string temp;
-    //gloParent->treeInit(this);
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
     {
@@ -872,7 +867,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(straight);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addStraightSec(activeSection);
         }
         else if(temp == "CUR")
         {
@@ -880,7 +874,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(curved);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addCurvedSec(activeSection);
         }
         else if(temp == "GEO")
         {
@@ -888,7 +881,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(geometric);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addGeometricSec(activeSection);
         }
         else if(temp == "FRC")
         {
@@ -896,7 +888,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "BEZ")
         {
@@ -904,7 +895,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "CSV")
         {
@@ -912,7 +902,6 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else
         {

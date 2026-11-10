@@ -261,3 +261,6 @@ OTHER_FILES += \
 # Batch mode for testing (docs/testing.md)
 SOURCES += ui/batchrunner.cpp ui/batchscenarios.cpp
 HEADERS += ui/batchrunner.h ui/batchscenarios.h
+
+# Core separation (docs/decisions/0007)
+HEADERS += core/tracklistener.h

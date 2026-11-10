@@ -19,7 +19,8 @@
 #    along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "glviewwidget.h"
+#include "track.h"
+#include "tracklistener.h"
 
 class QTreeWidgetItem;
 class trackWidget;
@@ -27,13 +28,16 @@ class graphWidget;
 class undoHandler;
 class trackMesh;
 
-class trackHandler
+class trackHandler : public trackListener
 {
 public:
-    trackHandler(QString _name, int _id);
+    trackHandler(QString _name, int _id, int _maxUndoChanges);
     ~trackHandler();
     void changeID(int _id);
     int getID();
+
+    void trackGeometryChanged(track* which, int fromNode);
+    void trackStatusMessage(const QString& text, int timeoutMs);
 
 
     track* trackData;
@@ -44,7 +48,6 @@ public:
 
     trackMesh* mMesh;
     undoHandler* mUndoHandler;
-    QColor trackColors[3];
 
 private:
 
