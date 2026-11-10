@@ -1,8 +1,8 @@
 # 0008: Where a C runtime maths function changes the track, compute it as the 2016 binary did
 
-- Status: proposed; needs the owner's yes
+- Status: accepted
 - Date: 2026-11-10
-- Needs owner approval: yes (it changes what the rebuilt program writes for projects with a negative tension; record 0006 makes that the owner's call)
+- Needs owner approval: yes; given on 2026-11-10 in the owner's words, "Yes, match 2016" (it changes what the rebuilt program writes for projects with a negative tension; record 0006 makes that the owner's call)
 
 ## Context
 

@@ -104,6 +104,10 @@ The double calls feed double arithmetic before the result is stored as a float, 
 | `tools\run-tests.cmd` | `PASS` (`fvdmath`, `traintypes`) |
 | Exhaustive comparison with the 2016 machine code | 0 of 2^32 differ, for each function, at both x87 settings |
 
+## A limit the reproduction keeps
+
+Because the square is rounded to single precision first, an input above about 1.8e19 makes the 2016 formula return an invalid number (NaN), where Windows' current library returned a finite one. In `subfunc::applyTension()` that needs a tension below about -44. The tension box of the transition editor is limited to -10 to 10, so it cannot be typed; a hand-edited or imported project with such a tension would get an invalid track from that transition on, exactly as in the 2016 program. If the tension range is ever widened, or loaded values are checked, this is where to look. (Noted by the GitHub review of the change.)
+
 ## Could not establish
 
 - Which mingw-w64 release the 2016 binary used; the formula matches v5.0.0's `asinhf.c`, but nothing here depends on the release.
