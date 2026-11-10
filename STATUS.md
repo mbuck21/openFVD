@@ -4,42 +4,46 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-10, written by the session that set the repository up, on the branch `claude/api-credits-first` (the second pull request; the first, #6, is merged).
+2026-11-10, written by the session that set the repository up and made the first build, on the branch `claude/build-msys2`.
 
 ## Focus
 
-- **Getting the fork workable.** The fork was made on 2026-11-10 from altlenny/openFVD at its last commit (2023-02-06, v0.79). Nothing in the C++ has been changed. The first pull request adds the map, the build notes, the rules and the GitHub workflow (decision record 0001).
-- **No build yet.** The PC has no C++ toolchain, Qt, qmake or CMake. The options with sizes are in `docs/building.md`; the choice is the owner's.
-- **The 2016 Windows binary runs** on this PC (OpenGL 4.6 context, GLEW initialised). It is the baseline for any rebuild.
+- **A sound baseline before any feature.** The owner asked on 2026-11-10 for the bugs fixed and the repository brought to a state worth building on. A list of features (friendlier editing, heartline defaults, a minimum track radius check and more) will follow from the owner.
+- **FVD++ builds on the owner's PC.** MSYS2 UCRT64 with GCC 16.2, Qt 5.15.19, GLEW 2.3.1 and glm 1.0.3; one command, `tools\build-windows.cmd` (decision record 0003, `docs/building.md`).
+- **The new build matches the 2016 release** on a four-section test track: same project file, same Spline and NoLimits 2 exports, Tangent export within 1 mm in one segment (`docs/testing.md`). The reference files are in `samples/baseline/`.
 
 ## Milestone now
 
-**Milestone 1: a reproducible build on the owner's PC.** Done when a session can run `qmake` and `make` here, the result opens a project saved by the 2016 binary and exports the same element, and `docs/building.md` holds the exact commands.
+**Milestone 1, a reproducible build on the owner's PC, is reached** with the pull request from `claude/build-msys2` (it answers #1, #2 and #4).
 
-Steps, as issues:
-- #1: choose the toolchain (`owner`, `build`).
-- #2: make `fvd.pro` build with a 2026 Qt 5.15 and glm: fix the hard-coded library paths and whatever the compiler and upstream issue altlenny/openFVD#5 report (`claude`, `build`).
-- #3: assess the Qt path: stay on Qt 5.15 (the last Qt with `QGLWidget`) or port the renderer to `QOpenGLWidget` for Qt 6 (`claude`, `renderer`).
-- #4: add a sample project and export fixtures so a rebuild can be checked against the 2016 binary (`claude`, `export`).
+**Milestone 2: a clean baseline.** Done when the defects the compiler found are fixed (#8), the baseline comparison still gives the same result, and the owner has opened an export from the new build in NoLimits 2.
+
+Open issues:
+- #8: fix the defects the compiler found (`claude`, `core`). Next up.
+- #3: assess the Qt path, stay on Qt 5.15 or port the renderer to Qt 6 (`claude`, `renderer`). Not urgent: Qt 5.15 builds the code as it is.
 
 ## Waiting on the owner
 
-- The merge of the pull request from `claude/api-credits-first` (decision record 0002).
-- #1: the toolchain choice (`docs/building.md` lists the three options).
-- The `ANTHROPIC_API_KEY` secret in the fork's settings (a Console API key), so the workflows spend API credits first. Until it exists every run falls back to the subscription.
-- #5 can be closed: the subscription secret and the Claude GitHub App are in place.
-- What to change in FVD++ first, once it builds.
+- The merge of the pull request from `claude/build-msys2`. Its "For the owner" part names what to look at; decision record 0003 covers making the `.3ds` model export optional on Windows.
+- A look at the new build: start `build\dist\FVD.exe`, open `samples\baseline\four-sections.fvd`, and import one of its exports into NoLimits 2.
+- The feature list.
+- #5 can be closed: both secrets and the Claude GitHub App are in place.
 
 ## Verified
 
-- 2026-11-10: `@claude` answered a test comment on #5 (the "Claude Code" run of 14:35 UTC succeeded on the subscription token).
-- 2026-11-10: `bin/win64/FVD.exe` starts on the owner's PC and logs an OpenGL 4.6 context (`docs/building.md`).
-- 2026-11-10: the map was written from reading every header in `core/`, `renderer/` and `ui/`, `main.cpp`, `fvd.pro` and the save, load, update and export functions. Nothing was compiled.
+- 2026-11-10: a clean build with `tools\build-windows.cmd` ends with no errors; `build/dist/FVD.exe` starts with only Windows on the `PATH` and opens the baseline project.
+- 2026-11-10: the comparison in `docs/testing.md`, run by driving both programs' windows: project re-saved identically by the 2016 binary and the new build (763 bytes); Spline export byte-identical; NoLimits 2 export equal in all 230 numbers; Tangent export equal in 21 of 22 segments, segment 18's handles within 0.975 mm.
+- 2026-11-10: `@claude` answered a test comment on #5 (on the subscription token; the API key added afterwards has not been seen in a run yet).
+- Not verified: an export from the new build opened in NoLimits; the importers; the `.3ds` export (not compiled in); anything on Linux or macOS.
 
 ## Watch-outs
 
-- **Issues were disabled on the fork** (GitHub's default for forks) and were turned on by the first session so the workflow can use them.
-- **The program writes `fvd.log` and `options.cfg` next to itself.** Both are in `.gitignore`; running `bin/win64/FVD.exe` in place creates them.
-- **`.fvd` files are raw binary** tied to the compiler's struct layout. A rebuilt binary must be checked against files saved by the old one before anyone trusts it.
-- **The GitHub Actions minutes on this account were exhausted until 2026-11-01.** They should be back, but keep the workflows light: no build CI yet (`docs/maybe-later.md`).
-- **`ui/qcustomplot.*` is a vendored library,** half the lines in the repository. Never edit it; grep it only when a plot question needs it.
+- **MSYS2 names the Qt tools `qmake-qt5` and `windeployqt-qt5`.** Plain `qmake` does not exist there.
+- **Run the build through `tools\build-windows.cmd` or the UCRT64 shell.** The script refuses to run in any other MSYS2 environment.
+- **`build/` is ignored by git;** `build/dist/` is about 75 MB of DLLs. Never commit it.
+- **The program writes `fvd.log` where it is started and `options.cfg` next to the executable.** Both are ignored; running `bin/win64/FVD.exe` in place still creates them, so run a copy.
+- **The first start logs ten "framebuffer incomplete" lines.** Harmless (`docs/building.md`, "Known noise"); part of #8.
+- **A new compiler or glm can move results by the last bit.** After `pacman -Syu`, rebuild and rerun the baseline comparison.
+- **`.fvd` files are raw binary written back to front** (`docs/codebase-map.md`, "Saved project file"). The format matched between the 2016 binary (Qt 5.6) and the new build (Qt 5.15) on the test project.
+- **`ui/qcustomplot.*` is a vendored library,** half the lines in the repository. Never edit it. Its 37 warnings in a build are not ours to fix.
+- **Keep GitHub Actions light.** No build workflow (`docs/maybe-later.md`); the two Claude workflows run only when asked.

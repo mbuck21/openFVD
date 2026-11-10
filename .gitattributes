@@ -1,0 +1,8 @@
+# Shell scripts must keep LF line endings or bash cannot run them on Windows.
+*.sh text eol=lf
+*.cmd text eol=crlf
+
+# The baseline files are compared byte for byte; never convert them.
+samples/baseline/*.fvd binary
+samples/baseline/*.nlelem binary
+samples/baseline/*.nl2elem -text

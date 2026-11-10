@@ -1,72 +1,98 @@
 # Building FVD++ on Windows
 
-Checked 2026-11-10 on the owner's PC (Windows 11 Home, x64, NVIDIA RTX 5070 with an OpenGL 4.6 driver, 250 GB free on C:). Nothing has been built yet: the toolchain is not installed. This file records what the project expects, what is here, and the options. The choice is the owner's (issue #1, label `owner`).
+FVD++ builds on the owner's PC since 2026-11-10 with the MSYS2 UCRT64 toolchain (decision record 0003). The result was compared with the 2016 release binary on a sample track; see "What was verified" below and `docs/testing.md`.
 
-## What `fvd.pro` expects
+## Build it
 
-- **qmake and Qt 5** with the `core gui widgets printsupport opengl` modules. The renderer uses the Qt 4-era `QGLWidget` family from the `QtOpenGL` module, which exists up to Qt 5.15 and is removed in Qt 6. So the target is **Qt 5.15.x**, the last Qt 5; the "tested with 5.4.0" in `fvd.pro` and the "5.2.1" in `readme.txt` are older.
-- **A C++ compiler Qt was built with.** The committed `bin/win64/FVD.exe` is a MinGW build (it imports `msvcrt.dll`, not a Visual C++ runtime) with Qt linked statically, so the upstream author used **MinGW-w64**. MSVC should also compile the code, but nobody has tried; the code is C++03-era and has no MSVC-specific parts.
-- **Three libraries outside the tree**, with Windows paths hard-coded in `fvd.pro` under `C:\Development\Libraries\`: GLEW 1.12.0 (`glew32.lib` and `glew32.dll`), glm 0.9.5.1 (headers only), lib3ds 20080909 (built as `lib3ds.dll`). Any build on this PC edits those three `INCLUDEPATH`/`LIBS` lines or sets them from environment variables.
-- OpenGL 3.1 or better at run time for the visualisations; the program falls back to a legacy fixed-function mode below that.
-
-## What is installed here
-
-Checked with `where` and by listing the usual folders:
-
-| Tool | Present |
-|---|---|
-| `qmake`, `qmake6`, Qt under `C:\Qt` | no |
-| `cl` (MSVC), Visual Studio or Build Tools, `vswhere` | no |
-| `g++`, `mingw32-make`, MSYS2 (`C:\msys64`) | no |
-| `cmake`, `ninja`, `nmake` | no |
-| `vcpkg`, Chocolatey, Scoop | no |
-| `winget` | yes |
-| `C:\Development\Libraries` (the path in `fvd.pro`) | no |
-| Python 3.14, git 2.53, `gh` 2.100 | yes |
-
-So no build was attempted. The committed binaries were checked instead.
-
-## Do the committed binaries run?
-
-**Yes.** `bin/win64/FVD.exe` (x64, built 2016-10-19, 19 MB with Qt inside; only `glew32.dll` beside it is needed) starts on this PC and gets a real OpenGL context. Its `fvd.log` after launch:
+From a normal terminal in the repository folder:
 
 ```
-FVD++ v0.77 Logfile
-found OpenGL Context:
-Vendor: NVIDIA Corporation
-Renderer: NVIDIA GeForce RTX 5070/PCIe/SSE2
-Version: 4.6.0 NVIDIA 617.42
-Samples: 1 4
-GLEW initialization successful!
+tools\build-windows.cmd
 ```
 
-It writes `fvd.log` and `options.cfg` into the folder it runs from, so run it from a copy outside the repository or delete those two files before committing (`.gitignore` now lists both). `bin/osx64.zip` is the macOS app bundle and was not tested.
+or, inside the "MSYS2 UCRT64" shell from the Start menu:
 
-That binary is the baseline for any rebuild: a rebuilt FVD++ should open the same `.fvd` files and export the same elements before a change is trusted.
+```
+tools/build-windows.sh
+```
 
-## Options for a toolchain on this PC
+Either one runs qmake and make in `build/` and then collects a copy that runs on its own:
 
-Sizes are approximate, from the installers' own figures. All three give a `qmake` that can read `fvd.pro` unchanged apart from the library paths.
+- `build/release/FVD.exe` is the program. It needs `C:\msys64\ucrt64\bin` on the `PATH` to find Qt.
+- `build/dist/FVD.exe` is the same program with every DLL it needs beside it (about 75 MB). Double-click this one.
 
-1. **MSYS2 with its MinGW-w64 packages (recommended: smallest, matches the upstream build, one command per package).**
-   - `winget install MSYS2.MSYS2` (about 100 MB download, 500 MB installed).
-   - In the MSYS2 UCRT64 shell: `pacman -S mingw-w64-ucrt-x86_64-{gcc,make,qt5-base,glew,glm,lib3ds}` (Qt 5 base is about 60 MB download, 350 MB installed; the rest is small). Total under 2 GB on disk. All three external libraries come as packages, so the hard-coded paths in `fvd.pro` become `-lglew32 -l3ds` and the system include path.
-   - Build: `qmake fvd.pro && mingw32-make -j`. Running the result needs the MinGW Qt DLLs on `PATH` or a `windeployqt` pass.
-   - Caveat: MSYS2's Qt 5 is 5.15.x with the UCRT runtime; the upstream binary used the older `msvcrt`. Fine for a fresh build, but the two are not mixable.
+The first build takes a few minutes (the plot library alone is 25,000 lines). Later builds only recompile what changed. `build/` is ignored by git.
 
-2. **The official Qt Online Installer with Qt 5.15 and its bundled MinGW.**
-   - Needs a free Qt account; download about 1.5 GB for Qt 5.15 MinGW 64-bit plus the MinGW 8.1 tool kit, 3 to 4 GB on disk. Includes Qt Creator, which opens `fvd.pro` directly and is how the upstream author worked.
-   - GLEW, glm and lib3ds still have to be fetched and built by hand (GLEW ships prebuilt for MinGW; lib3ds 20080909 needs a `./configure && make` in MSYS2 or a hand-written qmake project; glm is headers only). Set the three paths in `fvd.pro`.
-   - Best if the owner wants the IDE and the designer for the `.ui` forms.
+By hand, in the MSYS2 UCRT64 shell, the script does this:
 
-3. **Visual Studio 2022 Build Tools with vcpkg.**
-   - `winget install Microsoft.VisualStudio.2022.BuildTools` with the "Desktop development with C++" workload (about 2 GB download, 7 GB on disk), then vcpkg for `qt5-base`, `glew`, `glm`, `lib3ds` (vcpkg builds Qt from source: an hour or more and several GB).
-   - Largest, slowest, and the least like the upstream build; only worth it if an MSVC debugger or a later move to Qt 6 and CMake is the plan.
+```
+mkdir -p build && cd build
+qmake-qt5 ../fvd.pro CONFIG+=release
+mingw32-make -j
+```
 
-Whichever is chosen, the follow-up work is the same: fix the three library paths in `fvd.pro` (or add a `libs.pri` the owner's machine provides), fix whatever a 2026 compiler and glm report (upstream issue altlenny/openFVD#5 says current glm breaks `core/track.cpp`), and compare the result with the 2016 binary on a sample project.
+Note the names: MSYS2 calls the Qt 5 tools `qmake-qt5` and `windeployqt-qt5`.
 
-## When the toolchain is in place
+## The toolchain
 
-Record the exact commands here, replacing this section: the shell to open, the `qmake` invocation, the make command, how to run the result and where `fvd.log` lands. Then update `CLAUDE.md` ("Build and run") and close the toolchain issue.
+Installed on the owner's PC on 2026-11-10:
 
-Not yet decided, and listed in `docs/maybe-later.md`: a GitHub Actions build (it would need the same toolchain on a Windows runner; MSYS2 is the lightest there too).
+| Piece | Version | How |
+|---|---|---|
+| MSYS2 | 2026-09-27 installer, in `C:\msys64` | `winget install MSYS2.MSYS2` |
+| GCC (MinGW-w64, UCRT) | 16.2.0 | `pacman -S mingw-w64-ucrt-x86_64-gcc` |
+| make | 4.4.1 | `mingw-w64-ucrt-x86_64-make` |
+| Qt 5 | 5.15.19 | `mingw-w64-ucrt-x86_64-qt5-base` and `-qt5-tools` |
+| GLEW | 2.3.1 | `mingw-w64-ucrt-x86_64-glew` |
+| glm | 1.0.3 | `mingw-w64-ucrt-x86_64-glm` |
+
+To set up another PC, install MSYS2, open the UCRT64 shell and run:
+
+```
+pacman -Sy
+pacman -S --needed mingw-w64-ucrt-x86_64-{gcc,make,qt5-base,qt5-tools,glew,glm}
+```
+
+To update the toolchain later: `pacman -Syu` in the same shell. Rebuild and rerun the comparison in `docs/testing.md` afterwards, because a new compiler or glm can change results.
+
+## What `fvd.pro` needed
+
+Upstream's `fvd.pro` pointed at `C:\Development\Libraries\...` on the original author's machine. Now:
+
+- On Windows the libraries are expected on the compiler's default search path, which is where the MSYS2 packages put them. A machine that keeps them elsewhere copies `libs.pri.example` to `libs.pri` (ignored by git) and sets the paths there.
+- `DEFINES += GLM_ENABLE_EXPERIMENTAL`: glm 0.9.9 and later only expose the `gtx` functions the code uses (`glm::angle`, `glm::rotateY`, `glm::length2`) with this switch.
+- `DEFINES += GLM_FORCE_CTOR_INIT`: glm 0.9.9 and later leave a default-constructed vector or matrix uninitialised; the glm 0.9.5 this code was written for zeroed them. Without this switch the program would compile and then compute with garbage.
+- With those two switches the C++ compiled without a single error. No source file had to change for the compiler. (Upstream issue altlenny/openFVD#5 reported glm trouble in `core/track.cpp`; these two switches are the likely cure.)
+
+## lib3ds and the `.3ds` model export
+
+The experimental "Export Model" feature writes a `.3ds` file through lib3ds (the 2008 release, API 2.0). MSYS2 has no lib3ds package, so the default Windows build leaves the feature out: the menu item is still there and says that this build was made without lib3ds. Everything else is unaffected. Linux and macOS builds keep it as before.
+
+To build with it, provide lib3ds (header `lib3ds.h` and a library `-l3ds`, through `libs.pri` if they are not on the default path) and run:
+
+```
+tools\build-windows.cmd CONFIG+=with3ds
+```
+
+How to get lib3ds for good (build the 2008 source once, vendor it into the repository, or replace the exporter) is an open question in `docs/maybe-later.md`.
+
+## What was verified (2026-11-10)
+
+- The build finishes with no errors. The warnings in the project's own files are listed in issue #8.
+- `build/dist/FVD.exe` starts with only Windows on the `PATH`, gets an OpenGL 4.6 context and opens `samples/baseline/four-sections.fvd`, a project saved by the 2016 binary.
+- The same project loaded and saved again by the 2016 binary and by the new build gives byte-identical `.fvd` files.
+- The three exports of that project match the 2016 binary's: Spline byte for byte; NoLimits 2 in every one of its 230 numbers (the new C runtime prints `e+00` where the old printed `e+000`); Tangent in 21 of 22 segments, with one segment's control handles differing by under 1 mm. Details and how to repeat it: `docs/testing.md`.
+
+## Known noise
+
+- At start-up `fvd.log` gets ten lines saying "Any of the framebuffer attachment points are framebuffer incomplete." The 3D view has zero width for a moment before the window is laid out; the framebuffers are complete after the first resize. Harmless; listed with the defects to tidy.
+- qmake prints "Failure to find: release/winicon_res.o" on a fresh build folder. It is generated a moment later.
+- The program writes `fvd.log` in the folder it is started from and `options.cfg` next to the executable. Both are ignored by git.
+
+## The committed 2016 binaries
+
+`bin/win64/FVD.exe` (x64, built 2016-10-19 with MinGW and a static Qt 5.6.2; only `glew32.dll` beside it is needed) still runs on Windows 11 and is the reference the new build was compared against. `bin/osx64.zip` is the macOS app bundle and was not tested. Neither is rebuilt or replaced by this work (CLAUDE.md, rule 2).
+
+## Other toolchains
+
+Not used here, kept for reference: the Qt Online Installer with Qt 5.15 and its bundled MinGW gives Qt Creator and the form designer (3 to 4 GB, needs a Qt account, and GLEW and glm fetched by hand); Visual Studio Build Tools with vcpkg is the route if MSVC or a Qt 6 and CMake port ever becomes the plan (about 7 GB and a from-source Qt build). `fvd.pro` should work with both through `libs.pri`, but neither has been tried.

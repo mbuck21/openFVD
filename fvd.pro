@@ -32,6 +32,15 @@ QT       += core gui widgets printsupport opengl
 #CONFIG += exceptions \
 #          rtti
 
+# glm 0.9.9 and later put the gtx headers the code uses (vector_angle,
+# rotate_vector, norm) behind this switch; older glm ignores it.
+DEFINES += GLM_ENABLE_EXPERIMENTAL
+
+# glm 0.9.9 and later leave default-constructed vectors and matrices
+# uninitialised; the glm 0.9.5 this code was written for zeroed vectors and
+# made matrices the identity. This restores that; older glm ignores it.
+DEFINES += GLM_FORCE_CTOR_INIT
+
 TARGET = FVD
 TEMPLATE = app
 
@@ -141,17 +150,26 @@ FORMS    += ui/transitionwidget.ui \
     INCLUDEPATH += "./renderer/"
     INCLUDEPATH += "./core/"
 
-	INCLUDEPATH += "C:\Development\Libraries\glew-1.12.0\include" # path-to-glew/include
-	INCLUDEPATH += "C:\Development\Libraries\glm" #path-to-glm"
-	INCLUDEPATH += "C:\Development\Libraries\lib3ds-20080909\src" #path-to-lib3ds
-
     RC_FILE = winicon.rc
 
-    LIBS += -lOpenGL32
-    LIBS += -lGlU32
-	LIBS += "C:\Development\Libraries\glew-1.12.0\lib\Release\x64\glew32.lib" #path-to-glew\lib\Release\Win32\glew32.lib
-	LIBS += "C:\Development\Libraries\glew-1.12.0\bin\Release\x64\glew32.dll" #path-to-glew\bin\Release\Win32\glew32.dll
-	LIBS += "C:\Development\Libraries\lib3ds-20080909\build-lib3ds-64Bit-Release\release\lib3ds.dll" #path-to-glew\bin\Release\Win32\glew32.dll
+    # Where GLEW, glm and lib3ds come from is a property of the machine, not of
+    # the project. If a libs.pri sits next to this file it is used (see
+    # libs.pri.example); otherwise the libraries are expected on the compiler's
+    # default search path, which is how the MSYS2 MinGW packages install them
+    # (docs/building.md).
+    exists($$PWD/libs.pri) {
+        include($$PWD/libs.pri)
+    } else {
+        LIBS += -lglew32
+        with3ds: LIBS += -l3ds
+    }
+
+    # The experimental .3ds model export needs lib3ds, which MSYS2 does not
+    # package. It is built in only when asked for: qmake CONFIG+=with3ds
+    with3ds: DEFINES += FVD_WITH_3DS
+
+    LIBS += -lopengl32
+    LIBS += -lglu32
 }
 
 unix:!macx {
@@ -166,6 +184,7 @@ unix:!macx {
     LIBS += -lX11
     LIBS += -L /usr/local/lib/
     LIBS += -l3ds
+    DEFINES += FVD_WITH_3DS
 }
 
 macx {
@@ -181,6 +200,7 @@ macx {
     LIBS += -framework Foundation -framework Cocoa
     LIBS += -L /usr/local/lib/
     LIBS += -l3ds
+    DEFINES += FVD_WITH_3DS
 
     QMAKE_CFLAGS_X86_64 += -mmacosx-version-min=10.6
     QMAKE_CXXFLAGS_X86_64 = $$QMAKE_CFLAGS_X86_64

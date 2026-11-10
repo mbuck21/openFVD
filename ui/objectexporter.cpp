@@ -19,7 +19,10 @@
 #include "objectexporter.h"
 #include "ui_objectexporter.h"
 
+#ifdef FVD_WITH_3DS
 #include <lib3ds.h>
+#endif
+#include <QMessageBox>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -71,6 +74,11 @@ bool objectExporter::update()
 // TODO: Build own exporter class
 void objectExporter::on_buttonBox_accepted()
 {
+#ifndef FVD_WITH_3DS
+    // Built without lib3ds (see fvd.pro, CONFIG+=with3ds, and docs/building.md).
+    QMessageBox::information(gloParent, "Export Model",
+                             "This build of FVD++ was made without lib3ds, so the experimental .3ds model export is not available.");
+#else
     QString fileName = QFileDialog::getSaveFileName(gloParent, "Save 3ds Object", ".", "3D Object (*.3ds)", 0, 0);
 
     QList<trackHandler*> trackList = gloParent->getTrackList();
@@ -175,4 +183,5 @@ void objectExporter::on_buttonBox_accepted()
 
     delete indices;
     delete vertices;
+#endif
 }

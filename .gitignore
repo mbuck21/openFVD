@@ -48,3 +48,6 @@ ui_*.h
 qrc_*
 *.o
 .qmake.stash
+
+# Machine-local library paths (see libs.pri.example)
+libs.pri
