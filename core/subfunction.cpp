@@ -23,6 +23,7 @@
 #include "mnode.h"
 
 #include "exportfuncs.h"
+#include "fvdmath.h"
 
 using namespace std;
 
@@ -381,7 +382,7 @@ float subfunc::applyTension(float x)
     else
     {
         x = 2.f*sinh(tensionArg)*(x-0.5f);
-        x = asinh(x)/tensionArg;
+        x = fvdmath::asinh2016(x)/tensionArg;
         x = 0.5f*(x+1.f);
     }
     return x;

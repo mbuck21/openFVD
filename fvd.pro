@@ -264,3 +264,5 @@ HEADERS += ui/batchrunner.h ui/batchscenarios.h
 
 # Core separation (docs/decisions/0007)
 HEADERS += core/tracklistener.h
+SOURCES += core/fvdmath.cpp
+HEADERS += core/fvdmath.h
