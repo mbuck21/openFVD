@@ -47,7 +47,6 @@ smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
 
     m_trackwidget = _track->trackWidgetItem;
     m_track = _track->trackData;
-    m_widget = _track->graphWidgetItem;
 
     ui->smoothUnitTree->setColumnWidth(0, 28);
     ui->smoothUnitTree->setColumnWidth(1, 120);
@@ -76,188 +75,67 @@ smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
 
 smoothUi::~smoothUi()
 {
+    QMap<smoothHandler*, QTreeWidgetItem*>::iterator it;
+    for(it = rows.begin(); it != rows.end(); ++it) {
+        it.key()->mListener = NULL;
+        if(!it.value()->treeWidget()) delete it.value();
+    }
     delete ui;
-}
-
-void smoothUi::applyRollSmooth(int fromNode)
-{
-    m_track->removeSmooth(fromNode);
-
-    m_track->anchorNode->fRollSpeed = 0.0;
-
-    int sec, curNode = fromNode < 0 ? 0 : fromNode;
-    for(sec = 0; sec < m_track->lSections.size(); ++sec) {
-        if(m_track->lSections[sec]->lNodes.size() >= curNode) {
-            break;
-        }
-        curNode -= m_track->lSections[sec]->lNodes.size()-1;
-    }
-
-    for(; sec < m_track->lSections.size(); ++sec) {
-        section* curSection = m_track->lSections[sec];
-        for(int i = curNode; i < curSection->lNodes.size(); ++i) {
-			curSection->lNodes[i].fSmoothSpeed = 0.f;
-        }
-        curNode = 0;
-    }
-
-    for(int i = 0; i < m_track->smoothList.size(); ++i) {
-        smoothHandler* cur = m_track->smoothList[i];
-        if(cur->active == false) continue;
-
-        if(cur->getTo() > fromNode) {
-            applyRollSmoothFilter(cur);
-        }
-    }
-
-    if(active()) {
-        m_track->applySmooth(fromNode);
-    }
-    m_widget->redrawGraphs();
-    m_track->hasChanged = true;
-    return;
-}
-
-void smoothUi::applyRollSmoothFilter(smoothHandler* _handler)
-{
-    const int iter = _handler->getIterations();
-    const int length = _handler->getLength()/iter;
-    const int fromNode = _handler->getFrom();
-    const int toNode = _handler->getTo();
-
-    QVector<double> adjustValues;
-
-    QVector<double> *cur = new QVector<double>();
-    QVector<double> *last = new QVector<double>();
-    QVector<double> orig;
-    QVector<double> *swap;
-
-    mnode* curNode;
-
-    if(toNode - fromNode - length/2*iter < 0) {
-        lenAssert(0 && "Smoothing not possible");
-        return;
-    }
-
-    double lastValue = 0., firstValue = 0.;
-    for(int i = 0; i <= length/2*iter; ++i) {
-        curNode = m_track->getPoint(toNode - i);
-        lastValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
-        curNode =  m_track->getPoint(fromNode + i);
-        firstValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
-    }
-    lastValue /= length/2*iter + 1;
-    firstValue /= length/2*iter + 1;
-
-    for(int i = fromNode; i < toNode; ++i) {
-        if(length == 0) {
-            curNode = m_track->getPoint(i);
-            cur->append(curNode->fRollSpeed + curNode->fSmoothSpeed);
-            last->append(cur->last());
-            orig.append(cur->last());
-            continue;
-        }
-        double t1 = (i - fromNode - length/2.*iter)/(length/2. * iter);
-        double t2 = (toNode - length/2.*iter - i)/(length/2. * iter);
-        if(t1 < 0) t1 = 1.;
-        else t1 = exp(-2*t1*t1);
-        if(t2 < 0) t2 = 1.;
-        else t2 = exp(-2*t2*t2);
-        double t = (1. - t1)*(1. - t2);
-        if(t != t) t = 0.;
-
-        if(t2 > t1) {
-            if(t > t2) { // max = t
-                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
-                    t2 = t2/(t1+t2)*(1.-t);
-                    t1 = t1/(t1+t2)*(1.-t);
-                }
-            } else {   // max = t2
-                if(fabs(t1+t) > std::numeric_limits<double>::epsilon()) {
-                    t = t/(t1+t)*(1.-t2);
-                    t1 = t1/(t1+t)*(1.-t2);
-                }
-            }
-        } else {
-            if(t > t1) { // max = t
-                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
-                    t2 = t2/(t1+t2)*(1.-t);
-                    t1 = t1/(t1+t2)*(1.-t);
-                }
-            } else {   // max = t1
-                if(fabs(t+t2) > std::numeric_limits<double>::epsilon()) {
-                    t = t/(t2+t)*(1.-t1);
-                    t2 = t2/(t2+t)*(1.-t1);
-                }
-            }
-        }
-        if(i < fromNode + length/2 * iter) {
-            cur->append(firstValue);
-        } else if(i > toNode - length/2*iter) {
-            cur->append(lastValue);
-        } else {
-            curNode = m_track->getPoint(i);
-            cur->append(t*(curNode->fRollSpeed + curNode->fSmoothSpeed) + t1*firstValue + t2*lastValue);
-        }
-        last->append(cur->last());
-        orig.append(cur->last());
-    }
-
-    for(int iterations = 0; iterations < iter; ++iterations) {
-        swap = cur;
-        cur = last;
-        last = swap;
-        for(int i = 0; i < cur->size(); ++i) {
-            double temp = 0.0, div = 0.;
-
-            for(int j = -length/2; j <= length/2; ++j) {
-                if(i+j < 0) {
-                    temp += last->at(0);
-                } else if(i+j >= last->size()) {
-                    temp += last->last();
-                } else {
-                    temp += last->at(i+j);
-                }
-                div = length/2 * 2 + 1;
-            }
-            cur->replace(i, temp/div);
-        }
-    }
-
-    for(int i = 0; i < cur->size(); ++i) {
-        adjustValues.append(cur->at(i) - orig[i]);
-    }
-
-    for(int i = 0; i < adjustValues.size(); ++i) {
-        m_track->getPoint(i+fromNode)->fSmoothSpeed += adjustValues[i];
-    }
-
-    delete cur;
-    delete last;
-}
-
-bool smoothUi::active()
-{
-    for(int i = 0; i < m_track->smoothList.size(); ++i) {
-        if(m_track->smoothList[i]->active) return true;
-    }
-    return false;
 }
 
 void smoothUi::on_buttonBox_accepted()
 {
-    applyRollSmooth();
+    m_track->applyRollSmooth();
 }
 
 void smoothUi::updateUi()
 {
     customChar = 'a';
     for(int i = 0; i < m_track->smoothList.size(); ++i) {
-        m_track->smoothList[i]->update(&customChar);
-        if(!m_track->smoothList[i]->treeItem->parent()) {
-            ui->smoothUnitTree->insertTopLevelItem(i, m_track->smoothList[i]->treeItem);
+        smoothHandler* cur = m_track->smoothList[i];
+        cur->update(&customChar);
+        QTreeWidgetItem* row = rowFor(cur);
+        if(!row) {
+            row = new QTreeWidgetItem();
+            if(cur->sec == NULL) row->setFlags(row->flags() | Qt::ItemIsEditable);
+            showFields(cur, row, smoothHandler::fieldLabel | smoothHandler::fieldName | smoothHandler::fieldFrom | smoothHandler::fieldTo
+                       | smoothHandler::fieldLength | smoothHandler::fieldIterations | smoothHandler::fieldActive);
+            rows.insert(cur, row);
+            cur->mListener = this;
+        }
+        if(!row->parent()) {
+            ui->smoothUnitTree->insertTopLevelItem(i, row);
         }
     }
+}
+
+QTreeWidgetItem* smoothUi::rowFor(smoothHandler* _handler)
+{
+    return rows.value(_handler, NULL);
+}
+
+// Writes the entry's values into its row, for the columns in fields.
+void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fields)
+{
+    if(fields & smoothHandler::fieldLabel) row->setText(0, _handler->sLabel);
+    if(fields & smoothHandler::fieldName) row->setText(1, _handler->sName);
+    if(fields & smoothHandler::fieldFrom) row->setText(2, QString::number(_handler->getFrom()/1000.).append("s"));
+    if(fields & smoothHandler::fieldTo) row->setText(3, QString::number(_handler->getTo()/1000.).append("s"));
+    if(fields & smoothHandler::fieldLength) row->setText(4, QString::number(_handler->getLength()/1000.).append("s"));
+    if(fields & smoothHandler::fieldIterations) row->setText(5, QString::number(_handler->getIterations()));
+    if(fields & smoothHandler::fieldActive) row->setCheckState(6, _handler->active ? Qt::Checked : Qt::Unchecked);
+}
+
+void smoothUi::smoothHandlerChanged(smoothHandler* which, int fields)
+{
+    QTreeWidgetItem* row = rowFor(which);
+    if(row) showFields(which, row, fields);
+}
+
+void smoothUi::smoothHandlerDeleted(smoothHandler* which)
+{
+    delete rowFor(which);
+    rows.remove(which);
 }
 
 void smoothUi::on_smoothUnitTree_itemSelectionChanged()
@@ -275,7 +153,7 @@ void smoothUi::on_smoothUnitTree_itemSelectionChanged()
     QTreeWidgetItem* selected = ui->smoothUnitTree->selectedItems().at(0);
     int i;
     for(i = 0; i < m_track->smoothList.size(); ++i) {
-        if(m_track->smoothList[i]->treeItem == selected) break;
+        if(rowFor(m_track->smoothList[i]) == selected) break;
     }
     curHandler = m_track->smoothList[i];
     if(m_track->smoothList[i]->sec != NULL) {
@@ -359,13 +237,24 @@ void smoothUi::on_toBox_valueChanged(double arg1)
 
 void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
 {
+    if(column == 1) {
+        // The entry keeps the name the row shows (it is saved with the project),
+        // so a name typed into the list is stored at once, as the row did.
+        for(int i = 0; i < m_track->smoothList.size(); ++i) {
+            if(rowFor(m_track->smoothList[i]) == item) {
+                m_track->smoothList[i]->sName = item->text(1);
+                break;
+            }
+        }
+    }
+
     if(phantomChanges) return;
     phantomChanges = true;
 
     if(column == 6) {
         int i;
         for(i = 0; i < m_track->smoothList.size(); ++i) {
-            if(m_track->smoothList[i]->treeItem == item) break;
+            if(rowFor(m_track->smoothList[i]) == item) break;
         }
         m_track->smoothList[i]->active = (item->checkState(6) == Qt::Checked);
     }
@@ -397,9 +286,9 @@ void smoothUi::generateWarnings()
         if(m_track->smoothList[i]->active) {
             smoothHandler* cur = m_track->smoothList[i];
             if(cur->getFrom() > cur->getTo()) {
-                str.append(QString("Warning: Smoothing item \"").append(cur->treeItem->text(1)).append("\" (").append(cur->treeItem->text(0)).append(") ").append("is set to begin before it ends.\n"));
+                str.append(QString("Warning: Smoothing item \"").append(cur->sName).append("\" (").append(cur->sLabel).append(") ").append("is set to begin before it ends.\n"));
             } else if(2.f*cur->getLength() > cur->getTo() - cur->getFrom()) {
-                str.append(QString("Warning: Smoothing item \"").append(cur->treeItem->text(1)).append("\" (").append(cur->treeItem->text(0)).append(") ").append("might be too short for its current filter length.\n"));
+                str.append(QString("Warning: Smoothing item \"").append(cur->sName).append("\" (").append(cur->sLabel).append(") ").append("might be too short for its current filter length.\n"));
             }
         }
     }

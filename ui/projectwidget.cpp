@@ -418,11 +418,11 @@ QString projectWidget::loadProject(std::fstream& file)
                     trackWidget* _widget = trackList[i]->trackWidgetItem;
                     if(!_widget->smoothScreen) {
                         _widget->smoothScreen = new smoothUi(trackList[i], gloParent);
-                        trackList[i]->trackData->smoother = _widget->smoothScreen;
+                        trackList[i]->trackData->bAutoSmooth = true;
                     }
 
                     _widget->smoothScreen->updateUi();
-                    _widget->smoothScreen->applyRollSmooth();
+                    trackList[i]->trackData->applyRollSmooth();
                 }
                 trackList[i]->listItem->setText(1, trackList[i]->trackData->name);
                 trackList[i]->mUndoHandler->clearActions();

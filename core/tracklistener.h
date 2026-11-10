@@ -37,6 +37,9 @@ public:
 
     // A short status text, to be shown for timeoutMs milliseconds.
     virtual void trackStatusMessage(const QString& text, int timeoutMs) = 0;
+
+    // Roll smoothing was just applied (the graphs show the smoothed values).
+    virtual void trackSmoothingApplied(track* which) = 0;
 };
 
 #endif // TRACKLISTENER_H

@@ -88,7 +88,7 @@ trackWidget::trackWidget(QWidget *parent, trackHandler* _track) :
     ui->yawChangeLabel->setText(QString("d%1/dt").arg(QChar(0x03a8)));
 
     smoothScreen = NULL;
-    inTrack->trackData->smoother = smoothScreen;
+    inTrack->trackData->bAutoSmooth = smoothScreen != NULL;
 
     //connect(this, SIGNAL(done()), this, SLOT(update()));
 
@@ -1175,7 +1175,7 @@ void trackWidget::on_smoothButton_released()
 {
     if(!smoothScreen) {
         smoothScreen = new smoothUi(inTrack, gloParent);
-        inTrack->trackData->smoother = smoothScreen;
+        inTrack->trackData->bAutoSmooth = true;
     }
 
     smoothScreen->updateUi();

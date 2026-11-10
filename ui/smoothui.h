@@ -20,19 +20,21 @@
 */
 
 #include <QDialog>
+#include <QMap>
 
 #include "track.h"
 #include "trackhandler.h"
 #include "graphwidget.h"
+#include "smoothhandler.h"
 
 class trackWidget;
-class smoothHandler;
+class QTreeWidgetItem;
 
 namespace Ui {
 class smoothUi;
 }
 
-class smoothUi : public QDialog
+class smoothUi : public QDialog, public smoothHandlerListener
 {
     Q_OBJECT
     
@@ -40,10 +42,10 @@ public:
     explicit smoothUi(trackHandler* _track, QWidget *parent = 0);
     ~smoothUi();
 
-    void applyRollSmooth(int fromNode = 0);
-    bool active();
-
     void updateUi();
+
+    void smoothHandlerChanged(smoothHandler* which, int fields);
+    void smoothHandlerDeleted(smoothHandler* which);
 
     char customChar;
 
@@ -68,15 +70,18 @@ private slots:
     void on_removeButton_released();
 
 private:
-    void applyRollSmoothFilter(smoothHandler* _handler);
+    QTreeWidgetItem* rowFor(smoothHandler* _handler);
+    void showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fields);
 
     void generateWarnings();
 
     Ui::smoothUi *ui;
 
     track* m_track;
-    graphWidget* m_widget;
     trackWidget* m_trackwidget;
+
+    // One list row per smoothing entry, made when the list first shows the entry.
+    QMap<smoothHandler*, QTreeWidgetItem*> rows;
 
     bool phantomChanges;
     smoothHandler* curHandler;

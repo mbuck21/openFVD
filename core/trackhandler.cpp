@@ -89,3 +89,9 @@ void trackHandler::trackStatusMessage(const QString& text, int timeoutMs)
 {
     gloParent->showMessage(text, timeoutMs);
 }
+
+void trackHandler::trackSmoothingApplied(track* which)
+{
+    Q_UNUSED(which);
+    graphWidgetItem->redrawGraphs();
+}

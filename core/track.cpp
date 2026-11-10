@@ -20,9 +20,11 @@
 #include "exportfuncs.h"
 #include "smoothhandler.h"
 #include "trackhandler.h"
-#include "smoothui.h"
 #include "trackwidget.h"
 #include <QElapsedTimer>
+#include <QVector>
+#include <limits>
+#include <cmath>
 
 #define RELTHRESH 0.98f
 
@@ -51,6 +53,7 @@ track::track(trackHandler* _parent, glm::vec3 startPos, float startYaw, float he
     drawTrack = true;
     drawHeartline = 0;
     mListener = NULL;
+    bAutoSmooth = false;
     display.bWireframe = false;
     activeSection = NULL;
 
@@ -191,6 +194,174 @@ void track::applySmooth(int fromNode)
     }
 }
 
+// Moved unchanged from the smoothing dialog's code; only m_track-> became this->
+// and the graph redraw goes through the listener.
+void track::applyRollSmooth(int fromNode)
+{
+    this->removeSmooth(fromNode);
+
+    this->anchorNode->fRollSpeed = 0.0;
+
+    int sec, curNode = fromNode < 0 ? 0 : fromNode;
+    for(sec = 0; sec < this->lSections.size(); ++sec) {
+        if(this->lSections[sec]->lNodes.size() >= curNode) {
+            break;
+        }
+        curNode -= this->lSections[sec]->lNodes.size()-1;
+    }
+
+    for(; sec < this->lSections.size(); ++sec) {
+        section* curSection = this->lSections[sec];
+        for(int i = curNode; i < curSection->lNodes.size(); ++i) {
+			curSection->lNodes[i].fSmoothSpeed = 0.f;
+        }
+        curNode = 0;
+    }
+
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        smoothHandler* cur = this->smoothList[i];
+        if(cur->active == false) continue;
+
+        if(cur->getTo() > fromNode) {
+            applyRollSmoothFilter(cur);
+        }
+    }
+
+    if(smoothingActive()) {
+        this->applySmooth(fromNode);
+    }
+    if(mListener != NULL)
+        mListener->trackSmoothingApplied(this);
+    this->hasChanged = true;
+    return;
+}
+
+void track::applyRollSmoothFilter(smoothHandler* _handler)
+{
+    const int iter = _handler->getIterations();
+    const int length = _handler->getLength()/iter;
+    const int fromNode = _handler->getFrom();
+    const int toNode = _handler->getTo();
+
+    QVector<double> adjustValues;
+
+    QVector<double> *cur = new QVector<double>();
+    QVector<double> *last = new QVector<double>();
+    QVector<double> orig;
+    QVector<double> *swap;
+
+    mnode* curNode;
+
+    if(toNode - fromNode - length/2*iter < 0) {
+        lenAssert(0 && "Smoothing not possible");
+        return;
+    }
+
+    double lastValue = 0., firstValue = 0.;
+    for(int i = 0; i <= length/2*iter; ++i) {
+        curNode = this->getPoint(toNode - i);
+        lastValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
+        curNode =  this->getPoint(fromNode + i);
+        firstValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
+    }
+    lastValue /= length/2*iter + 1;
+    firstValue /= length/2*iter + 1;
+
+    for(int i = fromNode; i < toNode; ++i) {
+        if(length == 0) {
+            curNode = this->getPoint(i);
+            cur->append(curNode->fRollSpeed + curNode->fSmoothSpeed);
+            last->append(cur->last());
+            orig.append(cur->last());
+            continue;
+        }
+        double t1 = (i - fromNode - length/2.*iter)/(length/2. * iter);
+        double t2 = (toNode - length/2.*iter - i)/(length/2. * iter);
+        if(t1 < 0) t1 = 1.;
+        else t1 = exp(-2*t1*t1);
+        if(t2 < 0) t2 = 1.;
+        else t2 = exp(-2*t2*t2);
+        double t = (1. - t1)*(1. - t2);
+        if(t != t) t = 0.;
+
+        if(t2 > t1) {
+            if(t > t2) { // max = t
+                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
+                    t2 = t2/(t1+t2)*(1.-t);
+                    t1 = t1/(t1+t2)*(1.-t);
+                }
+            } else {   // max = t2
+                if(fabs(t1+t) > std::numeric_limits<double>::epsilon()) {
+                    t = t/(t1+t)*(1.-t2);
+                    t1 = t1/(t1+t)*(1.-t2);
+                }
+            }
+        } else {
+            if(t > t1) { // max = t
+                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
+                    t2 = t2/(t1+t2)*(1.-t);
+                    t1 = t1/(t1+t2)*(1.-t);
+                }
+            } else {   // max = t1
+                if(fabs(t+t2) > std::numeric_limits<double>::epsilon()) {
+                    t = t/(t2+t)*(1.-t1);
+                    t2 = t2/(t2+t)*(1.-t1);
+                }
+            }
+        }
+        if(i < fromNode + length/2 * iter) {
+            cur->append(firstValue);
+        } else if(i > toNode - length/2*iter) {
+            cur->append(lastValue);
+        } else {
+            curNode = this->getPoint(i);
+            cur->append(t*(curNode->fRollSpeed + curNode->fSmoothSpeed) + t1*firstValue + t2*lastValue);
+        }
+        last->append(cur->last());
+        orig.append(cur->last());
+    }
+
+    for(int iterations = 0; iterations < iter; ++iterations) {
+        swap = cur;
+        cur = last;
+        last = swap;
+        for(int i = 0; i < cur->size(); ++i) {
+            double temp = 0.0, div = 0.;
+
+            for(int j = -length/2; j <= length/2; ++j) {
+                if(i+j < 0) {
+                    temp += last->at(0);
+                } else if(i+j >= last->size()) {
+                    temp += last->last();
+                } else {
+                    temp += last->at(i+j);
+                }
+                div = length/2 * 2 + 1;
+            }
+            cur->replace(i, temp/div);
+        }
+    }
+
+    for(int i = 0; i < cur->size(); ++i) {
+        adjustValues.append(cur->at(i) - orig[i]);
+    }
+
+    for(int i = 0; i < adjustValues.size(); ++i) {
+        this->getPoint(i+fromNode)->fSmoothSpeed += adjustValues[i];
+    }
+
+    delete cur;
+    delete last;
+}
+
+bool track::smoothingActive()
+{
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        if(this->smoothList[i]->active) return true;
+    }
+    return false;
+}
+
 void track::updateTrack(int index, int iNode)
 {
     //qDebug("called updateTrack(%d, %d)", index, iNode);
@@ -241,7 +412,7 @@ void track::updateTrack(int index, int iNode)
         lSections.at(i)->updateSection(0);
     }
 
-    if(useSmoothing && smoother && smoother->active()) smoother->applyRollSmooth(nodeAt);
+    if(useSmoothing && bAutoSmooth && smoothingActive()) applyRollSmooth(nodeAt);
 
     unsigned int count = getNumPoints() - nodeAt;
     unsigned int count2 = getNumPoints() - iNode - getNumPoints(lSections[index]);
