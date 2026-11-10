@@ -16,6 +16,7 @@ tools\run-tests.cmd
 
 | Folder | Checks |
 |---|---|
+| `fvdmath/` | `core/fvdmath.*`: `asinh2016` and `asin2016` give the 2016 binary's exact result on 364 pinned arguments, most of them chosen where that result differs from the correctly rounded one or from the C runtime's. |
 | `traintypes/` | `data/traintypes.json` and its loader `core/traintype.*`: the 38 seeded heartlines match the owner's table, ids are unique, values are in range, and three broken files are rejected with a message. |
 
 ## Add one

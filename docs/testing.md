@@ -12,7 +12,7 @@ There is no unit-test suite. FVD++ is a GUI program whose model code calls into 
 | `four-sections.2016.nl2elem` | NoLimits 2 Exporter output. |
 | `four-sections.2016.tangent.nlelem` | Tangent Exporter output. |
 | `four-sections.2016.spline.nlelem` | Spline Exporter output. |
-| `tolerances.json` | The one file allowed to differ a little, how much, and why. |
+| `tolerances.json` | Files allowed to differ a little, how much, and why. Empty since 2026-11-10: every reference must match exactly. |
 
 `samples/baseline/README.md` says exactly how the project was made and which export settings were used.
 
@@ -49,14 +49,16 @@ Measured on 2026-11-10 with the first MSYS2 build (GCC 16.2, Qt 5.15.19, glm 1.0
 
 - **NoLimits 2:** MATCH with no tolerance. All 230 numbers are equal. The text is not byte-identical, because a current C runtime prints exponents with two digits (`e+00`) and the 2016 binary printed three (`e+000`); the tool compares numbers.
 - **Spline:** MATCH with no tolerance; the file is byte-identical.
-- **Tangent:** 21 of 22 segments identical. In segment 18 the two control handles (`Kp1`, `Kp2`) differ by up to 0.975 mm; the end point `P1` is identical. That segment sits in the tight loop of the geometric section, where the exporter computes the handle length as `radius * tan(angle / 2)` with the angle near 180 degrees (`mnode::exportNode()` in `core/mnode.cpp`). The tangent is close to its pole there, so the last bit of a `float` moves the result by a millimetre on a handle about 8 m long. Hence the 1 mm tolerance for this file in `tolerances.json`.
+- **Tangent:** MATCH with no tolerance, all 22 segments identical. Until 2026-11-10 segment 18's two control handles (`Kp1`, `Kp2`) differed by up to 0.975 mm and `tolerances.json` allowed 1 mm for this file. The cause was not the tangent near its pole, as first thought, but `asinf` in `section::calcDirFromLast()`: the C runtime's `asinf` rounds some results differently from the 2016 binary's, and in the tight loop of the geometric section the exporter's handle length `radius * tan(angle / 2)` (`mnode::exportNode()`), with the angle near 180 degrees, turns that last bit into a millimetre. Since `core/fvdmath.cpp` computes `asin` as the 2016 binary did, the file matches exactly and the tolerance is gone (`docs/research/n2-matching-the-2016-maths.md`).
 - **Re-saved project:** 763 bytes (see "Check the project format").
 
 A difference outside that list means the build or the change under test altered the geometry. If the change was meant to (a physics fix, an exporter fix), say so in the pull request, show the script's output, and replace nothing in `samples/baseline/`: add a new, dated set beside it instead, because the 2016 files are the fixed point. Never loosen a tolerance to make a run pass.
 
+The other seven projects (the five generated ones below and the two negative-tension projects `n1-tension-force-chain` and `n1-tension-loop`, `samples/baseline/README.md`) also match exactly, all four files each.
+
 ### Tolerances
 
-`samples/baseline/tolerances.json` lists, by reference file name, the files that may differ a little. Every other file must match exactly. An entry looks like this:
+`samples/baseline/tolerances.json` lists, by reference file name, the files that may differ a little. Every other file must match exactly. Since 2026-11-10 it lists none. An entry would look like this:
 
 ```
 "four-sections.2016.tangent.nlelem": { "tolerance_mm": 1.0, "reason": "..." }
@@ -140,7 +142,7 @@ The fallback when the batch export itself is in doubt, and the way to produce re
 ```
 py -3 tools/compare_exports.py samples/baseline/four-sections.2016.nl2elem my.nl2elem
 py -3 tools/compare_exports.py samples/baseline/four-sections.2016.spline.nlelem my-spline.nlelem
-py -3 tools/compare_exports.py --tolerance-mm 1 samples/baseline/four-sections.2016.tangent.nlelem my-tangent.nlelem
+py -3 tools/compare_exports.py samples/baseline/four-sections.2016.tangent.nlelem my-tangent.nlelem
 ```
 
 Each prints what differs and ends with `MATCH` or `NO MATCH` (exit code 0 or 1). Positions are compared in millimetres and roll in radians (`--tolerance-rad`, default exact). A value that is not a finite number never matches. The expected result is the same as above.

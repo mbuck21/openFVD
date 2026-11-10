@@ -43,3 +43,14 @@ Two things to know when making references by hand again:
 
 - With more than one track in a project, the export dialog does not start on "all sections": "Export To Section" came up one short of the last section. Set it to the last section for each track. The batch mode always exports all sections.
 - The dialog keeps the exporter type, track and sections from the last export while the program runs.
+
+## The negative-tension projects (`n1-*.fvd`), added 2026-11-10
+
+Two synthetic projects from the N1 investigation (`docs/research/n1-difference-from-2016-on-an-owner-project.md`), copied unchanged from `samples/investigations/`: each is a baseline project with a few numbers changed so that a transition has a **negative tension**, which makes the program call `asinh` on a `float`. They test that the rebuilt program computes that function exactly as the 2016 binary did (`core/fvdmath.cpp`, `docs/research/n2-matching-the-2016-maths.md`). Neither contains anything from the owner's own projects.
+
+| File | Made from | What it shows |
+|---|---|---|
+| `n1-tension-force-chain.fvd` | `gen-normal-shapes.fvd`, one transition of the first force section changed to -2.5 g with tension -1.4 | Two force sections in a row: the second starts from the force the first measured at its end, so a last-bit difference shows up as a fraction of a millimetre. |
+| `n1-tension-loop.fvd` | `four-sections.fvd`, the force section's transition given tension -1.2 | The geometric section inherits the pitch and yaw rates at the top of a tight loop, so a last-bit difference shows up as metres. |
+
+Their references were exported with the 2016 binary on 2026-11-10, the same way as the generated projects (File, Load; File, Export As once per Exporter Type with the dialog's defaults; File, Save As), and named like the others: `n1-<name>.2016.nl2elem`, `.2016.tangent.nlelem`, `.2016.spline.nlelem`, `.2016.resaved.fvd`. The rebuilt program matched them exactly from the change that added `core/fvdmath.cpp`; before it, the loop project differed in all three exports and the re-saved file, and the force-chain project in one segment of the Tangent export.
