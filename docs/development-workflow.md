@@ -34,7 +34,7 @@ The owner's instruction of 2026-11-10 (decision record 0004).
 1. The lead creates `claude/<topic>` from `master`, pushes it, and opens a **draft pull request into `master`**. Its description is the plan: one checklist line per piece of work, with the piece's pull request number once it has one. Keep it current; it is where the owner looks.
 2. Each piece gets its own branch from the integration branch, `claude/<slug>`, and its own pull request **into the integration branch** (`gh pr create --base claude/<topic>`). Git cannot hold a branch named `claude/<topic>/<piece>` beside `claude/<topic>`, so pieces are named side by side.
 3. A piece is ready when it builds, the baseline comparison in `docs/testing.md` gives the expected result, and its review is answered. The lead then merges it into the integration branch with a merge commit.
-4. When every piece is in: build the integration branch, run the baseline comparison once more, rewrite `STATUS.md`, fill in the "Tests" and "For the owner" parts of the integration pull request, add the `review` label for a final review, answer or fix its comments, and mark the pull request ready.
+4. When every piece is in: build the integration branch, run the baseline comparison once more (or show that the code is file for file the commit that was compared), rewrite `STATUS.md` as a commit on the integration branch, fill in the "Tests" and "For the owner" parts of the integration pull request, add the `review` label for a final review, answer or fix its comments, and mark the pull request ready.
 5. Tell the owner it is ready and **list what the owner must do before merging** (a check in NoLimits, a decision, a secret), or say there is nothing. The owner merges into `master`, or tells the session to.
 
 **Reviews.** `Claude Code Review` on GitHub does them; do not spend a sub-agent on reviewing. It runs when the `review` label is added and at no other time:
@@ -43,7 +43,7 @@ The owner's instruction of 2026-11-10 (decision record 0004).
 gh pr edit <number> --add-label review
 ```
 
-To review a later push, take the label off and add it again. Add it to every piece that changes code and to the integration pull request at the end; a documentation-only piece does not need one. Read the comments it posts, reproduce a finding before fixing it, and answer each one on the pull request. The runner has no Qt toolchain, so the reviewer reads the code but cannot build it.
+The review skips a draft pull request and posts nothing, so mark the pull request ready first (`gh pr ready <number>`). To review a later push, take the label off and add it again. Add it to every piece that changes code and to the integration pull request at the end; a documentation-only piece does not need one. Read the comments it posts, reproduce a finding before fixing it, and answer each one on the pull request. The runner has no Qt toolchain, so the reviewer reads the code but cannot build it.
 
 **The team.** Sub-agents and side sessions run on Opus, Sonnet or Haiku. Pick the cheapest that does the piece well:
 
