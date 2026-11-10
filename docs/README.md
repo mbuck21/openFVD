@@ -51,6 +51,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0006-architect-and-customer.md` | The lead session is the architect and decides how things are built; the owner is the customer and decides what and in what order. | accepted |
 | `docs/decisions/0007-stage-1-batch-mode-first-and-the-nine-seams.md` | Stage 1 starts with a no-click batch mode; the core is separated from the windows through nine seams; train data is JSON. | accepted |
 | `docs/decisions/0008-float-maths-reproduces-the-2016-runtime.md` | Where a C runtime maths function changes the track, the program computes it exactly as the 2016 binary did (`core/fvdmath.*`); today `asinh` and `asin`. | accepted |
+| `docs/decisions/0009-undo-stays-window-code-until-the-command-list.md` | Undo moves to `ui/` unchanged in Stage 1; every edit becomes a core function and a command in Stage 2 (T1), where the undo defects are fixed. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |
