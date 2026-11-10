@@ -34,7 +34,7 @@ FVD++ builds roller-coaster track geometry from the forces the rider should feel
 | `tests/` | Automated tests, one folder each, QtCore-only console programs (`tests/README.md`). | |
 | `tools/` | The build script, the test runner, `compare_exports.py` and `run-baseline.py` (`docs/testing.md`). | |
 | `bin/` | Committed release binaries: `win64/FVD.exe` (static Qt, MinGW, built 2016-10-19, runs on Windows 11 as-is) and `osx64.zip`. See `docs/building.md`. | |
-| Root | `main.cpp` (entry, logging, loads a `.fvd` given on the command line; a first argument starting with `--batch-` hands over to `batchRunner` in `ui/batchrunner.cpp`, which works without showing a window), `lenassert.h` (constants and the `lenAssert` macro, included everywhere), `fvd.pro`, `resources.qrc`, icons and textures. | |
+| Root | `main.cpp` (entry, logging, loads a `.fvd` given on the command line; a first argument starting with `--batch-` hands over to `batchRunner` in `ui/batchrunner.cpp`, which works without showing a window; its scripted test scenarios and the undo round trip are in `ui/batchscenarios.cpp`), `lenassert.h` (constants and the `lenAssert` macro, included everywhere), `fvd.pro`, `resources.qrc`, icons and textures. | |
 
 ## Data model
 

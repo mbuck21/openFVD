@@ -22,3 +22,24 @@ File, Export As, with the dialog's defaults: track 1, from section 1 to section 
 | `four-sections.2016.nl2elem` | NoLimits2 Exporter |
 | `four-sections.2016.tangent.nlelem` | Tangent Exporter |
 | `four-sections.2016.spline.nlelem` | Spline Exporter |
+
+## The generated projects (`gen-*.fvd`), added 2026-11-10
+
+Five more projects, built by the program itself with `FVD.exe --batch-make-fixtures` (the scenarios in `ui/batchscenarios.cpp`, which drive the same windows a person uses; `docs/testing.md` has the table of what each covers). Between them: all four section types, every transition shape the editor offers with its variants, time and distance arguments, both orientations, fixed and physics speed, a hanging heartline, friction and resistance, a moved and turned anchor, smoothing on one section and on a whole track, and a project with two tracks.
+
+Their references were made the same day with the 2016 binary, driven on screen: each project opened with File, Load; exported with File, Export As once per Exporter Type (segment length 2.00 m, RelRoll threshold 85, without heartlining off, from the first to the last section); then saved with File, Save As.
+
+| File | What |
+|---|---|
+| `gen-<name>.fvd` | The project as the generator wrote it. `tools/run-baseline.py --fixtures` checks that the generator still writes exactly this. |
+| `gen-<name>.2016.nl2elem`, `.2016.tangent.nlelem`, `.2016.spline.nlelem` | The 2016 binary's exports. |
+| `gen-<name>.2016.resaved.fvd` | The project as the 2016 binary saved it again. |
+| `gen-two-tracks.2016.track2.*` | The exports of that project's second track. |
+| `four-sections.2016.resaved.fvd` | The first project as the 2016 binary saved it again (763 bytes). |
+
+On 2026-11-10 the rebuilt program matched every one of these files exactly, with no tolerance.
+
+Two things to know when making references by hand again:
+
+- With more than one track in a project, the export dialog does not start on "all sections": "Export To Section" came up one short of the last section. Set it to the last section for each track. The batch mode always exports all sections.
+- The dialog keeps the exporter type, track and sections from the last export while the program runs.
