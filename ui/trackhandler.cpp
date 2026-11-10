@@ -30,7 +30,7 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
 {
     id = _id;
     mMesh = NULL;
-    this->trackData = new track(this, glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
+    this->trackData = new track(glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
     trackData->mListener = this;
     trackData->name = _name;
     this->listItem = new QTreeWidgetItem(id);

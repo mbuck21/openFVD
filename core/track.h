@@ -33,7 +33,6 @@
 #include "tracklistener.h"
 
 class smoothHandler;
-class trackHandler;
 
 enum trackStyle {
     generic = 0,        // 0,5m
@@ -58,7 +57,7 @@ class track
 {
 public:
     track();
-    track(trackHandler* _parent ,glm::vec3 startPos, float startYaw, float heartLine = 0.0);
+    track(glm::vec3 startPos, float startYaw, float heartLine = 0.0);
     ~track();
     void removeSection(int index);
     void removeSection(section* fromSection);
@@ -117,7 +116,6 @@ public:
 
     QList<smoothHandler*> smoothList;
 
-    trackHandler* mParent;
     trackListener* mListener;   // told when the geometry changes; may be NULL
 
     trackDisplay display;

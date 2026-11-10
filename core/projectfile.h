@@ -68,7 +68,8 @@ public:
 // mark. Returns "Project Saved!". The client may be NULL.
 QString writeProject(std::fstream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client);
 
-// Reads a project into new tracks obtained from the client. Returns
+// Reads a project into new tracks obtained from the client, which must not be
+// NULL here (it is the only source of tracks). Returns
 // "Load Successfull.", a text starting "Warning: " or a text starting "Error".
 QString readProject(std::fstream& file, projectFileClient* client);
 
