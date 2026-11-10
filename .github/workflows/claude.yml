@@ -4,12 +4,10 @@ name: Claude Code
 # review, or opens an issue with @claude in it. Sessions on the owner's PC do
 # not use this; it is for asking a question or a small change from GitHub.
 #
-# Credentials (decision record 0002): the first step pays with Claude Console
-# API credits (repository secret ANTHROPIC_API_KEY). If that step fails for
-# any reason, including the credits running out or the secret not existing,
-# the second step runs the same request on the owner's Claude subscription
-# (repository secret CLAUDE_CODE_OAUTH_TOKEN). Both steps need the Claude
-# GitHub App installed on this repository (https://github.com/apps/claude).
+# Paid by the owner's Claude subscription (repository secret
+# CLAUDE_CODE_OAUTH_TOKEN; decision record 0005). Needs the Claude GitHub App
+# installed on this repository (https://github.com/apps/claude). The model is
+# the action's default for a subscription, Sonnet 5.5 when this was written.
 
 on:
   issue_comment:
@@ -43,18 +41,8 @@ jobs:
 
       # The runner has no Qt or C++ toolchain, so a run here can read,
       # explain and edit, but not build. See docs/building.md.
-      - name: Run Claude Code (API credits)
-        id: claude-api
-        continue-on-error: true
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          additional_permissions: |
-            actions: read
-
-      - name: Run Claude Code (subscription fallback)
+      - name: Run Claude Code
         id: claude
-        if: steps.claude-api.outcome == 'failure'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

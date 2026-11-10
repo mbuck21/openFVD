@@ -1,14 +1,19 @@
 name: Claude Code Review
 
-# Manual mode (decision record 0001): the review runs only when a person adds
-# the `review` label to a pull request. A session asks for it in the pull
-# request description when the change touches the physics, the exporters or
-# the .fvd format; the owner agrees by adding the label. Remove the label and
-# add it again to review a later push. Nothing runs when a pull request is
-# opened, pushed to, reopened or marked ready.
+# Invoked, never automatic (decision records 0001 and 0004): the review runs
+# only when the `review` label is added to a pull request. The lead session
+# adds it to each piece that changes code and to an integration pull request
+# at the end. Take the label off and add it again to review a later push.
+# Nothing runs when a pull request is opened, pushed to, reopened or marked
+# ready.
 #
-# Credentials (decision record 0002): API credits first (ANTHROPIC_API_KEY),
-# the owner's subscription (CLAUDE_CODE_OAUTH_TOKEN) if that step fails.
+# Paid by the owner's Claude subscription (repository secret
+# CLAUDE_CODE_OAUTH_TOKEN; decision record 0005). Needs the Claude GitHub App
+# installed on this repository (https://github.com/apps/claude).
+#
+# The prompt below is written for this codebase. Change it here; the review
+# of a pull request that edits this file may refuse to run, because the action
+# checks that the workflow matches the copy on the default branch.
 on:
   pull_request:
     types: [labeled]
@@ -32,32 +37,85 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code Review (API credits)
-        id: claude-review-api
-        continue-on-error: true
-        uses: anthropics/claude-code-action@v1
-        # Keeps the reviewer's helper sub-agents in the foreground so the run
-        # does not end before they answer (learned on HSA_Shoebox).
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
-          show_full_output: true
-
-      - name: Run Claude Code Review (subscription fallback)
+      - name: Run Claude Code Review
         id: claude-review
-        if: steps.claude-review-api.outcome == 'failure'
         uses: anthropics/claude-code-action@v1
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+          # Print the reviewer's own words in the job log. Pull requests here
+          # hold code and docs only.
           show_full_output: true
+          # Opus for the review: a mistake in the physics, the exporters or
+          # the file format is silent and costly (decision record 0004).
+          claude_args: |
+            --model claude-opus-5-5
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a pull request on FVD++ (openFVD), a C++ and Qt 5 program that designs
+            roller-coaster track from the forces the rider should feel and exports it to NoLimits.
+            Someone asked for this review on purpose by adding the `review` label, so review the pull
+            request whether or not it is marked as a draft.
+
+            Before judging the change, read CLAUDE.md (the repository's rules) and the parts of
+            docs/codebase-map.md that cover the files the pull request touches; docs/glossary.md
+            explains the terms. The pull request's branch is checked out in the working directory.
+            Get the description with `gh pr view` and the change with `gh pr diff`.
+
+            How to review
+
+            - Read the whole diff, every file. For each changed function, open the file and read the
+              code around the change. When a change alters what a function returns, stores or expects,
+              read its callers too. A diff hunk alone is not enough in this code: state is shared
+              through raw pointers and two globals (gloParent, glView), and one section's last node is
+              the next section's first.
+            - This runner has no Qt or C++ toolchain, so nothing can be compiled or run here. Say that
+              once in the summary and do not guess at build results. The author's "Tests" part says
+              what was built and compared on the owner's PC; check that it is plausible for this
+              change and say what it leaves uncovered.
+
+            What to look for, most important first
+
+            1. Anything that changes what the program computes: the integration in core/sec*.cpp,
+               core/mnode.cpp, core/subfunction.cpp and core/function.cpp; the exporters in
+               core/track.cpp and core/exportfuncs.cpp. Watch units (degrees in node fields and the UI,
+               radians in glm), the 1/F_HZ time step, and heartline against spine positions. When the
+               description says the output is unchanged, look for anything that could change it.
+            2. The saved project format: any change to saveTrack, loadTrack or the save and load
+               functions of sections, functions and smoothing. Field order, field sizes, the version
+               string, and whether files saved before the change still load (CLAUDE.md, rule 4).
+            3. Memory and lifetime: new and delete pairs, pointers into temporaries such as
+               toLocal8Bit().data(), members and locals read before being set, indexes into lNodes and
+               lSections that can run off the end, division by zero and NaN spreading through a track.
+            4. Qt wiring: a slot named on_<objectName>_<signal> must match a widget in the .ui form; a
+               new editable value needs its undoAction; programmatic updates of spin boxes must not
+               fire the edit slots (the phantomChanges flags).
+            5. The repository's rules: ui/qcustomplot.* untouched; nothing under bin/ unless the
+               description says the binaries were rebuilt on purpose; no fvd.log, options.cfg or build
+               output committed; the GPL header on new source files and scripts; a new dependency
+               justified in the description.
+            6. Documentation the change makes wrong: docs/codebase-map.md, docs/building.md,
+               docs/testing.md, STATUS.md.
+
+            Do not spend comments on formatting, naming style, deprecated-Qt warnings, or problems
+            that were already in code the pull request does not touch. If one of those is serious,
+            mention it once in the summary.
+
+            Reporting
+
+            - Check a suspected bug by reading the code path before you report it. Give the file, the
+              line, what goes wrong and with which input. If you are not sure, say so and say what
+              would settle it. A wrong finding costs the owner more than a missed style point.
+            - Post each specific finding as an inline comment on the line concerned, with
+              mcp__github_inline_comment__create_inline_comment and confirmed set to true.
+            - Then post exactly one summary with `gh pr comment`. Put the verdict in the first
+              sentence: blocking problems, points worth a look, or nothing found. List the findings
+              from most to least serious. Then list the files you read in full and the files you only
+              skimmed or did not open, so the reader knows what the review covers, and what could not
+              be checked without a build.
+            - Write in plain words. The owner is a mechanical engineer and coaster enthusiast, not a
+              professional developer.
+            - Do not push commits, edit files or change labels. Deliver the review only as GitHub
+              comments, not as your final message.

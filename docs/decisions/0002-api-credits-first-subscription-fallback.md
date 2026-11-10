@@ -1,6 +1,6 @@
 # 0002: The GitHub workflows pay with API credits first, the subscription second
 
-- Status: accepted
+- Status: superseded by 0005 (2026-11-10): the promotional credits do not cover Claude Code
 - Date: 2026-11-10
 - Needs owner approval: yes (the owner's request of 2026-11-10; given by merging the pull request that carries this record)
 
