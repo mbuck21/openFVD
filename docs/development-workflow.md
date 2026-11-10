@@ -43,7 +43,7 @@ The owner's instruction of 2026-11-10 (decision record 0004).
 gh pr edit <number> --add-label review
 ```
 
-The review skips a draft pull request and posts nothing, so mark the pull request ready first (`gh pr ready <number>`). To review a later push, take the label off and add it again. Add it to every piece that changes code and to the integration pull request at the end; a documentation-only piece does not need one. Read the comments it posts, reproduce a finding before fixing it, and answer each one on the pull request. The runner has no Qt toolchain, so the reviewer reads the code but cannot build it.
+The review's instructions are the prompt in `.github/workflows/claude-code-review.yml`, written for this codebase: it reads `CLAUDE.md` and the map first, reads every changed file, posts findings as inline comments and one summary that says which files it read in full. It runs on Opus and reviews a draft like any other pull request. If adding the label starts no run within a minute (seen once, on a pull request whose merge check was still pending), take the label off and add it again. To review a later push, do the same.
 
 **The team.** Sub-agents and side sessions run on Opus, Sonnet or Haiku. Pick the cheapest that does the piece well:
 
@@ -61,8 +61,9 @@ Split a piece until a cheaper model can do it. Run independent pieces in paralle
 
 - `bin/win64/FVD.exe` writes `fvd.log` and `options.cfg` where it runs. Both are ignored by git; delete them anyway if you ran it in the repository.
 - `git status` must show no `bin/` change unless the task was to rebuild the binaries.
+- **A pull request that changes `.github/workflows/claude-code-review.yml` may not be reviewable by it:** the action checks that the workflow matches the copy on `master`. Change the review prompt in a pull request of its own and try it on the next one.
+- **Do not write a literal at-sign followed by `claude` in an issue or pull request you open** unless you mean to start the GitHub run; the workflow triggers on that text anywhere in the body.
 - **Deleting a branch closes every open pull request that uses it as its base,** and a closed pull request cannot be retargeted. Before merging a piece that another piece is stacked on, point the dependent pull request at the integration branch (`gh pr edit <number> --base claude/<topic>`).
-- **A green Claude run does not say who paid.** The API-credits step is allowed to fail, so the job is green either way; open the run and look at which of the two "Run Claude Code" steps did the work (decision record 0002).
 - Issues and pull requests are sent to Anthropic when a Claude workflow runs on them; there is nothing personal in this repository, but keep it that way (no local paths, no account details).
 - The GitHub tools take a label name as given; the area labels are `core`, `renderer`, `ui`, `build`, `export`, `docs`.
 - Upstream (altlenny/openFVD) is unmaintained; its issues 2, 5 and 6 (macOS build, glm maths errors, macOS use) are the only outside signal about building this code today.

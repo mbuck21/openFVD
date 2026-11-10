@@ -4,7 +4,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-10, written by the session that set the repository up, as the closing step of the integration branch `claude/baseline` (pull request #11, merged into `master` at the owner's word).
+2026-11-10, written by the session that set the repository up. The baseline (pull request #11) is in `master`; this revision goes with the pull request from `claude/review-prompt-subscription-only`.
 
 ## Focus
 
@@ -19,14 +19,13 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 Open issues:
 - #13 (`owner`): three checks deferred from the baseline: an export opened in NoLimits 2, the decision about the `.3ds` export, a NoLimits 2 CSV import.
-- #14 (`owner`): the API credits are refused ("Credit balance is too low"), so the GitHub workflows run on the subscription.
+- #5 and #14 (`owner`): both settled. The GitHub workflows run on the subscription (decision record 0005); the unused `ANTHROPIC_API_KEY` secret can be deleted.
 - #3 (`claude`): assess the Qt path, stay on Qt 5.15 or port the renderer to Qt 6. Not urgent.
-- #5 (`owner`): can be closed; both secrets and the Claude GitHub App are in place.
 
 ## Waiting on the owner
 
 - The feature list.
-- #14, when convenient: find out why the Console refuses the API key's requests.
+- Optional tidy-up: delete the `ANTHROPIC_API_KEY` repository secret and the Console key behind it; nothing uses them now.
 - #13, when convenient: the three deferred checks.
 
 ## Verified
@@ -39,8 +38,8 @@ Open issues:
 
 ## Watch-outs
 
-- **The GitHub workflows are running on the subscription, not the API credits** (#14). The job is green either way; open a run and read the two "Run Claude Code" steps to see which one worked.
-- **The GitHub review skips a draft pull request** and says nothing on it. Mark the pull request ready before adding the `review` label.
+- **The GitHub workflows run on the subscription** (decision record 0005). The promotional API credits cannot pay for them: they do not cover Claude Code.
+- **The review prompt is new and untried** (decision record 0005). The first pull request that changes code is its test: check that it posts inline comments and one summary listing the files it read. The stock review it replaces skipped drafts and skimmed.
 - **Deleting a branch closes every open pull request based on it.** Retarget dependents first (`docs/development-workflow.md`, "Practical notes").
 - **MSYS2 names the Qt tools `qmake-qt5` and `windeployqt-qt5`.** Plain `qmake` does not exist there.
 - **Run the build through `tools\build-windows.cmd` or the UCRT64 shell.** The script refuses to run in any other MSYS2 environment. It never empties `build/`; delete the folder for a clean rebuild.

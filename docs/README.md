@@ -31,11 +31,12 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/development-workflow.md` | How a session runs a task here. | current |
 | `docs/maybe-later.md` | Ideas deliberately left out, each with its trigger. | current |
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
-| `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | accepted |
+| `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | superseded by 0005 |
 | `docs/decisions/0003-msys2-toolchain-and-optional-lib3ds.md` | MSYS2 UCRT64 is the Windows build; lib3ds is optional there; the 2016 binary is the reference. | accepted |
 | `docs/decisions/0004-integration-branch-team-and-invoked-review.md` | Multi-piece work runs on an integration branch; sub-agents use Opus, Sonnet or Haiku; sessions invoke the GitHub review by label. | accepted |
+| `docs/decisions/0005-workflows-on-the-subscription-and-a-review-prompt.md` | The GitHub workflows run on the subscription only; the review gets its own prompt and runs on Opus. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
-| `.github/workflows/claude.yml` | `@claude` mentions. Secrets `ANTHROPIC_API_KEY` (first) and `CLAUDE_CODE_OAUTH_TOKEN` (fallback), plus the Claude GitHub App. | current |
-| `.github/workflows/claude-code-review.yml` | The review, on the `review` label only. | current |
+| `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |
+| `.github/workflows/claude-code-review.yml` | The review, on the `review` label only, on Opus, with the review prompt for this codebase. | current |
 | `.github/dependabot.yml` | Monthly updates of the GitHub Actions used by the workflows. | current |
