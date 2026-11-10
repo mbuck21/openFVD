@@ -4,7 +4,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-10, written by the session that set the repository up, on the branch `claude/0001-workflow-and-map` (its pull request is the first one).
+2026-11-10, written by the session that set the repository up, on the branch `claude/api-credits-first` (the second pull request; the first, #6, is merged).
 
 ## Focus
 
@@ -24,13 +24,15 @@ Steps, as issues:
 
 ## Waiting on the owner
 
-- The merge of the first pull request.
+- The merge of the pull request from `claude/api-credits-first` (decision record 0002).
 - #1: the toolchain choice (`docs/building.md` lists the three options).
-- #5: the `CLAUDE_CODE_OAUTH_TOKEN` secret in the fork's settings, before `@claude` or the `review` label can do anything.
+- The `ANTHROPIC_API_KEY` secret in the fork's settings (a Console API key), so the workflows spend API credits first. Until it exists every run falls back to the subscription.
+- #5 can be closed: the subscription secret and the Claude GitHub App are in place.
 - What to change in FVD++ first, once it builds.
 
 ## Verified
 
+- 2026-11-10: `@claude` answered a test comment on #5 (the "Claude Code" run of 14:35 UTC succeeded on the subscription token).
 - 2026-11-10: `bin/win64/FVD.exe` starts on the owner's PC and logs an OpenGL 4.6 context (`docs/building.md`).
 - 2026-11-10: the map was written from reading every header in `core/`, `renderer/` and `ui/`, `main.cpp`, `fvd.pro` and the save, load, update and export functions. Nothing was compiled.
 

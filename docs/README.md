@@ -28,9 +28,10 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/development-workflow.md` | How a session runs a task here. | current |
 | `docs/maybe-later.md` | Ideas deliberately left out, each with its trigger. | current |
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
+| `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | accepted |
 | `docs/testing.md` | How to test a change by hand and, later, automatically. | planned, after the first build |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
-| `.github/workflows/claude.yml` | `@claude` mentions. Needs the `CLAUDE_CODE_OAUTH_TOKEN` secret. | current |
+| `.github/workflows/claude.yml` | `@claude` mentions. Secrets `ANTHROPIC_API_KEY` (first) and `CLAUDE_CODE_OAUTH_TOKEN` (fallback), plus the Claude GitHub App. | current |
 | `.github/workflows/claude-code-review.yml` | The review, on the `review` label only. | current |
 | `.github/dependabot.yml` | Monthly updates of the GitHub Actions used by the workflows. | current |
