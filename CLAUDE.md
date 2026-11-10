@@ -8,6 +8,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 
 - **The map:** `docs/codebase-map.md` (layout, data model, file format, the flows and their entry functions, where each kind of change lands). Terms: `docs/glossary.md`.
 - **Building:** `docs/building.md` (MSYS2 UCRT64; one command, `tools\build-windows.cmd`). **Testing:** `docs/testing.md`, against the 2016 baseline in `samples/baseline/`.
+- **The plan:** `docs/roadmap.md` (stages, what is serial, what runs together) and `docs/feature-requests.md` (the owner's requests, `FR-1` to `FR-9`).
 - **Status:** `STATUS.md`, rewritten in place, never appended. Deferred ideas: `docs/maybe-later.md`. How a session runs the work: `docs/development-workflow.md`.
 - **Upstream:** altlenny/openFVD, its five issues and the `readme.txt` changelog. The official FVD++ documentation and the NoLimits Exchange forum it pointed to are gone.
 
@@ -41,6 +42,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 
 ## Working with the owner
 
+- **Who decides what** (decision record 0006). The owner is the customer: he says what the program should do for him, sets the priorities, tries the results, and decides anything that changes how his coasters come out, his saved files, his money or his PC. The lead session is the architect and runs the team of sub-agents: it decides how things are built (structure, technology, order of work, tooling, what to refactor), makes those calls without asking, and records the significant ones as decision records. It goes to the owner only for product choices and priorities, and then with a recommendation. `docs/roadmap.md` is the plan; `docs/feature-requests.md` is what the owner asked for.
 - **Nothing reaches `master` except through a pull request the owner merges**, or one the owner tells a session to merge. Branches are named `claude/<slug>`; commit subjects are in plain words.
 - **Work with more than one piece runs on an integration branch** (decision record 0004). The lead session creates `claude/<topic>` from `master` and opens a draft pull request from it into `master` whose description lists every piece of the work and its state. Each piece is a branch of its own, opened as a pull request **into the integration branch**. The lead merges a piece once it is built, checked and reviewed. When every piece is in, the lead runs the baseline comparison on the integration branch, rewrites `STATUS.md`, invokes a final review, and tells the owner, **listing anything the owner must do before merging**.
 - **A single small task** (one fix, a doc correction) may go as one draft pull request straight into `master`.
