@@ -732,6 +732,12 @@ void glViewWidget::setBackgroundColor(QColor _background)
 	}*/
 }
 
+void glViewWidget::initializeWithoutShowing()
+{
+	winId(); // creates the native window (still hidden) that the context draws into
+	glInit(); // makes the context current and runs initializeGL()
+}
+
 void glViewWidget::initializeGL()
 {
 	if(initialized) return;
