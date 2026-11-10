@@ -6,3 +6,6 @@
 samples/baseline/*.fvd binary
 samples/baseline/*.nlelem binary
 samples/baseline/*.nl2elem -text
+
+# The investigation projects are binary too.
+samples/investigations/*.fvd binary
