@@ -58,6 +58,7 @@ typedef struct mesh_s
 } mesh_t;
 
 class MainWindow;
+class trackHandler;
 
 class glViewWidget : public QGLWidget
 {

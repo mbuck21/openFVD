@@ -47,7 +47,7 @@ TEMPLATE = app
 SOURCES += main.cpp\
     core/undohandler.cpp \
     core/undoaction.cpp \
-    core/trackhandler.cpp \
+    ui/trackhandler.cpp \
     core/track.cpp \
     core/subfunction.cpp \
     core/smoothhandler.cpp \
@@ -89,7 +89,7 @@ SOURCES += main.cpp\
 
 HEADERS  += core/undohandler.h \
     core/undoaction.h \
-    core/trackhandler.h \
+    ui/trackhandler.h \
     core/track.h \
     core/subfunction.h \
     core/smoothhandler.h \

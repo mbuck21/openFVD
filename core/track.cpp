@@ -19,7 +19,6 @@
 #include "track.h"
 #include "exportfuncs.h"
 #include "smoothhandler.h"
-#include "trackhandler.h"
 #include <QElapsedTimer>
 #include <QVector>
 #include <limits>
@@ -35,14 +34,13 @@ track::track()
 
 }
 
-track::track(trackHandler* _parent, glm::vec3 startPos, float startYaw, float heartLine)
+track::track(glm::vec3 startPos, float startYaw, float heartLine)
 {
     this->anchorNode = new mnode(glm::vec3(0.f, 0.f, 0.f), glm::vec3(0, 0, -1), 0., 10.f, 1., 0.);
     this->startPos = startPos;
     this->startYaw = startYaw;
     this->startPitch = 0.f;
     povPos = glm::vec2(0, 0);
-    mParent = _parent;
     anchorNode->updateNorm();
     anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*heartLine);
     this->fHeart = heartLine;
