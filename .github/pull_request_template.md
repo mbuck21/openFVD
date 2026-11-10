@@ -17,14 +17,16 @@ None.
 ## For the owner
 
 <!--
-- The owner merges every pull request here. Name the files and what to look at.
-- Whether the GitHub review is asked for: only when the change touches the physics (core/sec*.cpp, mnode, subfunction), the exporters or the .fvd format, with the reason. Never add the `review` label yourself.
+- Say who merges: the lead session for a piece going into an integration branch, the owner for anything going into master. Name the files and what to look at.
+- For a pull request into master: list what the owner must do before merging, or say "nothing".
+- The GitHub review: add the `review` label yourself to a pull request that changes code, and to an integration pull request at the end (CLAUDE.md, "Working with the owner"). Say here that it ran and how its comments were answered.
 - Anything the owner must do on the PC (install, check in NoLimits) goes in an `owner` issue, linked here.
 -->
 
 <!--
 Checklist before marking ready:
 - [ ] Branch claude/<slug>; one task; issue number in the description
+- [ ] Based on the right branch: the integration branch for a piece, master for a single small task
 - [ ] No change under bin/ unless the task was to rebuild the binaries
 - [ ] No fvd.log, options.cfg or *.bak committed
 - [ ] ui/qcustomplot.* untouched
