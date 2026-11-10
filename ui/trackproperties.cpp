@@ -23,10 +23,13 @@
 #include "undoaction.h"
 #include "undohandler.h"
 #include "trackmesh.h"
+#include "traintype.h"
 
 #include "trackproperties.h"
 #include "ui_trackproperties.h"
 #include <QColorDialog>
+#include <QAbstractItemView>
+#include <algorithm>
 
 
 extern MainWindow* gloParent;
@@ -39,6 +42,8 @@ TrackProperties::TrackProperties(QWidget *parent) :
     curTrack = NULL;
     colorPicker = new QColorDialog(this);
     colorPicker->setOption(QColorDialog::ShowAlphaChannel, false);
+    bSettingHeartline = false;
+    fillTrainList();
 }
 
 TrackProperties::~TrackProperties()
@@ -54,6 +59,71 @@ void TrackProperties::on_frictionBox_valueChanged(double)
 
 void TrackProperties::on_heartlineBox_valueChanged(double)
 {
+    // A number typed by hand no longer belongs to the train that was picked.
+    if(!bSettingHeartline && ui->trainTypeBox->currentIndex() != 0)
+        ui->trainTypeBox->setCurrentIndex(0);
+}
+
+// The heartline box of this dialog is always in metres (suffix " m", raw
+// fHeart), whatever the "measures" option says, so the list is in metres too.
+void TrackProperties::fillTrainList()
+{
+    const QList<trainType>& trains = trainCatalogue::defaultCatalogue();
+
+    QList<const trainType*> usable;
+    for(int i = 0; i < trains.size(); ++i) {
+        if(trains[i].heartline.bPresent)
+            usable.append(&trains[i]);
+    }
+    // By name: the real models carry their maker in the name ("Mack Hyper
+    // Coaster"), so they group themselves; the NoLimits 2 styles sort between.
+    std::sort(usable.begin(), usable.end(), [](const trainType* a, const trainType* b) {
+        return a->sName.compare(b->sName, Qt::CaseInsensitive) < 0;
+    });
+
+    ui->trainTypeBox->blockSignals(true);
+    int widest = 0;
+    for(int i = 0; i < usable.size(); ++i) {
+        const trainType* t = usable[i];
+        // Two decimals, or three where the value has a third (1.295 m).
+        QString number = QString::number(t->heartline.fValue, 'f', 3);
+        if(number.endsWith('0'))
+            number.chop(1);
+        QString label = t->sName + QString("  (%1 m)").arg(number);
+        ui->trainTypeBox->addItem(label, t->sId);
+        widest = qMax(widest, ui->trainTypeBox->fontMetrics().horizontalAdvance(label));
+    }
+    ui->trainTypeBox->blockSignals(false);
+    ui->trainTypeBox->view()->setMinimumWidth(widest + 40);
+    ui->trainTypeBox->setEnabled(!usable.isEmpty());
+    ui->trainSourceLabel->clear();
+}
+
+void TrackProperties::on_trainTypeBox_currentIndexChanged(int index)
+{
+    ui->trainSourceLabel->clear();
+    if(index <= 0)
+        return;
+
+    const trainType* t = trainCatalogue::findById(trainCatalogue::defaultCatalogue(),
+                                                  ui->trainTypeBox->itemData(index).toString());
+    if(t == nullptr)
+        return;
+
+    bSettingHeartline = true;
+    ui->heartlineBox->setValue(t->heartline.fValue);
+    bSettingHeartline = false;
+
+    QString conf = t->heartline.sConfidence;
+    if(conf == "verified")
+        conf = "Verified";
+    else if(conf == "likely")
+        conf = "Likely right";
+    else if(conf == "estimate")
+        conf = "An estimate";
+    else
+        conf = "Not verified";
+    ui->trainSourceLabel->setText("Source: " + t->heartline.sSource + ". " + conf + ".");
 }
 
 void TrackProperties::on_defaultColorButton_released()
@@ -211,7 +281,6 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
         curTrack = _curTrack;
 
         ui->frictionBox->setValue(curTrack->trackData->fFriction);
-        ui->heartlineBox->setValue(curTrack->trackData->fHeart);
         ui->resistanceBox->setValue(curTrack->trackData->fResistance*1e5);
 
         QPalette palette = ui->defaultColorButton->palette();
@@ -227,5 +296,12 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
         ui->wireframeBox->setChecked(curTrack->mMesh->isWireframe);
 
     }
+    // Every time the dialog opens, not only for another track: a train picked
+    // and then cancelled must not still be in the box at the next OK.
+    bSettingHeartline = true;
+    ui->heartlineBox->setValue(curTrack->trackData->fHeart);
+    bSettingHeartline = false;
+    ui->trainTypeBox->setCurrentIndex(0);
+    ui->trainSourceLabel->clear();
     this->show();
 }
