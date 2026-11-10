@@ -38,9 +38,26 @@ done
 
 failed=0
 count=0
+
+# core/ must not name the windows (tools/check-core.py); cheaper than a build.
+echo "== check-core"
+py=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null; then py="$candidate"; break; fi
+done
+if [ -z "$py" ]; then
+    echo "FAIL: no Python 3 found to run tools/check-core.py"
+    failed=$((failed + 1))
+elif ! "$py" "$repo/tools/check-core.py" "$(cygpath -m "$repo")"; then
+    failed=$((failed + 1))
+fi
+
 for pro in "$repo"/tests/*/*.pro; do
     [ -e "$pro" ] || continue
     name="$(basename "$(dirname "$pro")")"
+    # the program is called after the folder unless the .pro sets TARGET
+    target="$(sed -n 's/^TARGET *= *\([A-Za-z0-9_]*\).*/\1/p' "$pro" | head -n 1 | tr -d '\r')"
+    [ -n "$target" ] || target="$name"
     out="$repo/build/tests/$name"
     count=$((count + 1))
     echo "== $name"
@@ -50,7 +67,7 @@ for pro in "$repo"/tests/*/*.pro; do
         failed=$((failed + 1))
         continue
     fi
-    exe="$(find "$out" -name "$name.exe" -o -name "$name" -type f | head -n 1)"
+    exe="$(find "$out" -name "$target.exe" -o -name "$target" -type f | head -n 1)"
     if [ -z "$exe" ]; then
         echo "FAIL: $name produced no program"
         failed=$((failed + 1))
