@@ -24,10 +24,15 @@
 class track;
 class QTreeWidgetItem;
 
+// One row of the track panel's section list (row 0 is the anchor).
 class sectionHandler
 {
 public:
+    // Creates the section in the track (at index _id-1, named "unnamed"),
+    // unless _type is anchor, and its row: what the panel's "add" does.
     sectionHandler(track* _track, enum secType _type, int _id);
+    // The row of a section that is already in the track.
+    sectionHandler(section* _section, int _id);
     ~sectionHandler();
     void updateID(int _id);
 
@@ -36,6 +41,8 @@ public:
     section* sectionData;
 
 private:
+    void createRow(const QString& name);
+
     int id;
 };
 

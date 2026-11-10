@@ -22,18 +22,25 @@
 #include "mainwindow.h"
 #include "projectwidget.h"
 #include "trackhandler.h"
+#include "trackwidget.h"
+#include "graphwidget.h"
+#include "undohandler.h"
+#include "undoaction.h"
+#include "qcustomplot.h"
 #include "track.h"
 #include "saver.h"
 #include "exportfuncs.h"
 #include "glviewwidget.h"
 #include "optionsmenu.h"
 #include "lenassert.h"
+#include <QAction>
 #include <QApplication>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
+#include <QTreeWidget>
 #include <QWidget>
 #include <QtDebug>
 #include <cmath>
@@ -78,6 +85,9 @@ int batchRunner::run()
     }
     if(lArgs.at(0) == "--batch-undo-check") {
         return runUndoCheck();
+    }
+    if(lArgs.at(0) == "--batch-import") {
+        return runImport();
     }
     qWarning("batch mode: unknown command %s", qPrintable(lArgs.at(0)));
     return 1;
@@ -180,6 +190,23 @@ int batchRunner::runExport()
         lReport.append(QString("warning: ") + loadResult);
     }
 
+    // What the windows show after the load, for comparing two builds; not
+    // listed in the report, so tools/run-baseline.py does not compare it.
+    if(!writeLines(dir.filePath(stem + ".loadstate.txt"), panelState(w))) {
+        return finish(false, QString("cannot write ") + stem + ".loadstate.txt");
+    }
+
+    QString error;
+    if(!writeProjectFiles(w, dir, stem, error)) {
+        return finish(false, error);
+    }
+    return finish(true, QString());
+}
+
+// The three exports of every track with sections, then the re-saved project
+// as <stem>.resaved.fvd; each file written is listed in the report.
+bool batchRunner::writeProjectFiles(MainWindow* w, const QDir& dir, const QString& stem, QString& error)
+{
     QList<trackHandler*>& trackList = w->project->trackList;
     for(int i = 0; i < trackList.size(); ++i) {
         track* tTrack = trackList[i]->trackData;
@@ -197,15 +224,18 @@ int batchRunner::runExport()
         QString splineName = base + ".spline.nlelem";
 
         if(!exportNL2(tTrack, dir.filePath(nl2Name))) {
-            return finish(false, QString("cannot write ") + nl2Name);
+            error = QString("cannot write ") + nl2Name;
+            return false;
         }
         lReport.append(QString("wrote ") + nl2Name);
         if(!exportNL1(tTrack, dir.filePath(tangentName), true)) {
-            return finish(false, QString("cannot write ") + tangentName);
+            error = QString("cannot write ") + tangentName;
+            return false;
         }
         lReport.append(QString("wrote ") + tangentName);
         if(!exportNL1(tTrack, dir.filePath(splineName), false)) {
-            return finish(false, QString("cannot write ") + splineName);
+            error = QString("cannot write ") + splineName;
+            return false;
         }
         lReport.append(QString("wrote ") + splineName);
     }
@@ -215,11 +245,164 @@ int batchRunner::runExport()
     QString resavedName = stem + ".resaved.fvd";
     QString saveResult = saver(dir.filePath(resavedName), w->project, w).doSave();
     if(saveResult.contains("Error")) {
-        return finish(false, QString("saving ") + resavedName + ": " + saveResult);
+        error = QString("saving ") + resavedName + ": " + saveResult;
+        return false;
     }
     lReport.append(QString("wrote ") + resavedName);
+    return true;
+}
 
+// FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>
+// Starts from the default project and runs what the menu entry "Import
+// NoLimits 1 Track", "Import from Pointlist" or "Import NoLimits 2 CSV" runs
+// once its file dialog has given a file. Then writes the files as
+// --batch-export does (<stem> is the input's name without its extension) and
+// adds to the report what the windows show (panelState()).
+int batchRunner::runImport()
+{
+    if(lArgs.size() != 4 || (lArgs.at(1) != "nltrack" && lArgs.at(1) != "txt" && lArgs.at(1) != "csv")) {
+        qWarning("usage: FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>");
+        return 1;
+    }
+    QString kind = lArgs.at(1);
+    QString inputFile = lArgs.at(2);
+    QString outDir = lArgs.at(3);
+    QString stem = QFileInfo(inputFile).completeBaseName();
+
+    if(!QDir().mkpath(outDir)) {
+        qWarning("batch mode: cannot create %s", qPrintable(outDir));
+        return 1;
+    }
+    QDir dir(outDir);
+    sReportFile = dir.filePath(stem + ".batch.txt");
+
+    // The importers show no message: a file they cannot open leaves a new
+    // empty track, which is reported below. A file they can open but do not
+    // understand is read as it is, as from the menu (a point list with fewer
+    // than two points, or a CSV line with fewer than ten columns, can end the
+    // program).
+    if(!QFileInfo(inputFile).isFile()) {
+        return finish(false, QString("input file not found: ") + inputFile);
+    }
+
+    MainWindow* w = createHiddenWindow();
+    if(!w) {
+        return finish(false, QString("could not set up OpenGL"));
+    }
+
+    int tracksBefore = w->project->trackList.size();
+    if(kind == "nltrack") {
+        w->project->importNLTrackFile(inputFile);
+    } else if(kind == "txt") {
+        w->project->importPointListFile(inputFile);
+    } else {
+        w->project->importNoLimitsCSVFile(inputFile);
+    }
+    if(w->project->trackList.size() != tracksBefore+1) {
+        return finish(false, QString("the import did not add one track"));
+    }
+    if(w->project->trackList.last()->trackData->lSections.isEmpty()) {
+        return finish(false, QString("the import added no section: the file could not be read"));
+    }
+
+    QString error;
+    if(!writeProjectFiles(w, dir, stem, error)) {
+        return finish(false, error);
+    }
+    lReport.append(panelState(w));
+
+    if(!windowsStayedHidden(error)) {
+        return finish(false, error);
+    }
     return finish(true, QString());
+}
+
+static QString onOff(bool on)
+{
+    return on ? QString("enabled") : QString("disabled");
+}
+
+static QString exact(double value)
+{
+    return QString::number(value, 'g', 17);
+}
+
+// What the windows show of every track: the Undo and Redo menu entries, and
+// per track its sections and nodes, the active section, the rows of the
+// section list with the selected one, the undo list, and the graph's
+// horizontal range. Two builds that load or import the same file must give
+// the same lines.
+QStringList batchRunner::panelState(MainWindow* w)
+{
+    QStringList lines;
+    QAction* undoMenu = w->findChild<QAction*>("actionUndo");
+    QAction* redoMenu = w->findChild<QAction*>("actionRedo");
+    lines.append(QString("state: menu Undo %1, Redo %2")
+                 .arg(undoMenu ? onOff(undoMenu->isEnabled()) : QString("missing"))
+                 .arg(redoMenu ? onOff(redoMenu->isEnabled()) : QString("missing")));
+
+    QList<trackHandler*>& trackList = w->project->trackList;
+    for(int i = 0; i < trackList.size(); ++i) {
+        trackHandler* h = trackList[i];
+        track* t = h->trackData;
+        QString label = QString("state: track %1").arg(i+1);
+        lines.append(QString("%1 (%2): %3 sections, %4 nodes, active section %5")
+                     .arg(label).arg(t->name).arg(t->lSections.size()).arg(t->getNumPoints())
+                     .arg(t->activeSection ? QString::number(t->getSectionNumber(t->activeSection)) : QString("none")));
+
+        trackWidget* panel = h->trackWidgetItem;
+        QTreeWidget* list = panel ? panel->findChild<QTreeWidget*>("sectionListWidget") : NULL;
+        if(list) {
+            QStringList rows;
+            for(int r = 0; r < list->topLevelItemCount(); ++r) {
+                QTreeWidgetItem* item = list->topLevelItem(r);
+                rows.append(QString("[%1|%2|%3|flags %4%5]").arg(item->text(0)).arg(item->text(1)).arg(item->text(2))
+                            .arg((int)item->flags()).arg(item->isSelected() ? QString("|selected") : QString()));
+            }
+            int selected = -1;
+            for(int k = 0; k < panel->sectionList.size(); ++k) {
+                if(panel->sectionList[k] == panel->selSection) selected = k;
+            }
+            lines.append(QString("%1 section list: %2 rows, %3 entries, selected entry %4: %5")
+                         .arg(label).arg(list->topLevelItemCount()).arg(panel->sectionList.size())
+                         .arg(selected).arg(rows.join(" ")));
+        } else {
+            lines.append(QString("%1 section list: missing").arg(label));
+        }
+
+        QStringList types;
+        QList<undoAction*>& actions = h->mUndoHandler->lActions;
+        for(int a = 0; a < actions.size(); ++a) {
+            types.append(batchScenarios::actionTypeName(actions[a]->type));
+        }
+        lines.append(QString("%1 undo list: %2 actions, position %3, newest first: %4")
+                     .arg(label).arg(actions.size()).arg(h->mUndoHandler->stackIndex)
+                     .arg(types.isEmpty() ? QString("none") : types.join(" ")));
+
+        QCustomPlot* plot = h->graphWidgetItem ? h->graphWidgetItem->findChild<QCustomPlot*>("plotter") : NULL;
+        QDoubleSpinBox* lengthSpin = h->graphWidgetItem ? h->graphWidgetItem->findChild<QDoubleSpinBox*>("lengthSpin") : NULL;
+        lines.append(QString("%1 graph: x from %2 to %3, transition length step %4")
+                     .arg(label)
+                     .arg(plot ? exact(plot->xAxis->range().lower) : QString("missing"))
+                     .arg(plot ? exact(plot->xAxis->range().upper) : QString("missing"))
+                     .arg(lengthSpin ? exact(lengthSpin->singleStep()) : QString("missing")));
+    }
+    return lines;
+}
+
+bool batchRunner::writeLines(const QString& fileName, const QStringList& lines)
+{
+    QFile file(fileName);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        return false;
+    }
+    QTextStream out(&file);
+    for(int i = 0; i < lines.size(); ++i) {
+        out << lines.at(i) << "\n";
+    }
+    out.flush();
+    file.close();
+    return true;
 }
 
 // Same framing as exportUi::doNL2Export() (ui/exportui.cpp), for the whole track.

@@ -18,7 +18,7 @@
 """Run a build's batch export on every baseline project and compare with the references.
 
     py -3 tools/run-baseline.py [--exe <FVD.exe>] [--extra <dir>] [--record] [--keep <dir>]
-                                [--undo-check] [--fixtures]
+                                [--undo-check] [--fixtures] [--imports]
 
 For every *.fvd in samples/baseline/ (and in the --extra folder) this runs
     FVD.exe --batch-export <project> <temporary folder>
@@ -41,6 +41,10 @@ Tolerances: exact, unless tolerances.json next to the references lists the file.
               project with the committed samples/baseline/gen-<name>.fvd, byte
               for byte. Until the generated projects are committed it says so and
               does not fail.
+--imports     then runs FVD.exe --batch-import on every input in samples/import/
+              and compares the files and the report it writes with the
+              <stem>.ref.<kind> files there, byte for byte (references recorded
+              with a rebuilt program, not the 2016 binary; see the README there).
 
 Prints one line per comparison and ends with PASS or FAIL (exit code 0 or 1).
 See docs/testing.md.
@@ -64,6 +68,13 @@ sys.path.insert(0, str(TOOLS))
 import compare_exports  # noqa: E402  (the decoding lives there)
 
 BASELINE = ROOT / "samples" / "baseline"
+IMPORTS = ROOT / "samples" / "import"
+IMPORT_KINDS = {".nltrack": "nltrack", ".txt": "txt", ".csv": "csv"}
+# Inputs whose result changes from one run to the next: only checked to import without error.
+UNSTABLE_IMPORTS = {
+    "pointlist.txt": "the point-list importer leaves some values of the first and last point unset, "
+                     "so the exports change from run to run",
+}
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
 TIME_LIMIT_S = 60
 FIXTURE_PREFIX = "gen-"
@@ -272,6 +283,57 @@ def fixtures_check(exe: Path, keep: Optional[Path]) -> bool:
         return all_ok
 
 
+def import_check(exe: Path, source: Path, keep: Optional[Path]) -> bool:
+    """Imports one input into the default project and compares what was written. True when all match."""
+    kind = IMPORT_KINDS[source.suffix.lower()]
+    stem = source.stem
+    with tempfile.TemporaryDirectory(prefix="fvd-import-") as tmp:
+        work = Path(tmp)
+        out = work / "out"
+        code = run_batch(exe, ["--batch-import", kind, str(source), str(out)], work)
+        if keep is not None and out.is_dir():
+            keep.mkdir(parents=True, exist_ok=True)
+            for produced in out.iterdir():
+                shutil.copy2(produced, keep / produced.name)
+        if code is None:
+            print(f"IMPORT FAIL {source.name}: no result after {TIME_LIMIT_S} s, the program was stopped")
+            return False
+        report = out / f"{stem}.batch.txt"
+        lines = report_lines(report)
+        last = lines[-1] if lines else "no result file"
+        if code != 0 or last != "OK":
+            print(f"IMPORT FAIL {source.name}: exit code {code}, {last}")
+            return False
+        if source.name in UNSTABLE_IMPORTS:
+            print(f"IMPORT OK {source.name}: imported; not compared ({UNSTABLE_IMPORTS[source.name]})")
+            return True
+        names = [line[len("wrote "):] for line in lines if line.startswith("wrote ")] + [report.name]
+        all_ok = True
+        for name in names:
+            ref_name = stem + ".ref" + name[len(stem):]
+            reference = IMPORTS / ref_name
+            label = f"{name} against {ref_name}"
+            if not reference.is_file():
+                print(f"NO REFERENCE {label}")
+                all_ok = False
+                continue
+            ok, details = compare(reference, out / name, {})
+            summary = details[-1] if details else ""
+            print(f"{'MATCH' if ok else 'NO MATCH':9} {label} (exact): {summary}")
+            if not ok:
+                for detail in details[:-1][:SHOWN_DIFFERENCES]:
+                    print(f"            {detail}")
+            all_ok = all_ok and ok
+        return all_ok
+
+
+def import_inputs():
+    if not IMPORTS.is_dir():
+        return []
+    return sorted(p for p in IMPORTS.iterdir()
+                  if p.suffix.lower() in IMPORT_KINDS and ".ref." not in p.name)
+
+
 def projects_in(folder: Path):
     return sorted(p for p in folder.glob("*.fvd")
                   if not p.name.endswith(".resaved.fvd") and ".ref." not in p.name and ".2016." not in p.name)
@@ -291,6 +353,8 @@ def main() -> int:
                         help="also run the undo and redo round trip on every project in samples/baseline/")
     parser.add_argument("--fixtures", action="store_true",
                         help="also regenerate the scripted test projects and compare them with the committed ones")
+    parser.add_argument("--imports", action="store_true",
+                        help="also import every input in samples/import/ and compare with the references there")
     args = parser.parse_args()
 
     exe = args.exe.resolve()
@@ -332,6 +396,15 @@ def main() -> int:
     if args.fixtures:
         print("--- scripted test projects (--batch-make-fixtures)")
         passed = fixtures_check(exe, keep) and passed
+
+    if args.imports:
+        print("--- imports (--batch-import)")
+        inputs = import_inputs()
+        if not inputs:
+            print(f"IMPORT FAIL no inputs found in {IMPORTS}")
+            passed = False
+        for source in inputs:
+            passed = import_check(exe, source.resolve(), keep) and passed
 
     print("PASS" if passed else "FAIL")
     return 0 if passed else 1

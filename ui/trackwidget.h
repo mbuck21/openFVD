@@ -56,6 +56,8 @@ public:
     void updateAnchorGeometrics();
     void setSelection(int index);
 
+    void showAddedSection(int index);
+
     QList<sectionHandler*> sectionList;
     sectionHandler* selSection;
     trackHandler* inTrack;
@@ -145,6 +147,7 @@ private slots:
 
 private:
     void updateSectionIDs();
+    void showNewSection(sectionHandler* newSec, secType _type);
     Ui::trackWidget *ui;
     bool phantomChanges;
 };

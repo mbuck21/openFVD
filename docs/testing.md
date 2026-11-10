@@ -34,6 +34,7 @@ Options:
 - `--extra <dir>` also tests every `*.fvd` in that folder. This is for the owner's own coasters, which stay out of the repository in `samples/private/` (ignored by git). Their references sit beside them as `<project>.ref.nl2elem`, `<project>.ref.tangent.nlelem`, `<project>.ref.spline.nlelem` and `<project>.ref.resaved.fvd`. A folder can have its own `tolerances.json`.
 - `--undo-check` then runs the undo and redo check (below) on every project in `samples/baseline/` and requires `OK` from each: one line per project, `UNDO OK` or `UNDO FAIL` with the failing lines of its report.
 - `--fixtures` then regenerates the scripted test projects (below) in a temporary folder and compares each with the committed `samples/baseline/gen-<name>.fvd`, byte for byte. Until those are committed it says so and does not fail.
+- `--imports` then imports every input in `samples/import/` with the batch import (below) and compares the files and the report with the references there, byte for byte. Those references come from a rebuilt program, not the 2016 binary; `samples/import/README.md` says how they were made.
 - `--record` (only with `--extra`) writes the references that do not exist yet from the build being tested; it never overwrites one. Run it once with a build you trust, and every later build is compared with that one:
 
 ```
@@ -75,8 +76,17 @@ starts the full program, with the same window classes as a normal start, but sho
 - `<project>.nl2elem`, `<project>.tangent.nlelem`, `<project>.spline.nlelem` for the first track, and `<project>.track2.nl2elem` and so on for further tracks. The settings are the export dialog's defaults: all sections, segment length 2.00 m, RelRoll threshold 85 degrees, heartlining on.
 - `<project>.resaved.fvd`, the project saved again after the exports.
 - `<project>.batch.txt`: one line per file written, any warning from loading (a missing ground texture, an old file version), and a last line `OK` or `ERROR: <what>`. The exit code is 0 or 1.
+- `<project>.loadstate.txt`: what the windows show once the project is loaded: the Undo and Redo menu entries and, per track, its sections and nodes, the active section, the rows of the section list and which is selected, the undo list and the graph's horizontal range. It is not listed in the report and `run-baseline.py` does not compare it; it is for comparing two builds by hand (`--keep`) when a change touches how a load builds the windows.
 
 It never shows a message box, writes no `.bak` file, and leaves the project it was given alone. It writes `fvd.log` in the folder it was started from, like a normal start. The code is in `ui/batchrunner.cpp`; a later `--batch-...` command goes there too.
+
+## The batch import
+
+```
+FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>
+```
+
+starts from the default project, like a normal start, and runs what the project panel's "Import NoLimits 1 Track", "Import from Pointlist" or "Import NoLimits 2 CSV" runs once its file dialog has given a file. It then writes the exports and the re-saved project as the batch export does (named after the input file without its extension; the imported track is track 2), and a report `<name>.batch.txt` with one line per file, the same lines as `loadstate.txt` above, and `OK` or `ERROR: <what>`. A file the importer cannot open fails with `ERROR`. A file it can open but not understand is read as from the menu, and can end the program (a point list with fewer than two points, a CSV line with fewer than ten columns). The inputs and references are in `samples/import/`.
 
 All batch commands keep every window off the screen: a window that would be shown, such as a dialog a scenario opens by clicking its button, is marked "do not show on screen" just before, so it exists for Qt but nothing appears and nothing takes the keyboard. A batch command fails if a window reached the screen anyway.
 
@@ -157,7 +167,7 @@ A file the 2016 binary re-saved, put in `samples/baseline/` as `four-sections.20
 
 ## What this does not cover
 
-- The 3D view, shadows, the plots, the importers and the options dialog. Check those by hand when a change touches them, and write down what you did in the pull request.
+- The 3D view, shadows, the plots and the options dialog; the importers only through the three small samples in `samples/import/`. Check those by hand when a change touches them, and write down what you did in the pull request.
 - Undo and smoothing, the transition shapes and the other section options are covered by the scripted projects and the undo check above, but only once the generated projects and their 2016 exports are committed is their geometry compared with the 2016 binary.
 - Export settings other than the dialog's defaults (a part of the track, another segment length, "without heartlining").
 - Whether NoLimits accepts the files. The owner has NoLimits 2 installed; an export that matters gets opened there.

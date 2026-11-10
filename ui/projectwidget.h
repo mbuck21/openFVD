@@ -68,6 +68,11 @@ public slots:
 
     void importNoLimitsCSV();
 
+    // the work of the three import entries above, after their file dialog
+    void importNLTrackFile(QString fileName);
+    void importPointListFile(QString fileName);
+    void importNoLimitsCSVFile(QString fileName);
+
     void on_deleteButton_released();
 
     void on_texChooser_released();

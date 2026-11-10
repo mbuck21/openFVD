@@ -107,10 +107,10 @@ void importUi::on_buttonBox_accepted()
         } else if(posList.size()) {
             fin.seekg(posList[i]);
             if(legacymode) {
-                trackList[i]->trackData->legacyLoadTrack(fin, trackList[i]->trackWidgetItem);
+                trackList[i]->trackData->legacyLoadTrack(fin);
 
             } else {
-                trackList[i]->trackData->loadTrack(fin, trackList[i]->trackWidgetItem);
+                trackList[i]->trackData->loadTrack(fin);
             }
             ui->treeWidget->takeTopLevelItem(0);
         }

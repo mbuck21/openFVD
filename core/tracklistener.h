@@ -40,6 +40,16 @@ public:
 
     // Roll smoothing was just applied (the graphs show the smoothed values).
     virtual void trackSmoothingApplied(track* which) = 0;
+
+    // The track added the section at index itself, with its default values
+    // (track::appendSectionFromFile(): a project being loaded, an imported
+    // track), not through the track panel. Called once the track has been
+    // computed from it, before its values are read in.
+    virtual void trackSectionAdded(track* which, int index) = 0;
+
+    // The track finished loading from a project file (all sections read in,
+    // the track computed).
+    virtual void trackLoaded(track* which) = 0;
 };
 
 #endif // TRACKLISTENER_H

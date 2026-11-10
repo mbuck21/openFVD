@@ -20,7 +20,6 @@
 #include "exportfuncs.h"
 #include "smoothhandler.h"
 #include "trackhandler.h"
-#include "trackwidget.h"
 #include <QElapsedTimer>
 #include <QVector>
 #include <limits>
@@ -527,6 +526,40 @@ void track::newSection(enum secType type, int index)
     hasChanged = true;
 }
 
+// Adds a section of the given type at the end of the track with the model
+// work the track panel's "add section" does (trackWidget::addSection(), the
+// sectionHandler constructor): creates it, names it "unnamed" and computes
+// the track from it with its default values. Then tells the listener, which
+// shows the new section as the panel's "add" does. For sections that come
+// from a file (a project being loaded, an imported track); the caller fills
+// in the values. The panel passed its row count less the anchor row as the
+// index, which is lSections.size() on a track whose rows all came this way.
+section* track::appendSectionFromFile(enum secType type)
+{
+    int index = lSections.size();
+    newSection(type, index);
+    section* added = lSections[index];
+    added->sName = QString("unnamed");
+    updateTrack(added, 0);
+
+    if(mListener != NULL)
+        mListener->trackSectionAdded(this, index);
+
+    return added;
+}
+
+// The anchor's pitch and yaw change rates from its forces and speed.
+void track::updateAnchorGeometrics()
+{
+    glm::vec3 forceVec = glm::vec3(0, 1, 0) + anchorNode->forceNormal*anchorNode->vNorm + anchorNode->forceLateral*anchorNode->vLat;
+
+    glm::vec3 pitchVec = (float)cos(anchorNode->fRoll*F_PI/180)*anchorNode->vNorm - (float)sin(anchorNode->fRoll*F_PI/180)*anchorNode->vLat;
+    glm::vec3 yawVec = (float)sin(anchorNode->fRoll*F_PI/180)*anchorNode->vNorm + (float)cos(anchorNode->fRoll*F_PI/180)*anchorNode->vLat;
+
+    anchorNode->fPitchFromLast = glm::dot(forceVec, pitchVec)/anchorNode->fVel*1.8/F_PI;
+    anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/anchorNode->fVel*1.8/F_PI;
+}
+
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
 {
     QList<int> exportPoints;
@@ -819,9 +852,8 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
     return;
 }
 
-QString track::saveTrack(fstream& file, trackWidget* _widget)
+QString track::saveTrack(fstream& file)
 {   
-    Q_UNUSED(_widget);
     file << "TRC";
 
     int namelength = name.length();
@@ -880,7 +912,7 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     return QString("Save Successful");
 }
 
-QString track::loadTrack(fstream& file, trackWidget* _widget)
+QString track::loadTrack(fstream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -912,7 +944,7 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     anchorNode->changePitch(startPitch, false);
     anchorNode->setRoll(anchorNode->fRoll);
 
-    _widget->updateAnchorGeometrics();
+    updateAnchorGeometrics();
 
     anchorNode->updateNorm();
 
@@ -923,42 +955,42 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
         temp = readString(&file, 3);
         if(temp == "STR")
         {
-            _widget->addStraightSec();
+            appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->loadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "CUR")
         {
-            _widget->addCurvedSec();
+            appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->loadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "GEO")
         {
-            _widget->addGeometricSec();
+            appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->loadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "FRC")
         {
-            _widget->addForceSec();
+            appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "BEZ")
         {
-            _widget->addSection(bezier);
+            appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "CSV")
         {
-            _widget->addSection(nolimitscsv);
+            appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
@@ -981,8 +1013,8 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     if(temp == "EOT")
     {
         updateTrack(0, 0);
-        _widget->clearSelection();
-        _widget->setNames();
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
         return QString("Load Successful");
     }
     else
@@ -991,7 +1023,7 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     }
 }
 
-QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
+QString track::legacyLoadTrack(fstream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -1023,7 +1055,7 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     anchorNode->changePitch(startPitch, false);
     anchorNode->setRoll(anchorNode->fRoll);
 
-    _widget->updateAnchorGeometrics();
+    updateAnchorGeometrics();
 
     anchorNode->updateNorm();
 
@@ -1034,42 +1066,42 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
         temp = readString(&file, 3);
         if(temp == "STR")
         {
-            _widget->addStraightSec();
+            appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "CUR")
         {
-            _widget->addCurvedSec();
+            appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "GEO")
         {
-            _widget->addGeometricSec();
+            appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "FRC")
         {
-            _widget->addForceSec();
+            appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "BEZ")
         {
-            _widget->addSection(bezier);
+            appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
         }
         else if(temp == "CSV")
         {
-            _widget->addSection(nolimitscsv);
+            appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
@@ -1092,8 +1124,8 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     if(temp == "EOT")
     {
         updateTrack(0, 0);
-        _widget->clearSelection();
-        _widget->setNames();
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
         return QString("Load Successful");
     }
     else

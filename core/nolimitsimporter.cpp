@@ -20,11 +20,11 @@
 #include <fstream>
 #include "exportfuncs.h"
 #include "secbezier.h"
-#include "trackwidget.h"
+#include "track.h"
 
 using namespace std;
 
-noLimitsImporter::noLimitsImporter(trackHandler* _track, QString _fileName)
+noLimitsImporter::noLimitsImporter(track* _track, QString _fileName)
 {
     inTrack = _track;
     fileName = _fileName;
@@ -38,16 +38,16 @@ bool noLimitsImporter::importAsNlTrack()
         return false;
     }
 
-    inTrack->trackData->fHeart = 0.f;
-    inTrack->trackWidgetItem->addSection(bezier);
+    inTrack->fHeart = 0.f;
+    inTrack->appendSectionFromFile(bezier);
 
     fin.seekg (0, ios::end);
 
     int length = fin.tellg();
     string temp;
-    QList<bezier_t*> *bList = &inTrack->trackData->activeSection->bezList;
+    QList<bezier_t*> *bList = &inTrack->activeSection->bezList;
 
-    QList<glm::vec3> *lineList = &inTrack->trackData->activeSection->supList;
+    QList<glm::vec3> *lineList = &inTrack->activeSection->supList;
 
     QList<glm::vec3> TubeNodes[3];
 
@@ -226,7 +226,7 @@ bool noLimitsImporter::importAsNlTrack()
         bList->last()->fvdRoll = 0.f;
     }
 
-    inTrack->trackData->updateTrack(0, 0);
+    inTrack->updateTrack(0, 0);
     fin.close();
     return true;
 }
@@ -239,12 +239,12 @@ bool noLimitsImporter::importAsTxt()
         return false;
     }
 
-    inTrack->trackData->fHeart = 0.f;
-    inTrack->trackWidgetItem->addSection(bezier);
+    inTrack->fHeart = 0.f;
+    inTrack->appendSectionFromFile(bezier);
 
     fin.seekg (0, ios::end);
 
-    QList<bezier_t*> *bList = &inTrack->trackData->activeSection->bezList;
+    QList<bezier_t*> *bList = &inTrack->activeSection->bezList;
 
     fin.seekg(0);
 
@@ -291,7 +291,7 @@ bool noLimitsImporter::importAsTxt()
         bList->at(b)->Kp2 -= anchor;
     }
 
-    inTrack->trackData->updateTrack(0, 0);
+    inTrack->updateTrack(0, 0);
     fin.close();
     return true;
 }

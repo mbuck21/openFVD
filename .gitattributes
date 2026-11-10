@@ -9,3 +9,6 @@ samples/baseline/*.nl2elem -text
 
 # The investigation projects are binary too.
 samples/investigations/*.fvd binary
+
+# The import samples and their references are compared byte for byte; never convert them.
+samples/import/** -text
