@@ -90,10 +90,16 @@ void smoothUi::on_buttonBox_accepted()
 
 void smoothUi::updateUi()
 {
-    customChar = 'a';
+    m_track->updateSmoothEntries(&customChar);
+    showRows();
+}
+
+// Makes the list rows of the entries that have none yet and puts every row in
+// the list, in the entries' order. Changes nothing in the track.
+void smoothUi::showRows()
+{
     for(int i = 0; i < m_track->smoothList.size(); ++i) {
         smoothHandler* cur = m_track->smoothList[i];
-        cur->update(&customChar);
         QTreeWidgetItem* row = rowFor(cur);
         if(!row) {
             row = new QTreeWidgetItem();

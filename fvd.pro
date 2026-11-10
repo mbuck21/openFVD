@@ -57,7 +57,6 @@ SOURCES += main.cpp\
     core/secforced.cpp \
     core/seccurved.cpp \
     core/secbezier.cpp \
-    core/saver.cpp \
     core/nolimitsimporter.cpp \
     core/mnode.cpp \
     core/function.cpp \
@@ -100,7 +99,6 @@ HEADERS  += core/undohandler.h \
     core/secforced.h \
     core/seccurved.h \
     core/secbezier.h \
-    core/saver.h \
     core/nolimitsimporter.h \
     core/mnode.h \
     core/function.h \
@@ -264,5 +262,7 @@ HEADERS += ui/batchrunner.h ui/batchscenarios.h
 
 # Core separation (docs/decisions/0007)
 HEADERS += core/tracklistener.h
+SOURCES += core/projectfile.cpp core/elementfile.cpp
+HEADERS += core/projectfile.h core/elementfile.h
 SOURCES += core/fvdmath.cpp
 HEADERS += core/fvdmath.h
