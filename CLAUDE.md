@@ -17,7 +17,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 2. **The committed binaries stay out of pull requests** (`bin/win64/FVD.exe`, `bin/win64/glew32.dll`, `bin/osx64.zip`) unless the pull request rebuilt them, says from which commit and with which toolchain, and the owner asked for new binaries. The 2016 Windows binary is the baseline every rebuild is compared against.
 3. **Never edit `ui/qcustomplot.cpp` or `ui/qcustomplot.h`.** They are the vendored QCustomPlot 1.2.1 library. Upgrading it is its own issue.
 4. **The `.fvd` file format changes only with a version bump and a load path for old files** (`projectWidget::saveProject()` / `loadProject()`, `docs/codebase-map.md` "Saved project file"). Projects the owner saved must keep opening.
-5. **Keep the GPL header** on every source file and the license on the repository. New files get the same header with the fork's author line added below the original.
+5. **Keep the GPL header** on every source file and the license on the repository. New source files and scripts (`tools/`) get the same header with the fork's author line added below the original. Documentation, fixtures and configuration files carry no header.
 6. **Nothing the program writes gets committed:** `fvd.log`, `options.cfg`, `*.bak`, build directories. `.gitignore` lists them; add to it rather than committing around it.
 7. **No new dependency without a one-line justification** in the pull request. The three external libraries (GLEW, glm, lib3ds) and Qt 5 are already a burden; see `docs/building.md`.
 
