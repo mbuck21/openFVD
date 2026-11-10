@@ -456,13 +456,14 @@ static QString sameOrNot(const QStringList& diff)
     return diff.isEmpty() ? QString("identical") : QString("DIFFERENT (") + diff.join(", ") + ")";
 }
 
-// FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits]
+// FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
 // Loads the project and writes its files ("A"); applies the scripted edits of
 // batchscenarios.cpp to track 1 through the windows; writes "B"; undoes every
 // step through Edit, Undo and writes "A2"; redoes every step and writes "B2".
-// Passes when A2 equals A and B2 equals B byte for byte. Each edit is also
-// undone and redone on its own right after it is made, so that a failure
-// names the edit that causes it.
+// Passes when A2 equals A and B2 equals B byte for byte. With --each, every
+// edit is in addition undone and redone on its own right after it is made, so
+// that a failure names the edit that causes it (a diagnostic, not the default).
+// --edits runs only the listed edits, plus the first and the last.
 int batchRunner::runUndoCheck()
 {
     // --all-edits: include the edits known to fail today

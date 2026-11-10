@@ -34,7 +34,7 @@ class track;
 //
 //   FVD.exe --batch-export <project.fvd> <outdir>
 //   FVD.exe --batch-make-fixtures <outdir>
-//   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits]
+//   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
 //
 // The result is reported in a text file and the exit code (0 or 1), because
 // the program has no console.
