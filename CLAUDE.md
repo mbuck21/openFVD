@@ -44,6 +44,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 - The pull request follows `.github/pull_request_template.md`: what it does, tests, and a "For the owner" part naming the files and what to look at. Say whether the code was compiled and run.
 - Anything that needs the owner's hands (a choice, an install, a check in NoLimits) is an issue labelled `owner`, with exact steps. A follow-up for Claude is an issue labelled `claude` (the "Task for Claude" template: What, Where, Why, Done when). Each gets one area label: `core`, `renderer`, `ui`, `build`, `export` or `docs`.
 - `Claude Code Review` runs only when the owner adds the `review` label to a pull request. Ask for it in the description, with the reason, when the change touches the physics, the exporters or the file format. Never add the label yourself.
-- `@claude` in an issue or pull request comment starts a separate GitHub run (`.github/workflows/claude.yml`). It needs the `CLAUDE_CODE_OAUTH_TOKEN` secret in the fork's settings. Sessions on the PC do not use it.
+- `@claude` in an issue or pull request comment starts a separate GitHub run (`.github/workflows/claude.yml`). Sessions on the PC do not use it.
+- Both Claude workflows pay with Console API credits first (secret `ANTHROPIC_API_KEY`) and fall back to the owner's subscription (secret `CLAUDE_CODE_OAUTH_TOKEN`) when that step fails (decision record 0002). They also need the Claude GitHub App installed on the repository.
 - Keep GitHub Actions use light: there is no build or test workflow, and the two Claude workflows run only when asked.
 - Small pull requests, one task each. Open the draft after the first push so another session can pick the work up.
