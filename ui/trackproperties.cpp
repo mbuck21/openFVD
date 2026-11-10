@@ -75,23 +75,21 @@ void TrackProperties::fillTrainList()
         if(trains[i].heartline.bPresent)
             usable.append(&trains[i]);
     }
+    // By name: the real models carry their maker in the name ("Mack Hyper
+    // Coaster"), so they group themselves; the NoLimits 2 styles sort between.
     std::sort(usable.begin(), usable.end(), [](const trainType* a, const trainType* b) {
-        QString ka = a->sManufacturer.isEmpty() ? a->sName : a->sManufacturer;
-        QString kb = b->sManufacturer.isEmpty() ? b->sName : b->sManufacturer;
-        int c = ka.compare(kb, Qt::CaseInsensitive);
-        if(c == 0)
-            c = a->sName.compare(b->sName, Qt::CaseInsensitive);
-        return c < 0;
+        return a->sName.compare(b->sName, Qt::CaseInsensitive) < 0;
     });
 
     ui->trainTypeBox->blockSignals(true);
     int widest = 0;
     for(int i = 0; i < usable.size(); ++i) {
         const trainType* t = usable[i];
-        QString label = t->sName;
-        if(!t->sManufacturer.isEmpty() && !t->sName.contains(t->sManufacturer, Qt::CaseInsensitive))
-            label = t->sManufacturer + " " + t->sName;
-        label += QString("  (%1 m)").arg(t->heartline.fValue, 0, 'f', 2);
+        // Two decimals, or three where the value has a third (1.295 m).
+        QString number = QString::number(t->heartline.fValue, 'f', 3);
+        if(number.endsWith('0'))
+            number.chop(1);
+        QString label = t->sName + QString("  (%1 m)").arg(number);
         ui->trainTypeBox->addItem(label, t->sId);
         widest = qMax(widest, ui->trainTypeBox->fontMetrics().horizontalAdvance(label));
     }
@@ -283,10 +281,6 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
         curTrack = _curTrack;
 
         ui->frictionBox->setValue(curTrack->trackData->fFriction);
-        bSettingHeartline = true;
-        ui->heartlineBox->setValue(curTrack->trackData->fHeart);
-        bSettingHeartline = false;
-        ui->trainTypeBox->setCurrentIndex(0);
         ui->resistanceBox->setValue(curTrack->trackData->fResistance*1e5);
 
         QPalette palette = ui->defaultColorButton->palette();
@@ -302,5 +296,12 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
         ui->wireframeBox->setChecked(curTrack->mMesh->isWireframe);
 
     }
+    // Every time the dialog opens, not only for another track: a train picked
+    // and then cancelled must not still be in the box at the next OK.
+    bSettingHeartline = true;
+    ui->heartlineBox->setValue(curTrack->trackData->fHeart);
+    bSettingHeartline = false;
+    ui->trainTypeBox->setCurrentIndex(0);
+    ui->trainSourceLabel->clear();
     this->show();
 }
