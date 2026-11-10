@@ -18,6 +18,7 @@
 */
 
 #include "batchrunner.h"
+#include "batchscenarios.h"
 #include "mainwindow.h"
 #include "projectwidget.h"
 #include "trackhandler.h"
@@ -25,11 +26,15 @@
 #include "saver.h"
 #include "exportfuncs.h"
 #include "glviewwidget.h"
+#include "optionsmenu.h"
 #include "lenassert.h"
+#include <QApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
+#include <QWidget>
 #include <QtDebug>
 #include <cmath>
 #include <cstdio>
@@ -68,6 +73,12 @@ int batchRunner::run()
     if(lArgs.at(0) == "--batch-export") {
         return runExport();
     }
+    if(lArgs.at(0) == "--batch-make-fixtures") {
+        return runMakeFixtures();
+    }
+    if(lArgs.at(0) == "--batch-undo-check") {
+        return runUndoCheck();
+    }
     qWarning("batch mode: unknown command %s", qPrintable(lArgs.at(0)));
     return 1;
 }
@@ -78,6 +89,29 @@ static void unlockForeground()
     LockSetForegroundWindow(LSFW_UNLOCK);
 }
 #endif
+
+// Keeps every window off the screen. Qt sends a window its show event just
+// before it puts it on the screen; a window marked "don't show on screen" at
+// that point is shown to Qt only (it counts as visible, nothing appears, it
+// takes no focus). The scenarios open dialogs (Track Properties, smoothing)
+// by clicking their buttons, as a person would; this keeps them invisible.
+class noShowFilter : public QObject
+{
+public:
+    explicit noShowFilter(QObject* parent) : QObject(parent) {}
+protected:
+    bool eventFilter(QObject* watched, QEvent* event)
+    {
+        if(event->type() == QEvent::Show && watched->isWidgetType()) {
+            QWidget* widget = static_cast<QWidget*>(watched);
+            if(widget->isWindow()) {
+                widget->setAttribute(Qt::WA_DontShowOnScreen);
+                widget->setAttribute(Qt::WA_ShowWithoutActivating);
+            }
+        }
+        return false;
+    }
+};
 
 // Builds the main window and initialises OpenGL without showing anything.
 // Loading a project builds the track meshes, which needs OpenGL; the GL view
@@ -93,6 +127,7 @@ MainWindow* batchRunner::createHiddenWindow()
     atexit(unlockForeground);
     LockSetForegroundWindow(LSFW_LOCK);
 #endif
+    qApp->installEventFilter(new noShowFilter(qApp));
     MainWindow* w = new MainWindow(); // never deleted: ~MainWindow() calls exit(0)
     glView->initializeWithoutShowing();
 #ifdef Q_OS_WIN
@@ -254,6 +289,396 @@ bool batchRunner::exportNL1(track* tTrack, const QString& fileName, bool tangent
     fout->close();
     delete fout;
     return ok;
+}
+
+// Fails when a window reached the screen (the filter above should prevent it).
+bool batchRunner::windowsStayedHidden(QString& error)
+{
+    QWidgetList windows = QApplication::topLevelWidgets();
+    for(int i = 0; i < windows.size(); ++i) {
+        if(windows[i]->isVisible() && !windows[i]->testAttribute(Qt::WA_DontShowOnScreen)) {
+            error = QString("a window was shown: ") + windows[i]->metaObject()->className();
+            return false;
+        }
+    }
+    return true;
+}
+
+// FVD.exe --batch-make-fixtures <outdir>
+// Builds every scenario of batchscenarios.cpp in a new project, by driving the
+// windows, and saves it as <outdir>/gen-<name>.fvd. The report lists, per
+// track, what the model computed.
+int batchRunner::runMakeFixtures()
+{
+    if(lArgs.size() != 2) {
+        qWarning("usage: FVD.exe --batch-make-fixtures <outdir>");
+        return 1;
+    }
+    QString outDir = lArgs.at(1);
+    if(!QDir().mkpath(outDir)) {
+        qWarning("batch mode: cannot create %s", qPrintable(outDir));
+        return 1;
+    }
+    QDir dir(outDir);
+    sReportFile = dir.filePath("make-fixtures.batch.txt");
+
+    MainWindow* w = createHiddenWindow();
+    if(!w) {
+        return finish(false, QString("could not set up OpenGL"));
+    }
+    if(w->mOptions->getLengthFactor() != 1.0 || w->mOptions->getSpeedFactor() != 1.0) {
+        lReport.append(QString("note: the options use %1 and %2; the values were converted")
+                       .arg(w->mOptions->getLengthString().trimmed()).arg(w->mOptions->getSpeedString().trimmed()));
+    }
+
+    // A scenario that fails is reported and not saved; the others still run.
+    QString firstError;
+    batchDriver driver(w);
+    QStringList names = batchScenarios::names();
+    for(int n = 0; n < names.size(); ++n) {
+        batchScenarios::build(names[n], driver);
+        if(!driver.ok()) {
+            lReport.append(QString("FAILED %1: %2").arg(names[n]).arg(driver.error()));
+            if(firstError.isEmpty()) firstError = names[n] + ": " + driver.error();
+            driver.clearError();
+            continue;
+        }
+        QString fileName = QString("gen-") + names[n] + ".fvd";
+        QList<trackHandler*>& trackList = w->project->trackList;
+        QString trackError;
+        for(int t = 0; t < trackList.size(); ++t) {
+            QString error;
+            QString stats = batchScenarios::trackStats(trackList[t]->trackData, error);
+            lReport.append(QString("%1 track %2: %3").arg(fileName).arg(t+1).arg(stats));
+            if(!error.isEmpty() && trackError.isEmpty()) {
+                trackError = QString("%1 track %2: %3").arg(fileName).arg(t+1).arg(error);
+            }
+        }
+        if(!trackError.isEmpty()) {
+            lReport.append(QString("FAILED ") + trackError);
+            if(firstError.isEmpty()) firstError = trackError;
+            continue;
+        }
+        QString saveResult = saver(dir.filePath(fileName), w->project, w).doSave();
+        if(saveResult.contains("Error")) {
+            return finish(false, QString("saving ") + fileName + ": " + saveResult);
+        }
+        lReport.append(QString("wrote ") + fileName);
+    }
+
+    QString error;
+    if(!windowsStayedHidden(error)) {
+        return finish(false, error);
+    }
+    if(!firstError.isEmpty()) {
+        return finish(false, firstError);
+    }
+    return finish(true, QString());
+}
+
+// Writes the exports of every track and the re-saved project as <base>.<kind>
+// into dirName, and reads them back.
+bool batchRunner::writeState(const QString& dirName, const QString& base, batchState& state, QString& error)
+{
+    QDir dir(dirName);
+    MainWindow* w = gloParent;
+    state.lNames.clear();
+    state.lData.clear();
+    QStringList files;
+    QList<trackHandler*>& trackList = w->project->trackList;
+    for(int i = 0; i < trackList.size(); ++i) {
+        track* tTrack = trackList[i]->trackData;
+        if(tTrack->lSections.size() == 0) continue;
+        QString prefix = base;
+        QString label;
+        if(i > 0) {
+            prefix += QString(".track%1").arg(i+1);
+            label = QString("track%1.").arg(i+1);
+        }
+        if(!exportNL2(tTrack, dir.filePath(prefix + ".nl2elem"))
+                || !exportNL1(tTrack, dir.filePath(prefix + ".tangent.nlelem"), true)
+                || !exportNL1(tTrack, dir.filePath(prefix + ".spline.nlelem"), false)) {
+            error = QString("cannot write the exports of ") + prefix;
+            return false;
+        }
+        files << prefix + ".nl2elem" << prefix + ".tangent.nlelem" << prefix + ".spline.nlelem";
+        state.lNames << label + "nl2elem" << label + "tangent.nlelem" << label + "spline.nlelem";
+    }
+    QString saveResult = saver(dir.filePath(base + ".fvd"), w->project, w).doSave();
+    if(saveResult.contains("Error")) {
+        error = QString("saving ") + base + ".fvd: " + saveResult;
+        return false;
+    }
+    files << base + ".fvd";
+    state.lNames << "fvd";
+
+    for(int i = 0; i < files.size(); ++i) {
+        QFile file(dir.filePath(files[i]));
+        if(!file.open(QIODevice::ReadOnly)) {
+            error = QString("cannot read ") + files[i];
+            return false;
+        }
+        state.lData.append(file.readAll());
+    }
+    return true;
+}
+
+// the kinds of file that differ between two states
+QStringList batchRunner::differences(const batchState& a, const batchState& b)
+{
+    QStringList diff;
+    if(a.lNames != b.lNames) {
+        diff.append(QString("the list of files (%1 against %2)").arg(a.lNames.join(" ")).arg(b.lNames.join(" ")));
+        return diff;
+    }
+    for(int i = 0; i < a.lNames.size(); ++i) {
+        if(a.lData[i] != b.lData[i]) diff.append(a.lNames[i]);
+    }
+    return diff;
+}
+
+// writes the files of a state whose kind is listed, as <base>.<kind>
+void batchRunner::writeFiles(const QString& dirName, const QString& base, const batchState& state, const QStringList& kinds)
+{
+    QDir dir(dirName);
+    for(int i = 0; i < state.lNames.size(); ++i) {
+        if(!kinds.contains(state.lNames[i])) continue;
+        QFile file(dir.filePath(base + "." + state.lNames[i]));
+        if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.write(state.lData[i]);
+            file.close();
+        }
+    }
+}
+
+static QString sameOrNot(const QStringList& diff)
+{
+    return diff.isEmpty() ? QString("identical") : QString("DIFFERENT (") + diff.join(", ") + ")";
+}
+
+// FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
+// Loads the project and writes its files ("A"); applies the scripted edits of
+// batchscenarios.cpp to track 1 through the windows; writes "B"; undoes every
+// step through Edit, Undo and writes "A2"; redoes every step and writes "B2".
+// Passes when A2 equals A and B2 equals B byte for byte. With --each, every
+// edit is in addition undone and redone on its own right after it is made, so
+// that a failure names the edit that causes it (a diagnostic, not the default).
+// --edits runs only the listed edits, plus the first and the last.
+int batchRunner::runUndoCheck()
+{
+    // --all-edits: include the edits known to fail today
+    // --edits 3,17,20: only these edits (numbered as in the report) and the first
+    //     and last, which recompute the whole track; to find which edit fails
+    // --each: also undo and redo every edit on its own right after making it,
+    //     and report whether that restores the files (a diagnostic: today the
+    //     part of the track after an edit is recomputed from the edited point,
+    //     which can differ from the stored values in the last digits)
+    bool allEdits = lArgs.contains("--all-edits");
+    if(allEdits) lArgs.removeAll("--all-edits");
+    bool each = lArgs.contains("--each");
+    if(each) lArgs.removeAll("--each");
+    QList<int> onlyEdits;
+    int editsAt = lArgs.indexOf("--edits");
+    if(editsAt >= 0 && editsAt+1 < lArgs.size()) {
+        QStringList numbers = lArgs.at(editsAt+1).split(",", QString::SkipEmptyParts);
+        for(int k = 0; k < numbers.size(); ++k) {
+            onlyEdits.append(numbers[k].toInt());
+        }
+        lArgs.removeAt(editsAt+1);
+        lArgs.removeAt(editsAt);
+    }
+    if(lArgs.size() != 3) {
+        qWarning("usage: FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]");
+        return 1;
+    }
+    QString projectFile = lArgs.at(1);
+    QString outDir = lArgs.at(2);
+    QString stem = QFileInfo(projectFile).fileName();
+    if(stem.endsWith(".fvd", Qt::CaseInsensitive)) {
+        stem.chop(4);
+    }
+    if(!QDir().mkpath(outDir)) {
+        qWarning("batch mode: cannot create %s", qPrintable(outDir));
+        return 1;
+    }
+    QDir dir(outDir);
+    sReportFile = dir.filePath(stem + ".undo.batch.txt");
+    QString workDir = dir.filePath(stem + ".undo-work");
+    if(!QDir().mkpath(workDir)) {
+        return finish(false, QString("cannot create ") + workDir);
+    }
+
+    if(!QFileInfo(projectFile).isFile()) {
+        return finish(false, QString("project file not found: ") + projectFile);
+    }
+    MainWindow* w = createHiddenWindow();
+    if(!w) {
+        return finish(false, QString("could not set up OpenGL"));
+    }
+    QString loadResult = saver(projectFile, w->project, w).doLoad();
+    if(loadResult.contains("Error")) {
+        return finish(false, QString("loading ") + projectFile + ": " + loadResult);
+    }
+    if(loadResult.contains("Warning")) {
+        lReport.append(QString("warning: ") + loadResult);
+    }
+    if(w->project->trackList.isEmpty() || w->project->trackList[0]->trackData->lSections.isEmpty()) {
+        return finish(false, QString("track 1 has no sections"));
+    }
+
+    batchDriver d(w);
+    d.openTrack(0);
+    if(!d.ok()) {
+        return finish(false, d.error());
+    }
+    trackHandler* h = d.openHandler();
+
+    QString error;
+    batchState stateA, current;
+    if(!writeState(outDir, stem + ".undo-A", stateA, error)) return finish(false, error);
+    current = stateA;
+
+    bool allOk = true;
+    int totalSteps = 0;
+    QList<int> covered, leftOut;
+    for(int i = 0; i < batchScenarios::editCount(); ++i) {
+        QString reason, desc, expected, note;
+        bool bookend = i == 0 || i == batchScenarios::editCount()-1;
+        if(!onlyEdits.isEmpty() && !onlyEdits.contains(i+1) && !bookend) {
+            continue;
+        }
+        int leftOutType = -1;
+        if(!allEdits && batchScenarios::editIsKnownBroken(i, d, reason, leftOutType)) {
+            leftOut.append(leftOutType);
+            lReport.append(QString("edit %1: LEFT OUT (known to fail today, --all-edits includes it): %2").arg(i+1).arg(reason));
+            continue;
+        }
+        int before = batchScenarios::undoDepth(h);
+        bool applied = batchScenarios::applyEdit(i, d, desc, expected, note);
+        if(!d.ok()) {
+            return finish(false, QString("edit %1 (%2): %3").arg(i+1).arg(desc).arg(d.error()));
+        }
+        if(!applied) {
+            lReport.append(QString("edit %1: %2: skipped, %3").arg(i+1).arg(desc).arg(note));
+            continue;
+        }
+        int steps = batchScenarios::undoDepth(h) - before;
+        QList<int> types;
+        QString recorded = batchScenarios::recordedActions(h, steps, types);
+        if(steps <= 0) {
+            lReport.append(QString("edit %1: %2: FAILED, no undo step was recorded (expected %3)").arg(i+1).arg(desc).arg(expected));
+            allOk = false;
+            continue;
+        }
+        covered += types;
+        totalSteps += steps;
+        if(!each) {
+            lReport.append(QString("edit %1: %2: recorded %3 (expected %4)").arg(i+1).arg(desc).arg(recorded).arg(expected));
+            continue;
+        }
+
+        batchState after, undone, redone;
+        if(!writeState(workDir, "state", after, error)) return finish(false, error);
+        QStringList changed = differences(current, after);
+
+        bool stepOk = true;
+        for(int k = 0; k < steps; ++k) {
+            if(!d.undo()) {
+                stepOk = false;
+            }
+        }
+        if(!d.ok()) return finish(false, QString("edit %1 (%2), undo: %3").arg(i+1).arg(desc).arg(d.error()));
+        if(!writeState(workDir, "state", undone, error)) return finish(false, error);
+        for(int k = 0; k < steps; ++k) {
+            if(!d.redo()) {
+                stepOk = false;
+            }
+        }
+        if(!d.ok()) return finish(false, QString("edit %1 (%2), redo: %3").arg(i+1).arg(desc).arg(d.error()));
+        if(!writeState(workDir, "state", redone, error)) return finish(false, error);
+
+        QStringList undoDiff = differences(current, undone);
+        QStringList redoDiff = differences(after, redone);
+        if(!stepOk) {
+            lReport.append(QString("edit %1: %2: FAILED, Undo or Redo was not available").arg(i+1).arg(desc));
+            allOk = false;
+        }
+        bool editOk = undoDiff.isEmpty() && redoDiff.isEmpty();
+        if(!editOk) {
+            // the evidence: the files that differ, before and after the round trip
+            QString prefix = QString("%1.edit%2.").arg(stem).arg(i+1);
+            if(!undoDiff.isEmpty()) {
+                writeFiles(outDir, prefix + "before", current, undoDiff);
+                writeFiles(outDir, prefix + "undone", undone, undoDiff);
+            }
+            if(!redoDiff.isEmpty()) {
+                writeFiles(outDir, prefix + "after", after, redoDiff);
+                writeFiles(outDir, prefix + "redone", redone, redoDiff);
+            }
+        }
+        lReport.append(QString("edit %1: %2: recorded %3 (expected %4); changed %5; undo %6; redo %7%8")
+                       .arg(i+1).arg(desc).arg(recorded).arg(expected)
+                       .arg(changed.isEmpty() ? QString("nothing in the files") : changed.join(", "))
+                       .arg(undoDiff.isEmpty() ? QString("restores") : QString("DOES NOT RESTORE ") + undoDiff.join(", "))
+                       .arg(redoDiff.isEmpty() ? QString("restores") : QString("DOES NOT RESTORE ") + redoDiff.join(", "))
+                       .arg(editOk ? QString() : QString(" (on its own)")));
+        current = redone;
+    }
+
+    batchState stateB, stateA2, stateB2;
+    if(!writeState(outDir, stem + ".undo-B", stateB, error)) return finish(false, error);
+    QStringList aToB = differences(stateA, stateB);
+    lReport.append(QString("B against A: %1").arg(aToB.isEmpty() ? QString("IDENTICAL, the edits changed nothing") : QString("different (") + aToB.join(", ") + ")"));
+    if(aToB.isEmpty()) allOk = false;
+
+    for(int k = 0; k < totalSteps; ++k) {
+        if(!d.undo()) {
+            allOk = false;
+            lReport.append(QString("Undo was not available after %1 of %2 steps").arg(k).arg(totalSteps));
+            break;
+        }
+    }
+    if(!d.ok()) return finish(false, d.error());
+    if(!writeState(outDir, stem + ".undo-A2", stateA2, error)) return finish(false, error);
+    QStringList a2 = differences(stateA, stateA2);
+    lReport.append(QString("A2 against A, after undoing %1 steps: %2").arg(totalSteps).arg(sameOrNot(a2)));
+
+    for(int k = 0; k < totalSteps; ++k) {
+        if(!d.redo()) {
+            allOk = false;
+            lReport.append(QString("Redo was not available after %1 of %2 steps").arg(k).arg(totalSteps));
+            break;
+        }
+    }
+    if(!d.ok()) return finish(false, d.error());
+    if(!writeState(outDir, stem + ".undo-B2", stateB2, error)) return finish(false, error);
+    QStringList b2 = differences(stateB, stateB2);
+    lReport.append(QString("B2 against B, after redoing %1 steps: %2").arg(totalSteps).arg(sameOrNot(b2)));
+    allOk = allOk && a2.isEmpty() && b2.isEmpty();
+
+    // coverage of the undo action types
+    QStringList exercised, notExercised;
+    for(int type = 0; type < batchScenarios::actionTypeCount(); ++type) {
+        if(covered.contains(type)) {
+            exercised.append(batchScenarios::actionTypeName(type));
+        } else if(!batchScenarios::actionTypeHandled(type)) {
+            notExercised.append(batchScenarios::actionTypeName(type) + " (undo has no case for it)");
+        } else {
+            notExercised.append(batchScenarios::actionTypeName(type) + (leftOut.contains(type)
+                                ? " (its edits are left out: known to fail today)" : " (no edit reached it in this project)"));
+        }
+    }
+    lReport.append(QString("undo action types exercised (%1): %2").arg(exercised.size()).arg(exercised.join(", ")));
+    lReport.append(QString("undo action types not exercised (%1): %2").arg(notExercised.size()).arg(notExercised.join(", ")));
+
+    QDir(workDir).removeRecursively();
+    if(!windowsStayedHidden(error)) {
+        return finish(false, error);
+    }
+    if(!allOk) {
+        return finish(false, "the undo and redo round trip failed (see the lines above)");
+    }
+    return finish(true, QString());
 }
 
 // Writes <outdir>/<stem>.batch.txt: what was written, any warning, then OK or ERROR.

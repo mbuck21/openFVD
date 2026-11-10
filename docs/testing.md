@@ -32,6 +32,8 @@ Options:
 - `--exe <path>` tests another `FVD.exe` (default: `build/dist/FVD.exe` in this repository).
 - `--keep <dir>` copies the files the program wrote (and its `fvd.log`, as `<project>.fvd.log`) into a folder, to look at them.
 - `--extra <dir>` also tests every `*.fvd` in that folder. This is for the owner's own coasters, which stay out of the repository in `samples/private/` (ignored by git). Their references sit beside them as `<project>.ref.nl2elem`, `<project>.ref.tangent.nlelem`, `<project>.ref.spline.nlelem` and `<project>.ref.resaved.fvd`. A folder can have its own `tolerances.json`.
+- `--undo-check` then runs the undo and redo check (below) on every project in `samples/baseline/` and requires `OK` from each: one line per project, `UNDO OK` or `UNDO FAIL` with the failing lines of its report.
+- `--fixtures` then regenerates the scripted test projects (below) in a temporary folder and compares each with the committed `samples/baseline/gen-<name>.fvd`, byte for byte. Until those are committed it says so and does not fail.
 - `--record` (only with `--extra`) writes the references that do not exist yet from the build being tested; it never overwrites one. Run it once with a build you trust, and every later build is compared with that one:
 
 ```
@@ -76,6 +78,56 @@ starts the full program, with the same window classes as a normal start, but sho
 
 It never shows a message box, writes no `.bak` file, and leaves the project it was given alone. It writes `fvd.log` in the folder it was started from, like a normal start. The code is in `ui/batchrunner.cpp`; a later `--batch-...` command goes there too.
 
+All batch commands keep every window off the screen: a window that would be shown, such as a dialog a scenario opens by clicking its button, is marked "do not show on screen" just before, so it exists for Qt but nothing appears and nothing takes the keyboard. A batch command fails if a window reached the screen anyway.
+
+## Scripted test projects
+
+```
+FVD.exe --batch-make-fixtures <outdir>
+```
+
+builds a fixed set of test projects without anyone clicking: for each one it starts a new project (File, New) and drives the same windows a person uses, by their names in the `.ui` forms: it adds sections from the track panel's Add menu, types values into the boxes, picks transitions on the plot, uses the transition editor's buttons, opens Track Properties and the smoothing dialog and clicks OK. No window appears on the screen. Each project is saved as `<outdir>/gen-<name>.fvd`. The report `<outdir>/make-fixtures.batch.txt` has one line per track (sections, node count, length, lowest and highest speed, normal and lateral force, read from the computed track), one `wrote` line per project, and a last line `OK` or `ERROR: <what>`. A project fails if any computed value is not a finite number, if the speed drops below 3 m/s, or if a force leaves -1.5 to +5 g. Two runs write byte-identical files. The scenarios are in `ui/batchscenarios.cpp`.
+
+| Project | What it covers |
+|---|---|
+| `gen-normal-shapes.fvd` | Every shape the transition editor offers, on normal force with a time argument: linear; quadratic blend in, blend out and symmetric; cubic; quartic symmetric, "opposite direction first" and "overshoot" with their parameter; quintic simple and both double bumps with their parameter; sinusoidal; plateau. Centre and tension on two transitions. Locked roll and lateral functions. Straights with physics speed, a horizontal curve at a fixed 15 m/s, a geometric hump. |
+| `gen-geometric-distance.fvd` | Distance argument on a geometric and on a force section; quaternion geometric, Euler force and Euler curve; pitch, yaw, lateral and roll functions with several transitions, added both after (append) and before (prepend); a hanging train (heartline -0.9 m), friction 0.02 and resistance 3; the anchor moved (x, y, z) and turned (pitch 4, yaw 30) with a start speed of 18 m/s; a curve with lead in and lead out; fixed-speed straight and curve. |
+| `gen-curves-speed.fvd` | Curved sections in four directions (90, 30, -100, -90 degrees), with and without lead in and out, with fixed and physics speed, one in Euler; roll transitions on a straight and on a curve (with a centre value); the anchor rolled 8 degrees; friction 0.025 and resistance 2.5; smoothing switched on for section 2 only (0.3 s, 2 passes). |
+| `gen-smooth-whole.fvd` | Fast roll transitions on force sections, a quaternion geometric section with locked pitch and roll, a force section with a distance argument, a curve with physics speed; smoothing switched on for the whole track (0.5 s, 2 passes). |
+| `gen-two-tracks.fvd` | Two named tracks in one project; the second anchor moved and turned (yaw -45 degrees, speed 12 m/s). |
+
+Not covered, because the windows cannot create them: Bézier and NoLimits-CSV sections (only the importers make them), and the transition shapes "to zero" and "freeform" (the transition editor does not offer them).
+
+The lead opens each generated project in the 2016 binary by hand, exports it the same three ways as `four-sections.fvd`, and commits the project and its 2016 exports to `samples/baseline/` (`gen-<name>.fvd`, `gen-<name>.2016.nl2elem`, ...). From then on `run-baseline.py` compares them like `four-sections.fvd`, and `--fixtures` checks that the build still generates the committed projects byte for byte.
+
+## Undo and redo check
+
+```
+FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
+```
+
+loads the project, opens track 1 as a person would (select it, Edit), and writes its three exports and the re-saved project ("A"). It then makes a scripted list of edits through the windows, the same way the scripted projects are built: the anchor's values, Track Properties, the length, speed and options of the first straight, curved, force and geometric section, every box of the transition editor, append, prepend, remove and lock of transitions, adding and deleting sections. It writes the files again ("B", which must differ from A), undoes every step with Edit, Undo and writes "A2", redoes every step with Edit, Redo and writes "B2". It passes when A2 is byte-identical to A and B2 to B, for all exports of every track and the re-saved project. The first and the last edit change the anchor, which recomputes the whole track.
+
+The report `<outdir>/<project>.undo.batch.txt` has one line per edit (what it changed, which undo action types the program recorded and which were expected; an edit without a target in this project is skipped with the reason), the A2 and B2 comparisons, the list of undo action types exercised and not exercised, and a last line `OK` or `ERROR: ...`. The A, B, A2 and B2 files stay in `<outdir>` as `<project>.undo-A.nl2elem` and so on.
+
+Some edits are left out by default because the round trip fails on today's code; `KNOWN_BROKEN` in `ui/batchscenarios.cpp` lists them with the reason, and the report names each one. They are faults of the program, recorded so that the check passes today and catches any new change:
+
+| Edit | Left out | Why the round trip fails today |
+|---|---|---|
+| 4, 5 anchor pitch and yaw change rate | always | Undo recomputes the anchor's normal and lateral force from the rate instead of restoring them; the saved forces differ in the last digits. |
+| 9 anchor roll | when the anchor is rolled | Undo applies the old roll as a difference to the current one; with a rolled anchor the result differs in the last digits. |
+| 29 transition length on the first force section | always | The track is not restored (seen on `gen-normal-shapes` and `gen-smooth-whole`). Length undo is still checked on the geometric section (edit 51). |
+| 41 tension | always | Undo restores a remembered "old tension" that is never taken from the selected transition (`transitionWidget::changeSubfunc` sets the other four), so it restores whatever was left there; seen: minus infinity. |
+| 42, 43, 44 append, prepend, remove a roll transition | on a smoothed track | The track is not restored. On the other projects these edits run. |
+| 45, 46 append and prepend on normal force | always | A new normal-force transition starts as cubic with its shape argument never set; redo creates it again with another leftover value, so the saved file differs. |
+| 49, 52 argument of a force or geometric section | when that section uses distance | Undo of switching from distance back to time does not restore the saved project. |
+| 56 delete a section | always | Undo recreates the section's smoothing entry without the name the smoothing dialog gave it, so the saved file is shorter, and the section's own smoothing settings are lost. |
+
+Options: `--all-edits` puts the left-out edits back (to check a fix); `--edits 3,17` makes only those edits and the first and last (left-out edits stay out unless `--all-edits` is given too); `--each` also undoes and redoes every edit on its own right after making it and writes the files that differ as `<project>.edit<n>.before.fvd` and so on (a diagnostic only, see below).
+
+**Why the check compares only the end states.** The program recomputes the part of the track after an edit from the edited point onward, so after undoing one edit the recomputed nodes can differ from the ones stored before it in the last digits (seen: 0.001 mm on one tangent handle). Undoing everything ends with the first edit, which recomputes the whole track; that is the state compared. `--each` shows the per-edit differences for anyone chasing a failure.
+
+
 ## Check a build by hand
 
 The fallback when the batch export itself is in doubt, and the way to produce references with the 2016 binary (`bin/win64/FVD.exe`, run from a copy outside the repository), which has no batch mode.
@@ -105,7 +157,8 @@ A file the 2016 binary re-saved, put in `samples/baseline/` as `four-sections.20
 
 ## What this does not cover
 
-- The 3D view, shadows, the plots, undo, the importers, smoothing, the options dialog, and every transition shape other than the default cubic. Check those by hand when a change touches them, and write down what you did in the pull request.
+- The 3D view, shadows, the plots, the importers and the options dialog. Check those by hand when a change touches them, and write down what you did in the pull request.
+- Undo and smoothing, the transition shapes and the other section options are covered by the scripted projects and the undo check above, but only once the generated projects and their 2016 exports are committed is their geometry compared with the 2016 binary.
 - Export settings other than the dialog's defaults (a part of the track, another segment length, "without heartlining").
 - Whether NoLimits accepts the files. The owner has NoLimits 2 installed; an export that matters gets opened there.
 - Linux and macOS.
