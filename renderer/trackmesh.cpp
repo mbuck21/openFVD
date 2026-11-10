@@ -1165,7 +1165,7 @@ void trackMesh::buildMeshes(int fromNode)
 
     float crosstieSpacing = 0.f;
 
-    float meshQuality;
+    float meshQuality = 2;
     switch(gloParent->mOptions->meshQuality)
     {
     case 0:
@@ -1381,6 +1381,7 @@ void trackMesh::buildMeshes(int fromNode)
         case generic:
         case vekoma:
             temp.edges = 24;
+        // fall through - generic and vekoma share the triangle spine below
         case triangle:
             temp.offset.x = 0;
             temp.offset.y = -trackData->fHeart-spineHeight;
@@ -2568,7 +2569,7 @@ void trackMesh::build3ds(const int _sec, QVector<float> *_vertices, QVector<unsi
     _borders->append(_indices->size());
 
     float crosstieSpacing = 0.f;
-    float meshQuality;
+    float meshQuality = 2;
     switch(gloParent->mOptions->meshQuality)
     {
     case 0:
@@ -2709,6 +2710,7 @@ void trackMesh::build3ds(const int _sec, QVector<float> *_vertices, QVector<unsi
     case generic:
     case vekoma:
         temp.edges = 12;
+    // fall through - generic and vekoma share the triangle spine below
     case triangle:
         temp.offset.x = 0;
         temp.offset.y = -trackData->fHeart-spineHeight;

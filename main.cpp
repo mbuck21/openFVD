@@ -35,6 +35,7 @@ void myMessageHandler(QtMsgType type, const QMessageLogContext &, const QString 
 
     QByteArray localMsg = msg.toLocal8Bit();
     switch (type) {
+    case QtInfoMsg:
     case QtDebugMsg:
         printf("%s\n", localMsg.constData());
         fprintf(log, "%s\n", localMsg.constData());
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
     qInstallMessageHandler(myMessageHandler);
 
     FILE* log = fopen("fvd.log", "w");
-    fprintf(log, "FVD++ v0.77 Logfile\n");
+    fprintf(log, "FVD++ v0.79 Logfile\n");
     fclose(log);
 #endif
 

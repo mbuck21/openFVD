@@ -78,15 +78,16 @@ How to get lib3ds for good (build the 2008 source once, vendor it into the repos
 
 ## What was verified (2026-11-10)
 
-- The build finishes with no errors. The warnings in the project's own files are listed in issue #8.
+- The build finishes with no errors. The defects its warnings pointed at in the project's own files were fixed in the pull request for issue #8; what is left there is deprecated Qt calls and a few unused variables.
 - `build/dist/FVD.exe` starts with only Windows on the `PATH`, gets an OpenGL 4.6 context and opens `samples/baseline/four-sections.fvd`, a project saved by the 2016 binary.
 - The same project loaded and saved again by the 2016 binary and by the new build gives byte-identical `.fvd` files.
 - The three exports of that project match the 2016 binary's: Spline byte for byte; NoLimits 2 in every one of its 230 numbers (the new C runtime prints `e+00` where the old printed `e+000`); Tangent in 21 of 22 segments, with one segment's control handles differing by under 1 mm. Details and how to repeat it: `docs/testing.md`.
 
 ## Known noise
 
-- At start-up `fvd.log` gets ten lines saying "Any of the framebuffer attachment points are framebuffer incomplete." The 3D view has zero width for a moment before the window is laid out; the framebuffers are complete after the first resize. Harmless; listed with the defects to tidy.
 - qmake prints "Failure to find: release/winicon_res.o" on a fresh build folder. It is generated a moment later.
+- The build prints Qt's own warning that `qopenglfunctions.h` is not compatible with GLEW. The program uses GLEW for every OpenGL call and none of Qt's function wrappers, so nothing collides.
+- `fvd.log` repeats "Function got parameter out of bounds" while a curved section is recomputed. The 2016 binary logs the same line; the value is clamped.
 - The program writes `fvd.log` in the folder it is started from and `options.cfg` next to the executable. Both are ignored by git.
 
 ## The committed 2016 binaries

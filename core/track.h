@@ -65,8 +65,6 @@ public:
     void updateTrack(section* fromSection, int iNode);
     void newSection(enum secType type, int index = -1);
 
-    int exportTrack(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
-    int exportTrack2(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack3(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack4(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
 
