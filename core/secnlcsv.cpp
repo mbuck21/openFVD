@@ -136,7 +136,7 @@ mnode secnlcsv::getNodeAtDistance(float distance) {
     return resultNode;
 }
 
-void secnlcsv::saveSection(fstream &file)
+void secnlcsv::saveSection(std::iostream &file)
 {
     int size = csvNodes.size();
 
@@ -159,7 +159,7 @@ void secnlcsv::saveSection(fstream &file)
     }
 }
 
-void secnlcsv::loadSection(fstream &file)
+void secnlcsv::loadSection(std::iostream &file)
 {
     csvNodes.clear();
 
@@ -175,7 +175,7 @@ void secnlcsv::loadSection(fstream &file)
     }
 }
 
-void secnlcsv::legacyLoadSection(fstream &file)
+void secnlcsv::legacyLoadSection(std::iostream &file)
 {
     csvNodes.clear();
 

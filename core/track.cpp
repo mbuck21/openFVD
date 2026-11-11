@@ -862,7 +862,7 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
     return;
 }
 
-QString track::saveTrack(fstream& file)
+QString track::saveTrack(std::iostream& file)
 {   
     file << "TRC";
 
@@ -922,7 +922,7 @@ QString track::saveTrack(fstream& file)
     return QString("Save Successful");
 }
 
-QString track::loadTrack(fstream& file)
+QString track::loadTrack(std::iostream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -1033,7 +1033,7 @@ QString track::loadTrack(fstream& file)
     }
 }
 
-QString track::legacyLoadTrack(fstream& file)
+QString track::legacyLoadTrack(std::iostream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());

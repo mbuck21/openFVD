@@ -193,7 +193,7 @@ float seccurved::getMaxArgument()
     return rollFunc->getMaxArgument();
 }
 
-void seccurved::saveSection(std::fstream& file)
+void seccurved::saveSection(std::iostream& file)
 {
     file << "CUR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
@@ -214,7 +214,7 @@ void seccurved::saveSection(std::fstream& file)
     rollFunc->saveFunction(file);
 }
 
-void seccurved::loadSection(std::fstream& file)
+void seccurved::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -232,7 +232,7 @@ void seccurved::loadSection(std::fstream& file)
     rollFunc->loadFunction(file);
 }
 
-void seccurved::legacyLoadSection(std::fstream& file)
+void seccurved::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 

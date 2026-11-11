@@ -301,7 +301,7 @@ bool subfunc::isSymmetric()
     return false;
 }
 
-void subfunc::saveSubFunc(fstream& file)
+void subfunc::saveSubFunc(std::iostream& file)
 {
     writeBytes(&file, (const char*)&degree, sizeof(enum eDegree));
     writeBytes(&file, (const char*)&minArgument, sizeof(float));
@@ -327,7 +327,7 @@ void subfunc::saveSubFunc(stringstream& file)
     writeBytes(&file, (const char*)&locked, sizeof(bool));
 }
 
-void subfunc::loadSubFunc(fstream& file)
+void subfunc::loadSubFunc(std::iostream& file)
 {
     degree = (enum eDegree)readInt(&file);
     minArgument = readFloat(&file);
@@ -340,7 +340,7 @@ void subfunc::loadSubFunc(fstream& file)
     locked = readBool(&file);
 }
 
-void subfunc::legacyLoadSubFunc(fstream& file)
+void subfunc::legacyLoadSubFunc(std::iostream& file)
 {
     degree = (enum eDegree)readInt(&file);
     minArgument = readFloat(&file);

@@ -68,12 +68,12 @@ public:
 
 // Writes a project: the header, the ground texture path, the tracks, the end
 // mark. Returns "Project Saved!". The client may be NULL.
-QString writeProject(std::fstream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client);
+QString writeProject(std::iostream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client);
 
 // Reads a project into new tracks obtained from the client, which must not be
 // NULL here (it is the only source of tracks). Returns
 // "Load Successfull.", a text starting "Warning: " or a text starting "Error".
-QString readProject(std::fstream& file, projectFileClient* client);
+QString readProject(std::iostream& file, projectFileClient* client);
 
 // The same, opening the file fileName first ("Error: File is NULL" when it
 // cannot be opened).
