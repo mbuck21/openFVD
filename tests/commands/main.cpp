@@ -32,6 +32,11 @@
 //    merging with a fake clock, the two caps, the listener, selections.
 // 4. Commands: validation errors name the parameter, unknown commands and
 //    targets, rollback of a failing apply, JSON round trip of arguments.
+// 5. The dialogs' steps, without a window: Track Properties and the smoothing
+//    dialog open one step, run their commands in it, and OK commits it (one
+//    step, undone as one) or Cancel rolls it back (the saved bytes as at the
+//    start, nothing recorded); smoothing.apply gives the exports the
+//    smoothing dialog's OK gave.
 // Prints the time of one run plus undo on the largest baseline project.
 //
 //   commands <repository folder>
@@ -42,6 +47,7 @@
 #include "../../core/command.h"
 #include "../../core/projectfile.h"
 #include "../../core/elementfile.h"
+#include "../../core/smoothhandler.h"
 #include "../../lenassert.h"
 
 #include <QCoreApplication>
@@ -261,6 +267,18 @@ static void checkSpecs()
 
 // ---- 2. the harness: every command with undo and redo ------------------------
 
+// The baseline projects have no custom smoothing region, and
+// smoothing.removeRegion needs one: a region that is off (0 to 1 s) is added
+// before the run, outside any history, as a project saved with one loads it.
+static void prepareExample(const commandSpec& spec, track* t)
+{
+    if(spec.name == "smoothing.removeRegion") {
+        smoothHandler* region = new smoothHandler(t, -2, NULL, 400, 1, 0, 1000);
+        region->active = false;
+        t->smoothList.append(region);
+    }
+}
+
 static void runHarness(const QStringList& projects)
 {
     const QList<commandSpec>& all = commandRegistry::all();
@@ -282,6 +300,7 @@ static void runHarness(const QStringList& projects)
                 QString result = loadProjectFile(projects[p], &project);
                 if(!check(!result.contains("Error") && ti < project.tracks.size(), stem + ": loads (" + result + ")")) continue;
                 track* t = project.tracks[ti];
+                prepareExample(spec, t);
                 commandTarget target;
                 if(!spec.findExampleTarget(t, ti, &target)) continue;
 
@@ -805,6 +824,161 @@ static void checkCommands(const QString& repo)
     check(!found && why.contains("\"shape\"") && why.contains("cubic"), "commands: an enum name not in the list is refused, listing the names: " + why);
 }
 
+// ---- 5. the dialogs' steps -------------------------------------------------
+
+static bool runIn(trackHistory& h, const QString& name, const commandArgs& args, QString* error)
+{
+    return commandRegistry::run(&h, name, commandTarget::forTrack(0), args, error);
+}
+
+// smoothing.setEntry's arguments that leave entry as it is (as the dialog makes them).
+static commandArgs entryArgs(track* t, int entry)
+{
+    smoothHandler* cur = t->smoothList[entry];
+    commandArgs args;
+    args.insert("entry", entry);
+    args.insert("length", cur->getLength()/1000.);
+    args.insert("passes", cur->getIterations());
+    args.insert("on", cur->active);
+    args.insert("from", cur->getFrom()/1000.);
+    args.insert("to", cur->getTo()/1000.);
+    args.insert("name", cur->sName);
+    return args;
+}
+
+// The New button's region.
+static commandArgs newRegionArgs()
+{
+    return commandArgs{{"from", 0.0}, {"to", 1.0}, {"length", 0.4}, {"passes", 1}, {"on", true},
+                       {"name", QString("custom Region")}};
+}
+
+static void checkDialogSteps(const QString& repo)
+{
+    const QString fourSections = QDir(repo).filePath("samples/baseline/four-sections.fvd");
+    QString error;
+
+    // Track Properties: open (a step), a colour, the heartline and friction, OK
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        const QByteArray start = savedBytes(t);
+        const QList<QByteArray> exportsStart = exportsOf(t);
+
+        h.beginStep("Change track properties", commandTarget::forTrack(0));
+        bool ok = runIn(h, "track.setColor", commandArgs{{"which", QString("default")}, {"color", QString("#204060")}}, &error)
+                && runIn(h, "track.setHeartline", commandArgs{{"height", 0.9}}, &error)
+                && runIn(h, "track.setFriction", commandArgs{{"friction", 0.025}}, &error);
+        check(ok && !h.canUndo() && h.steps().isEmpty(), "dialogs: Track Properties' commands join its open step (undo waits) " + error);
+        h.endStep(true);
+        const QByteArray after = savedBytes(t);
+        check(h.steps().size() == 1 && h.undoLabel() == "Change track properties" && h.steps()[0].calls.size() == 3
+              && t->display.colors[0] == QColor(0x20, 0x40, 0x60) && t->fHeart == 0.9f,
+              QString("dialogs: Track Properties' OK records one step with its three calls (%1 steps)").arg(h.steps().size()));
+        check(h.undo() && savedBytes(t) == start && exportsOf(t) == exportsStart,
+              "dialogs: one undo takes back the colour, the heartline and the friction together");
+        check(h.redo() && savedBytes(t) == after, "dialogs: and one redo brings them back");
+
+        // opened again and OK pressed without a change: nothing
+        h.beginStep("Change track properties", commandTarget::forTrack(0));
+        h.endStep(true);
+        check(h.steps().size() == 1 && savedBytes(t) == after, "dialogs: OK without a change records nothing");
+
+        // a colour and the heartline, then Cancel
+        h.beginStep("Change track properties", commandTarget::forTrack(0));
+        runIn(h, "track.setColor", commandArgs{{"which", QString("transition")}, {"color", QString("#ffffff")}}, &error);
+        runIn(h, "track.setHeartline", commandArgs{{"height", -1.0}}, &error);
+        bool changed = savedBytes(t) != after;
+        h.endStep(false);
+        check(changed && savedBytes(t) == after && h.steps().size() == 1 && !h.inScope() && h.canUndo(),
+              "dialogs: Track Properties' Cancel puts the saved bytes back, records nothing and ends the step");
+    }
+
+    // The smoothing dialog: open (a step; the entries brought up to date in
+    // it), tick the whole track, add a region, OK (apply), then Cancel the same
+    for(int commit = 0; commit < 2; ++commit) {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        const QByteArray start = savedBytes(t);
+        const QList<QByteArray> exportsStart = exportsOf(t);
+        const int entries = t->smoothList.size();
+
+        h.beginStep("Change smoothing", commandTarget::forTrack(0));
+        char customChar;
+        t->updateSmoothEntries(&customChar);
+        commandArgs tick = entryArgs(t, 0);   // the whole track (smoothing section 1 alone leaves this project as it is)
+        tick.insert("on", true);
+        bool ok = runIn(h, "smoothing.setEntry", tick, &error)
+                && runIn(h, "smoothing.addRegion", newRegionArgs(), &error)
+                && runIn(h, "smoothing.apply", commandArgs(), &error);
+        const QList<QByteArray> exportsApplied = exportsOf(t);
+        bool changed = savedBytes(t) != start && exportsApplied != exportsStart && t->smoothList.size() == entries + 1;
+        check(ok && changed, QString("dialogs: the smoothing dialog's tick, New and OK change the track inside its step (exports %1) %2")
+              .arg(exportDiff(exportsStart, exportsApplied), error));
+        h.endStep(commit == 1);
+        if(commit == 0) {
+            check(savedBytes(t) == start && exportsOf(t) == exportsStart && h.steps().isEmpty() && !h.inScope()
+                  && t->smoothList.size() == entries,
+                  "dialogs: the smoothing dialog's Cancel puts back the saved bytes and the exports, records nothing and ends the step");
+        } else {
+            const QByteArray after = savedBytes(t);
+            check(h.steps().size() == 1 && h.undoLabel() == "Change smoothing" && h.steps()[0].calls.size() == 3,
+                  "dialogs: the smoothing dialog's OK records one step with its three calls");
+            check(h.undo() && savedBytes(t) == start && exportsOf(t) == exportsStart && t->smoothList.size() == entries,
+                  "dialogs: one undo takes back the tick, the region and the smoothing");
+            check(h.redo() && savedBytes(t) == after && exportsOf(t) == exportsApplied,
+                  QString("dialogs: one redo brings them back (%1)").arg(exportDiff(exportsApplied, exportsOf(t))));
+        }
+    }
+
+    // smoothing.removeRegion takes the region out (a step of its own)
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        const int entries = t->smoothList.size();
+        bool added = runIn(h, "smoothing.addRegion", newRegionArgs(), &error);
+        bool removed = runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}}, &error);
+        check(added && removed && t->smoothList.size() == entries && h.steps().size() == 2,
+              "dialogs: a region added and removed again, two steps " + error);
+        error.clear();
+        bool refused = !runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}}, &error);
+        check(refused && error.contains("\"region\"") && h.steps().size() == 2,
+              "dialogs: removing a region that is not there is refused: " + error);
+        error.clear();
+        refused = !runIn(h, "smoothing.setEntry", commandArgs{{"entry", entries}, {"length", 0.4}, {"passes", 1}, {"on", false},
+                                                              {"from", 0.0}, {"to", 1.0}, {"name", QString("x")}}, &error);
+        check(refused && error.contains("\"entry\"") && h.steps().size() == 2,
+              "dialogs: an entry that is not there is refused: " + error);
+    }
+
+    // smoothing.apply on the smoothed project gives what the dialog's OK gave:
+    // the entries brought up to date (when it opened), then applyRollSmooth()
+    {
+        const QString smoothed = QDir(repo).filePath("samples/baseline/gen-smooth-whole.fvd");
+        testProject a;
+        loadProjectFile(smoothed, &a);
+        char customChar;
+        a.tracks[0]->updateSmoothEntries(&customChar);
+        a.tracks[0]->applyRollSmooth();
+        const QList<QByteArray> exportsDialog = exportsOf(a.tracks[0]);
+
+        testProject b;
+        loadProjectFile(smoothed, &b);
+        trackHistory h(b.tracks[0]);
+        bool ok = runIn(h, "smoothing.apply", commandArgs(), &error);
+        const QList<QByteArray> exportsCommand = exportsOf(b.tracks[0]);
+        check(ok && exportsCommand == exportsDialog && savedBytes(b.tracks[0]) == savedBytes(a.tracks[0]) && h.steps().isEmpty(),
+              QString("dialogs: smoothing.apply on gen-smooth-whole gives the exports of the dialog's OK (%1), and records nothing")
+              .arg(exportDiff(exportsDialog, exportsCommand)));
+    }
+}
+
 static void timeLargest(const QStringList& projects)
 {
     QString largest;
@@ -874,6 +1048,7 @@ int main(int argc, char *argv[])
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));
     checkOutsideChangeWarning(repo);
     checkCommands(repo);
+    checkDialogSteps(repo);
     timeLargest(projects);
 
     printf("%d checks, %d failed\n", checkCount, failCount);

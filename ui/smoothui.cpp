@@ -21,8 +21,11 @@
 #include "smoothhandler.h"
 #include "mainwindow.h"
 #include "trackwidget.h"
-#include "undohandler.h"
+#include "trackhistory.h"
+#include "command.h"
 #include "lenassert.h"
+
+extern MainWindow* gloParent;
 
 smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
     QDialog(parent),
@@ -48,6 +51,11 @@ smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
 
     m_trackwidget = _track->trackWidgetItem;
     m_track = _track->trackData;
+    m_handler = _track;
+    bStepOpen = false;
+    // blocks the main window while open: the step open on the track's history
+    // must not meet another edit of the track
+    setWindowModality(Qt::WindowModal);
 
     ui->smoothUnitTree->setColumnWidth(0, 28);
     ui->smoothUnitTree->setColumnWidth(1, 120);
@@ -85,17 +93,84 @@ smoothUi::~smoothUi()
     delete ui;
 }
 
-void smoothUi::on_buttonBox_accepted()
+// Opens the dialog and its step. The entries are brought up to date from the
+// track inside the step (updateUi()), so that Cancel takes that back too and
+// opening and cancelling leaves the track as it was.
+void smoothUi::openStep()
 {
-    m_track->applyRollSmooth();
-    outsideChange();
+    if(bStepOpen) {
+        raise();
+        activateWindow();
+        return;
+    }
+    m_handler->mHistory->beginStep("Change smoothing", commandTarget::forTrack(m_handler->getID()-1));
+    bStepOpen = true;
+    gloParent->setUndoButtons();   // Undo and Redo wait while the step is open
+    updateUi();
+    show();
 }
 
-// The dialog's edits are not undo steps: the undo list takes the track as it
-// is now (undoHandler::takeOutsideChange()).
-void smoothUi::outsideChange()
+// The track is about to be deleted or replaced: the step is rolled back and
+// the dialog closed.
+void smoothUi::cancelStep()
 {
-    m_trackwidget->inTrack->mUndoHandler->takeOutsideChange();
+    if(bStepOpen) reject();
+}
+
+// Every way the dialog closes comes here: OK (accept()), Cancel, Escape and
+// the window's close button (reject()), and cancelStep(). OK smooths the track
+// (smoothing.apply) and commits the step; the others roll it back, which
+// rebuilds the track: the rows and curHandler are let go of and made again
+// (trackHandler::trackAboutToReset() and trackReset()), and nothing here uses
+// an entry after endStep().
+void smoothUi::done(int r)
+{
+    if(bStepOpen) {
+        if(r == QDialog::Accepted) {
+            runCommand("smoothing.apply", QVariantMap());
+        }
+        bStepOpen = false;
+        m_handler->mHistory->endStep(r == QDialog::Accepted);
+        gloParent->setUndoButtons();
+    }
+    QDialog::done(r);
+}
+
+// Runs a command on the track inside the dialog's step (it joins the step).
+// False, with the reason in the log, when it fails; a failed command puts the
+// track back as it was before it, which rebuilds the entries: curHandler and
+// every entry pointer are dead afterwards.
+bool smoothUi::runCommand(const QString& name, const QVariantMap& args)
+{
+    QString error;
+    if(!bStepOpen) qWarning("smoothing dialog: %s runs with no step open", qPrintable(name));
+    if(!commandRegistry::run(m_handler->mHistory, name, commandTarget::forTrack(m_handler->getID()-1), args, &error)) {
+        qWarning("smoothing dialog: %s", qPrintable(error));
+        return false;
+    }
+    return true;
+}
+
+int smoothUi::entryIndex(smoothHandler* _handler)
+{
+    if(_handler == NULL) return -1;
+    return m_track->smoothList.indexOf(_handler);
+}
+
+// The arguments of smoothing.setEntry that leave the entry as it is; a slot
+// changes the one value its box edits.
+QVariantMap smoothUi::entryArgs(int entry)
+{
+    smoothHandler* cur = m_track->smoothList[entry];
+    QVariantMap args;
+    args.insert("entry", entry);
+    args.insert("length", cur->getLength()/1000.);
+    args.insert("passes", cur->getIterations());
+    args.insert("on", cur->active);
+    args.insert("from", cur->getFrom()/1000.);
+    args.insert("to", cur->getTo()/1000.);
+    args.insert("name", cur->sName);
+    return args;
 }
 
 void smoothUi::updateUi()
@@ -201,21 +276,27 @@ void smoothUi::on_smoothUnitTree_itemSelectionChanged()
 void smoothUi::on_lengthBox_valueChanged(double arg1)
 {
     if(phantomChanges || curHandler == NULL) return;
+    int i = entryIndex(curHandler);
+    if(i < 0) return;
+    QVariantMap args = entryArgs(i);
+    args.insert("length", arg1);
     phantomChanges = true;
-    curHandler->setLength((int)(arg1*1000.+0.5));
+    runCommand("smoothing.setEntry", args);
     generateWarnings();
     phantomChanges = false;
-    outsideChange();
 }
 
 void smoothUi::on_iterBox_valueChanged(int arg1)
 {
     if(phantomChanges || curHandler == NULL) return;
+    int i = entryIndex(curHandler);
+    if(i < 0) return;
+    QVariantMap args = entryArgs(i);
+    args.insert("passes", arg1);
     phantomChanges = true;
-    curHandler->setIterations(arg1);
+    runCommand("smoothing.setEntry", args);
     generateWarnings();
     phantomChanges = false;
-    outsideChange();
 }
 
 void smoothUi::on_fromBox_valueChanged(double arg1)
@@ -233,11 +314,14 @@ void smoothUi::on_fromBox_valueChanged(double arg1)
         return;
     }
 
+    int i = entryIndex(curHandler);
+    if(i < 0) return;
+    QVariantMap args = entryArgs(i);
+    args.insert("from", arg1);
     phantomChanges = true;
-    curHandler->setFrom((int)(arg1*1000.+0.5));
+    runCommand("smoothing.setEntry", args);
     generateWarnings();
     phantomChanges = false;
-    outsideChange();
 }
 
 void smoothUi::on_toBox_valueChanged(double arg1)
@@ -255,50 +339,63 @@ void smoothUi::on_toBox_valueChanged(double arg1)
         return;
     }
 
+    int i = entryIndex(curHandler);
+    if(i < 0) return;
+    QVariantMap args = entryArgs(i);
+    args.insert("to", arg1);
     phantomChanges = true;
-    curHandler->setTo(setTo);
+    runCommand("smoothing.setEntry", args);
     generateWarnings();
     phantomChanges = false;
-    outsideChange();
 }
 
 void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
 {
-    if(column == 1) {
+    // A change is run only when it comes from a person, not while the model
+    // writes into the rows (showFields(): the row then shows what the entry
+    // holds already).
+    int i;
+    for(i = 0; i < m_track->smoothList.size(); ++i) {
+        if(rowFor(m_track->smoothList[i]) == item) break;
+    }
+    if(column == 1 && !bShowingFields && i < m_track->smoothList.size()) {
         // The entry keeps the name the row shows (it is saved with the project),
         // so a name typed into the list is stored at once, as the row did.
-        for(int i = 0; i < m_track->smoothList.size(); ++i) {
-            if(rowFor(m_track->smoothList[i]) == item) {
-                m_track->smoothList[i]->sName = item->text(1);
-                break;
-            }
+        if(m_track->smoothList[i]->sName != item->text(1)) {
+            QVariantMap args = entryArgs(i);
+            args.insert("name", item->text(1));
+            runCommand("smoothing.setEntry", args);
         }
-        if(!bShowingFields) outsideChange();
     }
 
     if(phantomChanges) return;
     phantomChanges = true;
 
-    if(column == 6) {
-        int i;
-        for(i = 0; i < m_track->smoothList.size(); ++i) {
-            if(rowFor(m_track->smoothList[i]) == item) break;
+    if(column == 6 && !bShowingFields && i < m_track->smoothList.size()) {
+        bool on = item->checkState(6) == Qt::Checked;
+        if(m_track->smoothList[i]->active != on) {
+            QVariantMap args = entryArgs(i);
+            args.insert("on", on);
+            runCommand("smoothing.setEntry", args);
         }
-        m_track->smoothList[i]->active = (item->checkState(6) == Qt::Checked);
     }
 
     generateWarnings();
     phantomChanges = false;
-    // not while the model writes into the rows (an update of the track, in
-    // the middle of an edit that records its own step)
-    if(!bShowingFields) outsideChange();
 }
 
+// The region the dialog's New always made: 0 to 1 s, 0.4 s long, one pass, on.
 void smoothUi::on_newButton_released()
 {
-    m_track->smoothList.append(new smoothHandler(m_track, -2, &customChar, 400, 1, 0, 1000));
-    updateUi();
-    outsideChange();
+    QVariantMap args;
+    args.insert("from", 0.0);
+    args.insert("to", 1.0);
+    args.insert("length", 0.4);
+    args.insert("passes", 1);
+    args.insert("on", true);
+    args.insert("name", QString("custom Region"));
+    runCommand("smoothing.addRegion", args);
+    showRows();
 }
 
 void smoothUi::on_removeButton_released()
@@ -307,13 +404,11 @@ void smoothUi::on_removeButton_released()
     for(i = 0; i < m_track->smoothList.size(); ++i) {
         if(m_track->smoothList[i] == curHandler) break;
     }
-    if(i >= m_track->smoothList.size()) return;
-    // out of the list first: deleting the entry deletes its row, and the
-    // selection that moves on must not find the entry in the list
-    smoothHandler* entry = m_track->smoothList.takeAt(i);
+    if(i >= m_track->smoothList.size() || curHandler->sec != NULL) return;
+    // The command takes the entry out of the list before deleting it (deleting
+    // it deletes its row, and the selection that moves on must not find it).
     curHandler = NULL;
-    delete entry;
-    outsideChange();
+    runCommand("smoothing.removeRegion", QVariantMap{{"region", i - m_track->lSections.size()}});
 }
 
 // Before the track's model is replaced (trackHandler::trackAboutToReset()): no

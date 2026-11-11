@@ -1160,12 +1160,14 @@ void trackWidget::on_smoothButton_released()
 {
     if(!smoothScreen) {
         smoothScreen = new smoothUi(inTrack, gloParent);
+        // "a smoothing dialog exists" (track::bAutoSmooth): not saved and not
+        // a step; it stays when the dialog is cancelled, as the dialog does
         inTrack->trackData->bAutoSmooth = true;
+        inTrack->mUndoHandler->takeOutsideChange();
     }
 
-    smoothScreen->updateUi();
-    inTrack->mUndoHandler->takeOutsideChange();
-    smoothScreen->show();
+    // the dialog's step: the entries are brought up to date inside it
+    smoothScreen->openStep();
 }
 
 void trackWidget::setSelection(int index)

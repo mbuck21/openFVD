@@ -20,10 +20,9 @@
 #include "mainwindow.h"
 #include "projectwidget.h"
 #include "trackhandler.h"
-#include "undoaction.h"
-#include "undohandler.h"
-#include "trackmesh.h"
 #include "traintype.h"
+#include "trackhistory.h"
+#include "command.h"
 
 #include "trackproperties.h"
 #include "ui_trackproperties.h"
@@ -40,6 +39,12 @@ TrackProperties::TrackProperties(QWidget *parent) :
 {
     ui->setupUi(this);
     curTrack = NULL;
+    stepTrack = NULL;
+    bFilling = false;
+    fFilledFriction = fFilledResistance = fFilledHeart = 0.;
+    // blocks the main window while open: the step open on the track's history
+    // must not meet another edit of the track
+    setWindowModality(Qt::WindowModal);
     colorPicker = new QColorDialog(this);
     colorPicker->setOption(QColorDialog::ShowAlphaChannel, false);
     bSettingHeartline = false;
@@ -134,12 +139,10 @@ void TrackProperties::on_defaultColorButton_released()
 
 void TrackProperties::ondefaultColor_received()
 {
-    curTrack->trackData->display.colors[0] = colorPicker->selectedColor();
+    if(!runCommand("track.setColor", QVariantMap{{"which", QString("default")}, {"color", colorPicker->selectedColor().name()}})) return;
     QPalette palette = ui->defaultColorButton->palette();
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[0]);
     ui->defaultColorButton->setPalette(palette);
-    curTrack->trackData->hasChanged = true;
-    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_sectionColorButton_released()
@@ -150,12 +153,10 @@ void TrackProperties::on_sectionColorButton_released()
 
 void TrackProperties::onsectionColor_received()
 {
-    curTrack->trackData->display.colors[1] = colorPicker->selectedColor();
+    if(!runCommand("track.setColor", QVariantMap{{"which", QString("section")}, {"color", colorPicker->selectedColor().name()}})) return;
     QPalette palette = ui->sectionColorButton->palette();
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[1]);
     ui->sectionColorButton->setPalette(palette);
-    curTrack->trackData->hasChanged = true;
-    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_transitionColorButton_released()
@@ -166,18 +167,19 @@ void TrackProperties::on_transitionColorButton_released()
 
 void TrackProperties::ontransitionColor_received()
 {
-    curTrack->trackData->display.colors[2] = colorPicker->selectedColor();
+    if(!runCommand("track.setColor", QVariantMap{{"which", QString("transition")}, {"color", colorPicker->selectedColor().name()}})) return;
     QPalette palette = ui->transitionColorButton->palette();
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[2]);
     ui->transitionColorButton->setPalette(palette);
-    curTrack->trackData->hasChanged = true;
-    curTrack->mUndoHandler->takeOutsideChange();
 }
 
+// The drawing mode shows at once (inside the dialog's step: Cancel takes it back).
 void TrackProperties::on_drawBox_currentIndexChanged(int index)
 {
-    curTrack->trackData->drawHeartline = index;
-    curTrack->mUndoHandler->takeOutsideChange();
+    static const char* modes[] = { "everything", "trackOnly", "heartlineOnly" };
+    if(bFilling || index < 0 || index > 2) return;
+    if(curTrack->trackData->drawHeartline == index) return;
+    runCommand("track.setHeartlineDrawing", QVariantMap{{"mode", QString(modes[index])}});
 }
 
 void TrackProperties::on_styleBox_currentIndexChanged(int)
@@ -188,99 +190,95 @@ void TrackProperties::on_wireframeBox_stateChanged(int)
 {
 }
 
-void TrackProperties::on_buttonBox_accepted()
+// Runs a command on the track inside the dialog's step (it joins the step).
+// False, with the reason in the log, when there is no step or the command
+// fails; a failed command puts the track back as it was before it.
+bool TrackProperties::runCommand(const QString& name, const QVariantMap& args)
 {
-    if(curTrack->trackData->fFriction != ui->frictionBox->value()) {
-        curTrack->trackData->fFriction = ui->frictionBox->value();
-        curTrack->trackData->updateTrack(0, 0);
+    if(stepTrack == NULL) return false;
+    QString error;
+    if(!commandRegistry::run(stepTrack->mHistory, name, commandTarget::forTrack(stepTrack->getID()-1), args, &error)) {
+        qWarning("Track Properties: %s", qPrintable(error));
+        return false;
+    }
+    return true;
+}
 
-        if(!curTrack->mUndoHandler->busy) {
-            undoAction* temp = new undoAction(curTrack, changeTrackFriction);
-            curTrack->mUndoHandler->addAction(temp);
-            gloParent->setUndoButtons();
-        }
+// OK: the boxes that differ from what they were filled with, each as a
+// command, in the order the dialog always applied them. A box left alone
+// changes nothing, so OK without a change records nothing (issues 31 and 41).
+void TrackProperties::applyBoxes()
+{
+    if(ui->frictionBox->value() != fFilledFriction) {
+        runCommand("track.setFriction", QVariantMap{{"friction", ui->frictionBox->value()}});
+    }
+    if(ui->resistanceBox->value() != fFilledResistance) {
+        runCommand("track.setResistance", QVariantMap{{"resistance", ui->resistanceBox->value()*1e-5}});
+    }
+    if(ui->heartlineBox->value() != fFilledHeart) {
+        runCommand("track.setHeartline", QVariantMap{{"height", ui->heartlineBox->value()}});
     }
 
-    if(curTrack->trackData->fResistance != ui->resistanceBox->value()*1e-5) {
-        curTrack->trackData->fResistance = ui->resistanceBox->value()*1e-5;
-        curTrack->trackData->updateTrack(0, 0);
-
-        if(!curTrack->mUndoHandler->busy) {
-            undoAction* temp = new undoAction(curTrack, changeTrackResistance);
-            curTrack->mUndoHandler->addAction(temp);
-            gloParent->setUndoButtons();
-        }
+    static const char* styles[] = { "generic", "genericflat", "vekoma", "bm", "triangle", "box", "smallflat", "doublespine" };
+    int style = ui->styleBox->currentIndex();
+    if(style >= 0 && style < 8 && curTrack->trackData->style != (enum trackStyle)style) {
+        runCommand("track.setStyle", QVariantMap{{"style", QString(styles[style])}});
     }
-
-
-    if(curTrack->trackData->fHeart != ui->heartlineBox->value()) {
-        mnode* anchor = curTrack->trackData->anchorNode;
-        glm::vec3 temp = anchor->vPosHeart(curTrack->trackData->fHeart);
-        float roll = anchor->fRoll*F_PI/180;
-        float pitch = anchor->getPitch()*F_PI/180;
-        float yaw = curTrack->trackData->startYaw*F_PI/180;
-        float x = -cos(yaw)*temp.z+sin(yaw)*temp.x+curTrack->trackData->startPos.x;
-        float y = temp.y+curTrack->trackData->startPos.y;
-        float z = cos(yaw)*temp.x+sin(yaw)*temp.z+curTrack->trackData->startPos.z;
-
-        undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
-        if(!curTrack->mUndoHandler->busy) {
-            tempx = new undoAction(curTrack, changeAnchorPosX);
-
-            tempy = new undoAction(curTrack, changeAnchorPosY);
-            tempy->nextAction = tempx;
-
-            tempz = new undoAction(curTrack, changeAnchorPosZ);
-            tempz->nextAction = tempy;
-        }
-
-        curTrack->trackData->fHeart = ui->heartlineBox->value();
-
-        curTrack->trackData->startPos.x = -(cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll))*curTrack->trackData->fHeart + x;
-        curTrack->trackData->startPos.y = (cos(pitch)*cos(roll))*curTrack->trackData->fHeart + y;
-        curTrack->trackData->startPos.z = (sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll))*curTrack->trackData->fHeart + z;
-
-        curTrack->trackData->updateTrack(0, 0);
-        if(!curTrack->mUndoHandler->busy) {
-            undoAction* temp = new undoAction(curTrack, changeTrackHeartline);
-            temp->nextAction = tempz;
-            curTrack->mUndoHandler->addAction(temp);
-            gloParent->setUndoButtons();
-        }
-    }
-
-
-    if(curTrack->trackData->style != (enum trackStyle)ui->styleBox->currentIndex()) {
-        curTrack->trackData->style = (enum trackStyle)ui->styleBox->currentIndex();
-        curTrack->mMesh->buildMeshes(0);
-        curTrack->trackData->hasChanged = true;
-    }
-
     if(curTrack->trackData->display.bWireframe != ui->wireframeBox->isChecked()) {
-        curTrack->trackData->display.bWireframe = ui->wireframeBox->isChecked();
-        curTrack->mMesh->buildMeshes(0);
-        curTrack->trackData->hasChanged = true;
+        runCommand("track.setWireframe", QVariantMap{{"on", ui->wireframeBox->isChecked()}});
     }
-
-    // style and wireframe are not undo steps
-    curTrack->mUndoHandler->takeOutsideChange();
-
 }
 
-void TrackProperties::on_buttonBox_rejected()
+// Every way the dialog closes comes here: OK (accept()), Cancel, Escape and
+// the window's close button (reject()), and cancelFor(). The step is marked
+// closed before it ends, so that the refill a rollback causes (trackReset())
+// runs no command.
+void TrackProperties::done(int r)
 {
-    return;
+    if(stepTrack != NULL) {
+        trackHandler* handler = stepTrack;
+        if(r == QDialog::Accepted) {
+            applyBoxes();
+        }
+        stepTrack = NULL;
+        handler->mHistory->endStep(r == QDialog::Accepted);
+        gloParent->setUndoButtons();
+    }
+    QDialog::done(r);
 }
 
+// Opens the dialog for a track and opens the step its changes go into. Open
+// for another track already (not possible by hand: the dialog is modal), that
+// one is cancelled first.
 void TrackProperties::openForTrack(trackHandler* _curTrack)
 {
+    if(_curTrack == NULL) return;
+    if(stepTrack != NULL) {
+        if(stepTrack == _curTrack) {
+            raise();
+            activateWindow();
+            return;
+        }
+        reject();
+    }
     curTrack = _curTrack;
     fillBoxes();
+    curTrack->mHistory->beginStep("Change track properties", commandTarget::forTrack(curTrack->getID()-1));
+    stepTrack = curTrack;
+    gloParent->setUndoButtons();   // Undo and Redo wait while the step is open
     this->show();
 }
 
-// The track was put back to another state (an undo or redo): an open dialog
-// shows the values it has now, so OK does not write the old ones back.
+void TrackProperties::cancelFor(trackHandler* _track)
+{
+    if(stepTrack != NULL && stepTrack == _track) {
+        reject();
+    }
+}
+
+// The track was put back to another state (an undo or redo, or a command
+// that failed inside the step): an open dialog shows the values it has now,
+// so OK does not write the old ones back.
 void TrackProperties::trackReset(trackHandler* _track)
 {
     if(_track == curTrack && isVisible()) {
@@ -292,6 +290,7 @@ void TrackProperties::trackReset(trackHandler* _track)
 // track: an undo since it was last open may have changed the values).
 void TrackProperties::fillBoxes()
 {
+    bFilling = true;
     {
         ui->frictionBox->setValue(curTrack->trackData->fFriction);
         ui->resistanceBox->setValue(curTrack->trackData->fResistance*1e5);
@@ -316,4 +315,10 @@ void TrackProperties::fillBoxes()
     bSettingHeartline = false;
     ui->trainTypeBox->setCurrentIndex(0);
     ui->trainSourceLabel->clear();
+
+    // what the boxes show now, rounded to their decimals
+    fFilledFriction = ui->frictionBox->value();
+    fFilledResistance = ui->resistanceBox->value();
+    fFilledHeart = ui->heartlineBox->value();
+    bFilling = false;
 }
