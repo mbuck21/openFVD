@@ -17,6 +17,7 @@ SOURCES += \
     $$PWD/mnode.cpp \
     $$PWD/nolimitsimporter.cpp \
     $$PWD/projectfile.cpp \
+    $$PWD/projecttext.cpp \
     $$PWD/secbezier.cpp \
     $$PWD/seccurved.cpp \
     $$PWD/secforced.cpp \
@@ -37,6 +38,7 @@ HEADERS += \
     $$PWD/mnode.h \
     $$PWD/nolimitsimporter.h \
     $$PWD/projectfile.h \
+    $$PWD/projecttext.h \
     $$PWD/secbezier.h \
     $$PWD/seccurved.h \
     $$PWD/secforced.h \
