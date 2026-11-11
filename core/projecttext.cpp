@@ -96,6 +96,44 @@ static const float LIMIT_CURVE_END = 5000.f;      // degrees, a curve's roll fun
 static const double LIMIT_NODES = 2000000.;       // nodes a section may need at a held speed
 static const double LIMIT_BEZIER_LENGTH = 20000.; // m, the length of a Bezier section's control polygon
 
+namespace projectText {
+
+qint64 floatSteps(float a, float b)
+{
+    qint32 ia, ib;
+    memcpy(&ia, &a, sizeof(float));
+    memcpy(&ib, &b, sizeof(float));
+    // the bit patterns of negative floats run backwards; fold them so that
+    // the integers are in the order of the floats
+    const qint64 lowest = std::numeric_limits<qint32>::min();
+    qint64 la = ia < 0 ? lowest - ia : (qint64)ia;
+    qint64 lb = ib < 0 ? lowest - ib : (qint64)ib;
+    return la > lb ? la - lb : lb - la;
+}
+
+// A binary load keeps the last transition's start as the file has it while
+// the end before is worked out again; measured, they stay within a few steps
+// (tests/projecttext, the open-and-save cycles). The tolerance is far above
+// that, so no model the program makes can be written but not read back.
+bool fromWithinTolerance(float from, float endBefore)
+{
+    return std::isfinite(from) && std::isfinite(endBefore) && floatSteps(from, endBefore) <= FROM_TOLERANCE_STEPS;
+}
+
+bool shapeUsesParameter(int shape)
+{
+    return shape == quadratic || shape == quartic || shape == quintic || shape == plateau;
+}
+
+bool shapeParameterAccepted(int shape, float value)
+{
+    return !shapeUsesParameter(shape) || std::isfinite(value);
+}
+
+}
+
+using projectText::fromWithinTolerance;
+
 static int indexOfName(const QString& name, const char* const* names, int count)
 {
     for(int i = 0; i < count; ++i) {
@@ -225,11 +263,22 @@ bool textWriter::writeFunction(func* f, const QString& where, QJsonArray* out)
         QJsonObject o;
         QJsonObject recalc;
         o["shape"] = QString(SHAPE_NAMES[shape]);
-        if(i == 0) {
-            o["from"] = floatToJson(sub->minArgument);
-        } else {
-            recalc["from"] = floatToJson(sub->minArgument);
+        // every piece's start is stored: a later one normally equals the end
+        // of the one before, but a loaded model can hold it a last digit away.
+        // A model the reader would refuse is not written.
+        if(i > 0 && !fromWithinTolerance(sub->minArgument, f->funcList[i-1]->maxArgument)) {
+            error = QString("Error: %1: it starts at %2 but the one before ends at %3, more than %4 float "
+                            "steps apart; the text could not be read back.").arg(here)
+                    .arg(sub->minArgument, 0, 'g', 9).arg(f->funcList[i-1]->maxArgument, 0, 'g', 9)
+                    .arg(projectText::FROM_TOLERANCE_STEPS);
+            return false;
         }
+        if(!projectText::shapeParameterAccepted(shape, sub->arg1)) {
+            error = QString("Error: %1: its shape parameter is %2, which a %3 transition cannot use; "
+                            "the text could not be read back.").arg(here).arg(sub->arg1).arg(SHAPE_NAMES[shape]);
+            return false;
+        }
+        o["from"] = floatToJson(sub->minArgument);
         o["to"] = floatToJson(sub->maxArgument);
         if(sub->degree == tozero) {
             recalc["change"] = floatToJson(sub->symArg);
@@ -460,6 +509,8 @@ QJsonObject textWriter::writeTrack(track* t, int trackNo)
 
 } // namespace
 
+static QString checkProjectText(const QByteArray& text);
+
 QString writeProjectText(QByteArray& out, const QString& texPath, const QList<track*>& tracks, projectFileClient* client)
 {
     out.clear();
@@ -479,8 +530,17 @@ QString writeProjectText(QByteArray& out, const QString& texPath, const QList<tr
     root["groundTexture"] = texPath;
     root["tracks"] = trackArray;
 
-    out = QJsonDocument(root).toJson(QJsonDocument::Indented);
-    if(!out.endsWith('\n')) out.append('\n');
+    QByteArray text = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if(!text.endsWith('\n')) text.append('\n');
+
+    // Never hand out a text the reader would refuse: run its checks (step 1
+    // of reading, no model is built) on the text just made.
+    QString refused = checkProjectText(text);
+    if(!refused.isEmpty()) {
+        return QString("Error: the project cannot be written as text, because the text would not read back: ")
+                + refused.mid(refused.startsWith("Error: ") ? 7 : 0);
+    }
+    out = text;
     return QString("Project Saved!");
 }
 
@@ -614,6 +674,16 @@ public:
         } else if(!std::isfinite(f)) {
             wrongType(key, "a finite number (not infinity or NaN, and within the range of a float)");
         }
+        return f;
+    }
+
+    // A number that the model stores but never computes with: infinity and
+    // NaN are kept.
+    float getAnyFloat(const char* key)
+    {
+        QJsonValue v = value(key);
+        float f = 0.f;
+        if(ok() && !floatFromJson(v, &f)) wrongType(key, "a number");
         return f;
     }
 
@@ -854,15 +924,29 @@ void textReader::readFunction(objectReader& parent, const char* key, float maxEn
         // A function starts at 0 (func::appendSubFunction(), removeSubFunction())
         // and each transition ends after the one before: a zero or negative
         // length divides by zero in subfunc::getValue().
-        float start = (i == 0) ? 0.f : out->last().to;
+        // A later transition starts where the one before ends. Its "from" is
+        // stored all the same, because a loaded model can hold it a last digit
+        // or two away (docs/project-text-format.md, "A transition"); left out,
+        // it is the end before. A text of the first version has it under
+        // recalculatedOnLoad, which is not read, so it starts there too.
         if(i == 0) {
             t.from = r.getFloat("from");
             if(r.ok() && t.from != 0.f) {
                 r.fail(QString("\"from\" is %1; a function starts at 0").arg(t.from));
             }
         } else {
-            t.from = 0.f;
+            float before = out->last().to;
+            t.from = before;
+            if(r.has("from")) {
+                t.from = r.getFloat("from");
+                if(r.ok() && !fromWithinTolerance(t.from, before)) {
+                    r.fail(QString("transition %1 starts at %2 but the one before ends at %3; "
+                                   "make them equal or leave \"from\" out")
+                           .arg(i+1).arg(t.from, 0, 'g', 9).arg(before, 0, 'g', 9));
+                }
+            }
         }
+        float start = t.from;
         t.to = r.getFloat("to");
         if(r.ok() && !(t.to > start)) {
             r.fail(QString("\"to\" is %1, which is not after %2 where the transition starts; "
@@ -873,7 +957,13 @@ void textReader::readFunction(objectReader& parent, const char* key, float maxEn
                    .arg(t.to).arg(maxEnd).arg(unit));
         }
         t.change = (t.shape == tozero) ? 0.f : r.getFloat("change");
-        t.shapeParameter = r.getFloat("shapeParameter");
+        // finite where the shape reads it; elsewhere kept as it is, infinity
+        // and NaN included (projectText::shapeParameterAccepted())
+        if(projectText::shapeUsesParameter(t.shape)) {
+            t.shapeParameter = r.getFloat("shapeParameter");
+        } else {
+            t.shapeParameter = r.getAnyFloat("shapeParameter");
+        }
         // the transition editor's boxes
         t.center = r.getFloatIn("center", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
         t.tension = r.getFloatIn("tension", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
@@ -1178,6 +1268,21 @@ bool textReader::readProject(const QJsonObject& root, projectData* out)
 
 } // namespace
 
+// The reader's checks alone (step 1): the error it would give, or an empty
+// text when it would accept the text.
+static QString checkProjectText(const QByteArray& text)
+{
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(text, &parseError);
+    if(doc.isNull() || !doc.isObject()) {
+        return QString("Error: the text is not one valid JSON object (%1).").arg(parseError.errorString());
+    }
+    textReader reader;
+    projectData data;
+    if(!reader.readProject(doc.object(), &data)) return reader.error;
+    return QString();
+}
+
 // ---------------------------------------------------------------------------
 // Reading, step 2: the plain data into the model, as a binary load does it
 // ---------------------------------------------------------------------------
@@ -1207,8 +1312,17 @@ static void writeVec3ForReadVec3(std::stringstream& ss, const glm::vec3& v, bool
 // As func::loadFunction() and subfunc::loadSubFunc(): the first piece is
 // there already, each further one is appended after its predecessor and then
 // filled in. The start values (and a tozero piece's change) are left to the
-// section's updateSection(), which sets them from the node before it; a later
-// piece starts where appendSubFunction() puts it, at the end of the one before.
+// section's updateSection(), which sets them from the node before it.
+//
+// The ends are not left to appendSubFunction(): it moves every later piece
+// with (end before + end - start), which in single precision is not always
+// the end it started from (4.9999986 to 5.999999 becomes 5.9999995), so a
+// model built that way can differ from the one the text was written from.
+// Once every piece exists (built as before, so that the values on the way are
+// those of a binary load), each start and end is set to the text's value as
+// it is, with no arithmetic; nothing later in the build moves them (a locked
+// piece is stretched to the section's end on every update, the same way in
+// the model the text came from).
 static void buildFunction(func* f, const QList<transitionData>& list)
 {
     for(int i = 0; i < list.size(); ++i) {
@@ -1223,6 +1337,10 @@ static void buildFunction(func* f, const QList<transitionData>& list)
         sub->centerArg = t.center;
         sub->tensionArg = t.tension;
         sub->locked = t.locked;
+    }
+    for(int i = 0; i < list.size(); ++i) {
+        f->funcList[i]->minArgument = list[i].from;
+        f->funcList[i]->maxArgument = list[i].to;
     }
 }
 

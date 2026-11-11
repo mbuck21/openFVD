@@ -19,13 +19,23 @@
 
 // Test for core/projecttext.*, the project as text (docs/project-text-format.md).
 //
-//   projecttext <repository folder> [<folder to keep the texts in>]
+//   projecttext <repository folder> [<folder to keep the texts in> [<folder of more projects>]]
+//
+// (Give "" as the second argument to keep no texts but name a third.)
 //
 // For every saved project in samples/baseline/ (not the .2016.* files),
-// samples/import/ and samples/investigations/: load the binary file A, save it
+// samples/import/ and samples/investigations/, and in the third argument's
+// folder if one is given: load the binary file A, save it
 // again (B1), write it as text (T1), read T1 into a fresh project, save that
 // (B2) and write it as text again (T2). B2 must equal B1 byte for byte and T2
-// must equal T1. Then: floats survive the text exactly; an unknown key is
+// must equal T1. The same from a model whose transition ends one more pass of
+// func::appendSubFunction() would move (4.9999986 to 5.999999, and more
+// found by a search); a later transition's "from" left out, a few last digits
+// off, too far off, and in the first version's shape; a model whose gap is
+// beyond the tolerance is not written. Every project and built model is
+// opened and saved 20 times in a row: the gap between a transition's start
+// and the end before must stay within 8 float steps and the text round trip
+// must hold after every cycle. Then: floats survive the text exactly; an unknown key is
 // accepted with a warning; a wrong type, a missing key, an unknown section
 // type and a freeform transition are refused with a message naming the
 // place, without touching the project; a cut-off text never crashes.
@@ -746,6 +756,478 @@ static void checkToZero(const QByteArray& t1, const QString& tmp)
     check(ok && b2 == b && t3 == t2, "a project made in the text round-trips exactly (tozero, three transitions)");
 }
 
+// ---------------------------------------------------------------------------
+// Transition ends that one more pass of func::appendSubFunction() would move.
+// It sets a later piece's end to (end before + end) - start, and in single
+// precision that is not always the end: 4.9999986 + 5.999999 - 4.9999986 is
+// 5.9999995. A text read back must still give exactly the model it came from.
+
+static float floatOfBits(quint32 bits)
+{
+    float f;
+    memcpy(&f, &bits, sizeof(float));
+    return f;
+}
+
+// what the append does to a piece from a to b
+static float appendedEnd(float a, float b)
+{
+    volatile float sum = a + b;
+    volatile float end = sum - a;
+    return end;
+}
+
+// Pairs (a, b), a < b, that the append would move, found by a fixed search.
+// Kept to a section of a few seconds: on a much longer one the forces of the
+// sample make the train stall, and a model full of NaN is not what is tested.
+static QList<QPair<float, float> > findAwkwardEnds(int wanted)
+{
+    QList<QPair<float, float> > found;
+    quint32 state = 12345u;
+    for(int tries = 0; tries < 100000 && found.size() < wanted; ++tries) {
+        state = state*1664525u + 1013904223u;
+        float a = 0.5f + (float)(state >> 8)/(float)(1u << 24)*5.5f;
+        state = state*1664525u + 1013904223u;
+        float b = a + 0.05f + (float)(state >> 8)/(float)(1u << 24)*1.5f;
+        if(b > a && appendedEnd(a, b) != b) found.append(qMakePair(a, b));
+    }
+    return found;
+}
+
+static int forceSectionOf(track* t)
+{
+    for(int i = 0; i < t->lSections.size(); ++i) {
+        if(t->lSections[i]->type == forced) return i;
+    }
+    return -1;
+}
+
+// The track computed again after an edit made in code, as the windows do.
+static void recompute(track* t)
+{
+    t->updateTrack(0, 0);
+    char customChar;
+    t->updateSmoothEntries(&customChar);   // the sections' node numbers moved
+    t->applyRollSmooth();
+}
+
+// The normal force of the project's force section made of the pieces between
+// the given ends, set exactly; the other two functions stretched to the last
+// end; then the track recomputed. False if the recompute moved an end.
+static bool buildEndsModel(coreProject& p, const QString& path, const QList<float>& ends)
+{
+    loadProjectFile(path, &p);
+    if(p.tracks.isEmpty()) return false;
+    track* t = p.tracks[0];
+    int force = forceSectionOf(t);
+    if(force < 0) return false;
+    section* s = t->lSections[force];
+    func* nf = s->normForce;
+    const int n = ends.size() - 1;
+    while(nf->funcList.size() > 1) nf->removeSubFunction(nf->funcList.size()-1);
+    for(int i = 0; i < n-1; ++i) nf->appendSubFunction(1, i);
+    for(int i = 0; i < n; ++i) {
+        nf->funcList[i]->locked = false;
+        // a new cubic piece's shape parameter is whatever the memory held
+        // (subfunc's constructor leaves it); fix it so the test is repeatable
+        if(i > 0) nf->funcList[i]->arg1 = 0.f;
+        nf->funcList[i]->minArgument = ends[i];
+        nf->funcList[i]->maxArgument = ends[i+1];
+    }
+    func* others[2] = { s->rollFunc, s->latForce };
+    for(int k = 0; k < 2; ++k) {
+        subfunc* last = others[k]->funcList.last();
+        if(!last->locked && last->minArgument < ends.last()) last->maxArgument = ends.last();
+    }
+    recompute(t);
+    for(int i = 0; i < n; ++i) {
+        if(nf->funcList[i]->minArgument != ends[i] || nf->funcList[i]->maxArgument != ends[i+1]) return false;
+    }
+    return true;
+}
+
+// Four pieces 0..a/2, a/2..a, a..b, b..b+1.
+static bool buildAwkwardModel(coreProject& p, const QString& path, float a, float b)
+{
+    return buildEndsModel(p, path, QList<float>() << 0.f << a*0.5f << a << b << b + 1.f);
+}
+
+static float stepsDown(float f, int steps)
+{
+    for(int k = 0; k < steps; ++k) f = nextafterf(f, -1e30f);
+    return f;
+}
+
+// The functions the text holds, of every track and section.
+static QList<func*> functionsOf(coreProject& p)
+{
+    QList<func*> l;
+    for(int ti = 0; ti < p.tracks.size(); ++ti) {
+        for(int si = 0; si < p.tracks[ti]->lSections.size(); ++si) {
+            section* s = p.tracks[ti]->lSections[si];
+            if(s->type == straight || s->type == curved) l << s->rollFunc;
+            if(s->type == forced || s->type == geometric) l << s->rollFunc << s->normForce << s->latForce;
+        }
+    }
+    return l;
+}
+
+// The largest gap, in float steps, between a transition's start and the end
+// of the one before.
+static qint64 largestGap(coreProject& p)
+{
+    qint64 gap = 0;
+    QList<func*> l = functionsOf(p);
+    for(int k = 0; k < l.size(); ++k) {
+        for(int i = 1; i < l[k]->funcList.size(); ++i) {
+            gap = qMax(gap, projectText::floatSteps(l[k]->funcList[i]->minArgument, l[k]->funcList[i-1]->maxArgument));
+        }
+    }
+    return gap;
+}
+
+static int bytesChanged(const QByteArray& a, const QByteArray& b)
+{
+    int n = qAbs(a.size() - b.size());
+    for(int i = 0; i < qMin(a.size(), b.size()); ++i) {
+        if(a[i] != b[i]) ++n;
+    }
+    return n;
+}
+
+static qint64 observedLargestGap = 0;   // over every cycle of every project
+static const int CYCLES = 20;
+static const qint64 GAP_BOUND = 8;
+
+// Open and save the binary file CYCLES times in a row through the model.
+// After each opening: the bytes the save changed, the largest gap, and the
+// text round trip (binary -> text -> binary identical, text -> text identical).
+static void checkCycles(const QString& name, const QString& path, const QString& tmp)
+{
+    QString cur = tmp + "/cycle.fvd";
+    QFile::remove(cur);
+    if(!QFile::copy(path, cur)) {
+        check(false, QString("%1: copied for the cycles").arg(name));
+        return;
+    }
+    QByteArray before = readAll(cur);
+    QStringList changes;
+    qint64 gapMax = 0;
+    int badTrips = 0;
+    for(int c = 1; c <= CYCLES; ++c) {
+        coreProject p;
+        loadProjectFile(cur, &p);
+        gapMax = qMax(gapMax, largestGap(p));
+        QByteArray b = binaryOf(p, cur);
+        changes << QString::number(bytesChanged(before, b));
+        before = b;
+
+        QByteArray t1, t2;
+        QString w = writeProjectText(t1, p.texPath, p.tracks, &p);
+        coreProject q;
+        QString r = readProjectText(t1, &q);
+        QByteArray b2 = binaryOf(q, tmp + "/cycle-text.fvd");
+        writeProjectText(t2, q.texPath, q.tracks, &q);
+        if(!w.startsWith("Project Saved") || r.startsWith("Error") || b.isEmpty() || b2 != b || t2 != t1) {
+            if(badTrips == 0 && !keepFolder.isEmpty()) {
+                QFile f1(keepFolder + "/" + name + QString(".cycle%1.json").arg(c));
+                if(f1.open(QIODevice::WriteOnly)) f1.write(t1);
+                QFile f2(keepFolder + "/" + name + QString(".cycle%1.again.json").arg(c));
+                if(f2.open(QIODevice::WriteOnly)) f2.write(t2);
+            }
+            ++badTrips;
+        }
+    }
+    observedLargestGap = qMax(observedLargestGap, gapMax);
+    check(gapMax <= GAP_BOUND && badTrips == 0,
+          QString("%1: opened and saved %2 times: bytes changed per cycle %3; largest gap %4 float steps "
+                  "(bound %5); text round trip exact after %6 of %2 cycles")
+          .arg(name).arg(CYCLES).arg(changes.join(",")).arg(gapMax).arg(GAP_BOUND).arg(CYCLES - badTrips));
+}
+
+// A model built with the given ends, saved, then put through the cycles.
+static void checkCyclesOfEnds(const QString& what, const QString& path, const QList<float>& ends, const QString& tmp)
+{
+    coreProject p;
+    if(!buildEndsModel(p, path, ends)) {
+        check(false, QString("%1: built").arg(what));
+        return;
+    }
+    QString start = tmp + "/ends-start.fvd";
+    binaryOf(p, start);
+    checkCycles(what, start, tmp);
+}
+
+// ends a, b (a < b) that an append moves, with b - a longer than a: the case
+// the factor-of-two argument (s - a exact when s and a are close) leaves open
+static QPair<float, float> findLongAwkward()
+{
+    quint32 state = 777u;
+    for(int tries = 0; tries < 100000; ++tries) {
+        state = state*1664525u + 1013904223u;
+        float a = 0.2f + (float)(state >> 8)/(float)(1u << 24)*1.3f;
+        state = state*1664525u + 1013904223u;
+        float b = 2.05f*a + (float)(state >> 8)/(float)(1u << 24)*4.f;
+        if(b - a > a && appendedEnd(a, b) != b) return qMakePair(a, b);
+    }
+    return qMakePair(0.f, 0.f);
+}
+
+// 0, e1, ..., e5, e5+1 where the pieces e1..e2, e2..e3, e3..e4 and e4..e5 are
+// all moved by an append
+static QList<float> findAwkwardChain()
+{
+    quint32 state = 4242u;
+    QList<float> ends;
+    ends << 0.f << 0.7f;
+    while(ends.size() < 6) {
+        state = state*1664525u + 1013904223u;
+        float last = ends.last();
+        float next = last + 0.1f + (float)(state >> 8)/(float)(1u << 24)*1.4f;
+        if(appendedEnd(last, next) != next) ends << next;
+    }
+    ends << ends.last() + 1.f;
+    return ends;
+}
+
+static QString endsText(const QList<float>& ends)
+{
+    QStringList l;
+    for(int i = 0; i < ends.size(); ++i) l << QString::number(ends[i], 'g', 9);
+    return l.join(", ");
+}
+
+static QString hexOf(float f)
+{
+    quint32 bits;
+    memcpy(&bits, &f, sizeof(float));
+    return QString("%1 (0x%2)").arg(f, 0, 'g', 9).arg(bits, 8, 16, QChar('0'));
+}
+
+// A text in the shape the first version wrote: a later transition's "from"
+// under recalculatedOnLoad.
+static QByteArray toFirstVersionShape(const QByteArray& text)
+{
+    static const char* functions[] = { "roll", "normalForce", "lateralForce", "pitchRate", "yawRate" };
+    QJsonObject root = QJsonDocument::fromJson(text).object();
+    QJsonArray tracks = root["tracks"].toArray();
+    for(int ti = 0; ti < tracks.size(); ++ti) {
+        QJsonObject t = tracks[ti].toObject();
+        QJsonArray sections = t["sections"].toArray();
+        for(int si = 0; si < sections.size(); ++si) {
+            QJsonObject s = sections[si].toObject();
+            for(unsigned k = 0; k < sizeof(functions)/sizeof(functions[0]); ++k) {
+                if(!s.contains(functions[k])) continue;
+                QJsonArray f = s[functions[k]].toArray();
+                for(int i = 1; i < f.size(); ++i) {
+                    QJsonObject piece = f[i].toObject();
+                    QJsonObject rec = piece["recalculatedOnLoad"].toObject();
+                    rec["from"] = piece["from"];
+                    piece.remove("from");
+                    piece["recalculatedOnLoad"] = rec;
+                    f[i] = piece;
+                }
+                s[functions[k]] = f;
+            }
+            sections[si] = s;
+        }
+        t["sections"] = sections;
+        tracks[ti] = t;
+    }
+    root["tracks"] = tracks;
+    return QJsonDocument(root).toJson(QJsonDocument::Indented);
+}
+
+static QByteArray setNormalFrom(const QByteArray& text, int force, int piece, const QJsonValue& v, bool remove)
+{
+    return editSection(text, force, [&](QJsonObject& o) {
+        QJsonArray f = o["normalForce"].toArray();
+        QJsonObject t = f[piece].toObject();
+        if(remove) t.remove("from"); else t["from"] = v;
+        f[piece] = t;
+        o["normalForce"] = f;
+    });
+}
+
+static void checkExactEnds(const QString& path, const QString& tmp)
+{
+    float a0 = floatOfBits(0x409FFFFDu), b0 = floatOfBits(0x40BFFFFEu);
+    check(appendedEnd(a0, b0) != b0 && appendedEnd(a0, appendedEnd(a0, b0)) == appendedEnd(a0, b0),
+          QString("the owner's case: a piece from %1 to %2 is moved to %3 by one more append, and then stays")
+          .arg(hexOf(a0), hexOf(b0), hexOf(appendedEnd(a0, b0))));
+
+    QList<QPair<float, float> > cases;
+    cases.append(qMakePair(a0, b0));
+    cases.append(findAwkwardEnds(5));
+    check(cases.size() == 6, QString("a search found %1 more pairs of ends that an append moves").arg(cases.size()-1));
+
+    QByteArray ownerT1, ownerB1;
+    int force = -1;
+    for(int c = 0; c < cases.size(); ++c) {
+        float a = cases[c].first, b = cases[c].second;
+        QString what = QString("ends %1 then %2").arg(hexOf(a), hexOf(b));
+        coreProject p;
+        bool built = buildAwkwardModel(p, path, a, b);
+        check(built, QString("%1: set in the model of a force section, they survive the recompute").arg(what));
+        if(!built) continue;
+        QByteArray b1 = binaryOf(p, tmp + "/awkward1.fvd");
+        QByteArray t1;
+        writeProjectText(t1, p.texPath, p.tracks, &p);
+
+        coreProject q;
+        QString r = readProjectText(t1, &q);
+        QByteArray b2 = binaryOf(q, tmp + "/awkward2.fvd");
+        QByteArray t2;
+        writeProjectText(t2, q.texPath, q.tracks, &q);
+        bool same = false;
+        if(!q.tracks.isEmpty()) {
+            func* nf = q.tracks[0]->lSections[forceSectionOf(q.tracks[0])]->normForce;
+            same = nf->funcList.size() == 4 && nf->funcList[2]->minArgument == a && nf->funcList[2]->maxArgument == b
+                    && nf->funcList[3]->minArgument == b;
+        }
+        check(r == QString("Load Successful.") && same && !b1.isEmpty() && b2 == b1 && t2 == t1,
+              QString("%1: model -> text -> model gives the same ends, binary and text (%2)%3").arg(what, r)
+              .arg(b2 == b1 ? QString() : QString(": ") + firstDifference(b1, b2)));
+        if(!keepFolder.isEmpty()) {
+            QFile f1(keepFolder + QString("/ends-%1.json").arg(c));
+            if(f1.open(QIODevice::WriteOnly)) f1.write(t1);
+            QFile f2(keepFolder + QString("/ends-%1.again.json").arg(c));
+            if(f2.open(QIODevice::WriteOnly)) f2.write(t2);
+        }
+        if(c == 0) {
+            ownerT1 = t1;
+            ownerB1 = b1;
+            force = forceSectionOf(p.tracks[0]);
+        }
+    }
+    if(ownerT1.isEmpty()) return;
+
+    // hand editing a later transition's "from"
+    QString place = QString("track 1, section %1 (force), normalForce, transition 3").arg(force+1);
+    {
+        QByteArray t = setNormalFrom(setNormalFrom(ownerT1, force, 2, QJsonValue(), true), force, 3, QJsonValue(), true);
+        coreProject p;
+        QString r = readProjectText(t, &p);
+        check(r == QString("Load Successful.") && binaryOf(p, tmp + "/nofrom.fvd") == ownerB1,
+              QString("a later transition without \"from\" starts at the end before (%1)").arg(r));
+    }
+    expectRefused(setNormalFrom(ownerT1, force, 2, (double)a0 + 0.01, false),
+                  "a later \"from\" 0.01 away from the end before", QStringList() << place << "leave \"from\" out");
+    const int tol = (int)projectText::FROM_TOLERANCE_STEPS;
+    {
+        float near = stepsDown(a0, tol);
+        QByteArray t = setNormalFrom(ownerT1, force, 2, projectText::floatToJson(near), false);
+        coreProject p;
+        QString r = readProjectText(t, &p);
+        bool kept = r == QString("Load Successful.")
+                && p.tracks[0]->lSections[force]->normForce->funcList[2]->minArgument == near;
+        check(kept, QString("a later \"from\" %1 float steps away is kept as written (%2)").arg(tol).arg(r));
+        float far = stepsDown(a0, tol + 1);
+        expectRefused(setNormalFrom(ownerT1, force, 2, projectText::floatToJson(far), false),
+                      QString("a later \"from\" %1 float steps away").arg(tol + 1), QStringList() << place);
+    }
+
+    // the writer uses the same rule: a model whose gap is beyond it is not
+    // written; one just inside is written and reads back exactly
+    for(int k = 0; k < 2; ++k) {
+        int steps = k == 0 ? tol : tol + 1;
+        coreProject p;
+        bool built = buildAwkwardModel(p, path, a0, b0);
+        if(built) {
+            p.tracks[0]->lSections[force]->normForce->funcList[2]->minArgument = stepsDown(a0, steps);
+            recompute(p.tracks[0]);
+            built = p.tracks[0]->lSections[force]->normForce->funcList[2]->minArgument == stepsDown(a0, steps);
+        }
+        QByteArray t1;
+        QString w = writeProjectText(t1, p.texPath, p.tracks, &p);
+        if(k == 1) {
+            QString writePlace = QString("track 1, section %1, normalForce, transition 3").arg(force+1);
+            check(built && w.startsWith("Error") && w.contains(writePlace) && w.contains("could not be read back") && t1.isEmpty(),
+                  QString("a model with a gap of %1 float steps is not written: %2").arg(steps).arg(w));
+        } else {
+            QByteArray b1 = binaryOf(p, tmp + "/gap1.fvd");
+            coreProject q;
+            QString r = readProjectText(t1, &q);
+            QByteArray t2;
+            writeProjectText(t2, q.texPath, q.tracks, &q);
+            check(built && w == QString("Project Saved!") && r == QString("Load Successful.")
+                  && binaryOf(q, tmp + "/gap2.fvd") == b1 && t2 == t1,
+                  QString("a model with a gap of %1 float steps is written and reads back exactly (%2)").arg(steps).arg(r));
+        }
+    }
+
+    // the shape parameter, one rule both ways: kept as it is (infinity, NaN)
+    // where the shape does not read it, finite where it does
+    {
+        const float inf = std::numeric_limits<float>::infinity();
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        float values[2] = { inf, nan };
+        for(int k = 0; k < 2; ++k) {
+            coreProject p;
+            bool built = buildAwkwardModel(p, path, a0, b0);
+            subfunc* piece = built ? p.tracks[0]->lSections[force]->normForce->funcList[2] : NULL;
+            if(piece) piece->arg1 = values[k];
+            QByteArray b1 = binaryOf(p, tmp + "/arg1.fvd");
+            QByteArray t1, t2;
+            QString w = writeProjectText(t1, p.texPath, p.tracks, &p);
+            coreProject q;
+            QString r = readProjectText(t1, &q);
+            writeProjectText(t2, q.texPath, q.tracks, &q);
+            check(built && piece->degree == cubic && w == QString("Project Saved!") && r == QString("Load Successful.")
+                  && binaryOf(q, tmp + "/arg1b.fvd") == b1 && t2 == t1,
+                  QString("a cubic transition's unused shape parameter %1 is written and reads back exactly (%2)")
+                  .arg(k == 0 ? "inf" : "nan").arg(r));
+            if(built) {
+                piece->degree = quartic;
+                QByteArray t3;
+                QString w3 = writeProjectText(t3, p.texPath, p.tracks, &p);
+                QString writePlace = QString("track 1, section %1, normalForce, transition 3").arg(force+1);
+                check(w3.startsWith("Error") && w3.contains(writePlace) && t3.isEmpty(),
+                      QString("a quartic transition with the shape parameter %1 is not written: %2")
+                      .arg(k == 0 ? "inf" : "nan").arg(w3));
+            }
+        }
+        expectRefused(editSection(ownerT1, force, [](QJsonObject& o) { setFirst(o, "roll", "shapeParameter", QString("nan")); }),
+                      "a NaN shape parameter on a quartic transition", QStringList() << "roll, transition 1" << "\"shapeParameter\"" << "finite");
+    }
+
+    // and every other rule of the reader: the writer checks its own text
+    {
+        coreProject p;
+        loadProjectFile(path, &p);
+        p.tracks[0]->fFriction = 3.f;   // the reader allows 0 to 2
+        QByteArray t;
+        QString w = writeProjectText(t, p.texPath, p.tracks, &p);
+        check(w.startsWith("Error") && w.contains("would not read back") && w.contains("\"friction\"") && t.isEmpty(),
+              QString("a model the reader would refuse for any other reason is not written: %1").arg(w));
+    }
+
+    // open-and-save cycles of the built models
+    for(int c = 0; c < cases.size(); ++c) {
+        float a = cases[c].first, b = cases[c].second;
+        checkCyclesOfEnds(QString("ends %1 then %2").arg(hexOf(a), hexOf(b)), path,
+                          QList<float>() << 0.f << a*0.5f << a << b << b + 1.f, tmp);
+    }
+    {
+        QPair<float, float> lng = findLongAwkward();
+        check(lng.second > 0.f, "a search found an awkward piece longer than everything before it");
+        QList<float> ends = QList<float>() << 0.f << lng.first*0.5f << lng.first << lng.second << lng.second + 1.f;
+        checkCyclesOfEnds(QString("a long awkward piece, ends %1").arg(endsText(ends)), path, ends, tmp);
+        QList<float> chain = findAwkwardChain();
+        checkCyclesOfEnds(QString("four awkward pieces in a row, ends %1").arg(endsText(chain)), path, chain, tmp);
+    }
+    {
+        QByteArray t = toFirstVersionShape(ownerT1);
+        coreProject p;
+        QString r = readProjectText(t, &p);
+        QByteArray t2;
+        writeProjectText(t2, p.texPath, p.tracks, &p);
+        check(r == QString("Load Successful.") && t != ownerT1
+              && binaryOf(p, tmp + "/firstversion.fvd") == ownerB1 && t2 == ownerT1,
+              QString("a text of the first version (a later \"from\" under recalculatedOnLoad) reads to the same model (%1)").arg(r));
+    }
+}
+
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
@@ -762,7 +1244,7 @@ int main(int argc, char** argv)
         return 1;
     }
     QString tmp = tmpDir.path();
-    if(argc > 2) keepFolder = QString::fromLocal8Bit(argv[2]);
+    if(argc > 2) keepFolder = QString::fromLocal8Bit(argv[2]);   // "" keeps nothing
 
     checkFloats();
 
@@ -803,6 +1285,25 @@ int main(int argc, char** argv)
     }
     check(sawBezier && sawCsv, "a Bezier section and a NoLimits CSV section were among them");
 
+    // the optional third argument: a folder of more projects, each put
+    // through the same round trip
+    if(argc > 3) {
+        QDir extra(QString::fromLocal8Bit(argv[3]));
+        QStringList l = extra.entryList(QStringList() << "*.fvd", QDir::Files, QDir::Name);
+        check(extra.exists() && !l.isEmpty(), QString("%1 projects found in %2").arg(l.size()).arg(extra.absolutePath()));
+        for(int i = 0; i < l.size(); ++i) {
+            if(l[i].contains(".2016.")) continue;
+            checkProject(extra.filePath(l[i]), tmp);
+            checkCycles(l[i], extra.filePath(l[i]), tmp);
+        }
+    }
+
+    // open and save each sample again and again: how far a transition's start
+    // drifts from the end before, and the text round trip after every cycle
+    for(int i = 0; i < projects.size(); ++i) {
+        checkCycles(QFileInfo(projects[i]).fileName(), projects[i], tmp);
+    }
+
     if(fourT1.isEmpty()) {
         check(false, "samples/baseline/four-sections.fvd was read");
     } else {
@@ -810,6 +1311,12 @@ int main(int argc, char** argv)
         checkRanges(fourT1, tmp);
         checkFreeformWrite(fourPath);
         checkToZero(fourT1, tmp);
+        checkExactEnds(fourPath, tmp);
+        {
+            coreProject p;
+            QString r = readProjectText(toFirstVersionShape(fourT1), &p);
+            check(r == QString("Load Successful."), QString("four-sections.fvd in the first version's shape reads (%1)").arg(r));
+        }
 
         // the file functions
         coreProject a;
@@ -823,6 +1330,10 @@ int main(int argc, char** argv)
         coreProject c;
         check(loadProjectTextFile(tmp + "/missing.json", &c).startsWith("Error"), "a missing text file is an error");
     }
+
+    printf("     info: the largest gap seen between a transition's start and the end before, over every cycle: "
+           "%lld float steps (the reader's tolerance is %lld)\n",
+           (long long)observedLargestGap, (long long)projectText::FROM_TOLERANCE_STEPS);
 
     if(failures == 0) {
         printf("PASS\n");
