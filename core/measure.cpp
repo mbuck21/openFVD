@@ -151,8 +151,10 @@ void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan)
         if(!measureSpeedIsHeld(sec)) {
             int lo = qMax(i - halfSpan, n.sectionFirst.at(s) + 1);
             int hi = qMin(i + halfSpan, n.sectionLast.at(s));
-            double ds = n.heartDist.at(hi) - n.heartDist.at(lo);
-            if(hi > lo && ds > 1e-6) {
+            // lo can be past hi (a section of one node): test before reading.
+            // A non-finite speed or distance passes through as non-finite.
+            double ds = (hi > lo) ? n.heartDist.at(hi) - n.heartDist.at(lo) : 0.0;
+            if(hi > lo && !(ds <= 1e-6)) {
                 double vlo = n.nodes.at(lo)->fVel;
                 double vhi = n.nodes.at(hi)->fVel;
                 double at = (vhi*vhi - vlo*vlo) / (2.0*ds);

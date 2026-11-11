@@ -54,8 +54,11 @@ static void report(bool ok, const QString& text)
 
 // The exporters and the loader log thousands of lines: drop everything but
 // a failed model check.
+static int expectedCriticals = 0;     // model checks that fail on purpose (the stall test)
+
 static void messageHandler(QtMsgType type, const QMessageLogContext&, const QString& msg)
 {
+    if(type == QtCriticalMsg && expectedCriticals > 0 && msg.startsWith("Assertion")) return;
     if(type == QtCriticalMsg || type == QtFatalMsg) {
         fprintf(stderr, "%s\n", msg.toLocal8Bit().constData());
     }
@@ -236,6 +239,107 @@ static void checkFindOutside()
             && f[2].fromNode == 3000 && f[2].toNode == 3009 && f[2].below && f[2].worstValue == -2.f;
     report(ok, QString("gaps under 100 nodes merge, longer ones do not, both limits, node order (%1 findings)").arg(f.size()));
     if(f.size()) printf("  e.g. \"%s\"\n", qPrintable(f[0].text));
+}
+
+// Values that are not numbers: counted as outside, once, with their own sentence.
+static void checkNonFinite()
+{
+    QVector<float> v(10000, 10.f);
+    for(int i = 2000; i < 2500; ++i) v[i] = 2.f;      // slow, then stalls 50 nodes later
+    for(int i = 2550; i < v.size(); ++i) v[i] = NAN;
+    QList<finding> f = findOutside(v, "basic", "speed", 3.f, INFINITY, findingProblem);
+    QString expect = "Speed is not a number (the train stalls) between 2.0 s and 10.0 s";
+    bool ok = f.size() == 1 && f[0].fromNode == 2000 && f[0].toNode == 9999 && f[0].nonFinite
+            && f[0].worstNode == 2550 && f[0].below && f[0].text == expect;
+    report(ok, QString("NaN speed counts as outside, the stretch runs to the last node (\"%1\")").arg(f.isEmpty() ? QString() : f[0].text));
+
+    QVector<float> w(1000, 1.f);
+    w[500] = INFINITY;
+    w[501] = -INFINITY;
+    w[502] = NAN;
+    f = findOutside(w, "basic", "forceNormal", -1.5f, 5.f, findingProblem);
+    ok = f.size() == 1 && f[0].fromNode == 500 && f[0].toNode == 502 && f[0].nonFinite && f[0].worstNode == 500;
+    QList<finding> g = findOutside(w, "basic", "forceNormal", -INFINITY, 5.f, findingProblem);
+    ok = ok && g.size() == 1 && !g[0].below && g[0].nonFinite;
+    report(ok, QString("an infinite or NaN force is reported once, whichever limits are checked (%1, %2 findings)").arg(f.size()).arg(g.size()));
+}
+
+// Tracks of one node and of no sections: every measure and check runs.
+static void checkTinyTracks()
+{
+    QStringList ids = allIds();
+    track empty(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+    QVector<QVector<float> > v = measureRegistry::values(&empty, ids);
+    bool ok = v.size() == ids.size();
+    for(int k = 0; k < v.size(); ++k) if(!v[k].isEmpty()) ok = false;
+    ok = ok && checkRegistry::runAll(&empty).isEmpty();
+    report(ok, "a track without sections: every measure is empty, no finding");
+
+    track one(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+    one.newSection(forced);
+    one.lSections[0]->lNodes.resize(1);     // as just after a zero-length section is added
+    v = measureRegistry::values(&one, ids);
+    ok = v.size() == ids.size() && one.getNumPoints() == 0;
+    for(int k = 0; k < v.size(); ++k) {
+        if(v[k].size() != 1 || !std::isfinite(v[k][0])) { ok = false; printf("  %s: %d values\n", qPrintable(ids[k]), v[k].size()); }
+    }
+    checkRegistry::runAll(&one);
+    report(ok, "a track of one node: every measure gives one finite value, the checks run");
+}
+
+// A baseline project changed through the model until the train stalls in a
+// force section: the speed goes NaN (secforced has no stop at zero speed) and
+// the basic check must say so.
+static void checkStall(const QString& repo)
+{
+    coreProject p;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/four-sections.fvd"), &p);
+    if(p.tracks.isEmpty() || p.tracks[0]->lSections.size() < 3) {
+        report(false, "four-sections.fvd loads for the stall test");
+        return;
+    }
+    track* t = p.tracks[0];
+    // section 2 is a curve at held speed, section 3 the force section with the
+    // physics: lower the held speed until the pull-up stalls
+    section* held = t->lSections[1];
+    int firstBad = -1;
+    float speed = 0.f;
+    float tries[] = { 5.f, 3.f, 2.f, 1.f, 0.5f };
+    // the model's own NaN checks (lenAssert, a qCritical in a release build)
+    // fire once the speed is NaN; that is the case under test
+    expectedCriticals = 1;
+    for(unsigned k = 0; k < sizeof(tries)/sizeof(tries[0]) && firstBad < 0; ++k) {
+        speed = tries[k];
+        held->fVel = speed;
+        t->updateTrack(1, 0);
+        for(int i = 0; i <= t->getNumPoints(); ++i) {
+            if(!std::isfinite(t->getPoint(i)->fVel)) { firstBad = i; break; }
+        }
+    }
+    expectedCriticals = 0;
+    if(firstBad < 0) {
+        report(false, "stall test: the train never stalled");
+        return;
+    }
+    int last = t->getNumPoints();
+    QStringList ids = allIds();
+    QVector<QVector<float> > v = measureRegistry::values(t, ids);
+    bool sizes = true;
+    for(int k = 0; k < v.size(); ++k) if(v[k].size() != last+1) sizes = false;
+    QList<finding> f = checkRegistry::run(t, "basic");
+    // the stalled stretch: from firstBad to the end of that run of non-finite
+    // speeds (the geometric section after it starts from a speed again)
+    int lastBad = firstBad;
+    while(lastBad < last && !std::isfinite(t->getPoint(lastBad+1)->fVel)) ++lastBad;
+    bool found = false;
+    for(int k = 0; k < f.size(); ++k) {
+        if(f[k].measureId == "speed" && f[k].nonFinite && f[k].fromNode <= firstBad && f[k].toNode >= lastBad) {
+            found = true;
+            printf("  %s\n", qPrintable(f[k].text));
+        }
+    }
+    report(sizes && found, QString("stall: held speed %1 m/s before the force section, speed NaN from node %2 to %3 (of %4); "
+                                   "every measure runs and basic reports a speed finding covering it").arg(speed).arg(firstBad).arg(lastBad).arg(last));
 }
 
 // A track built here: a quarter loop up (curved section, direction 90) at a
@@ -551,7 +655,10 @@ int main(int argc, char *argv[])
 
     checkRegistries();
     checkFindOutside();
+    checkNonFinite();
+    checkTinyTracks();
     checkSyntheticClimb();
+    checkStall(repo);
 
     QDir baseline(QDir(repo).filePath("samples/baseline"));
     QStringList files = baseline.entryList(QStringList() << "*.fvd", QDir::Files, QDir::Name);

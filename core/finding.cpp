@@ -42,6 +42,13 @@ static QString sentence(const finding& f)
     } else {
         where = QString("between %1 s and %2 s").arg(f.fromNode/F_HZ, 0, 'f', 1).arg(f.toNode/F_HZ, 0, 'f', 1);
     }
+    if(f.nonFinite) {
+        // "Speed is not a number (the train stalls) between 3.1 s and 9.4 s"
+        return QString("%1 is not a number%2 %3")
+                .arg(name)
+                .arg(f.measureId == "speed" ? " (the train stalls)" : "")
+                .arg(where);
+    }
     return QString("%1 %2 %3, %4 %5, %6")
             .arg(name)
             .arg(f.below ? "falls to" : "rises to")
@@ -51,17 +58,25 @@ static QString sentence(const finding& f)
             .arg(where);
 }
 
+// Whether v is outside on this side. A value that is not a finite number
+// (NaN or infinite) is outside when countNonFinite is set.
+static bool isOutside(float v, float limit, bool below, bool countNonFinite)
+{
+    if(!std::isfinite(v)) return countNonFinite;
+    return below ? (v < limit) : (v > limit);
+}
+
 // The stretches on one side of one limit.
 static void stretches(QList<finding>& out, const QVector<float>& values, const QString& checkId,
-                      const QString& measureId, float limit, bool below, findingSeverity severity, int mergeGap)
+                      const QString& measureId, float limit, bool below, bool countNonFinite,
+                      findingSeverity severity, int mergeGap)
 {
     if(!std::isfinite(limit)) return;
     int n = values.size();
     int i = 0;
     while(i < n) {
         float v = values.at(i);
-        bool outside = below ? (v < limit) : (v > limit);
-        if(!outside) { ++i; continue; }
+        if(!isOutside(v, limit, below, countNonFinite)) { ++i; continue; }
 
         finding f;
         f.checkId = checkId;
@@ -72,16 +87,24 @@ static void stretches(QList<finding>& out, const QVector<float>& values, const Q
         f.worstNode = i;
         f.limit = limit;
         f.below = below;
+        f.nonFinite = !std::isfinite(v);
         f.severity = severity;
 
         int lastOutside = i;
         int j = i + 1;
         while(j < n && j - lastOutside <= mergeGap) {
             float w = values.at(j);
-            bool o = below ? (w < limit) : (w > limit);
-            if(o) {
+            if(isOutside(w, limit, below, countNonFinite)) {
                 lastOutside = j;
-                if(below ? (w < f.worstValue) : (w > f.worstValue)) {
+                // the first non-finite value is the worst; among finite
+                // values, the one furthest past the limit
+                if(!std::isfinite(w)) {
+                    if(!f.nonFinite) {
+                        f.nonFinite = true;
+                        f.worstValue = w;
+                        f.worstNode = j;
+                    }
+                } else if(!f.nonFinite && (below ? (w < f.worstValue) : (w > f.worstValue))) {
                     f.worstValue = w;
                     f.worstNode = j;
                 }
@@ -100,8 +123,11 @@ QList<finding> findOutside(const QVector<float>& values, const QString& checkId,
 {
     if(mergeGap < 1) mergeGap = 1;
     QList<finding> low, high;
-    stretches(low, values, checkId, measureId, lo, true, severity, mergeGap);
-    stretches(high, values, checkId, measureId, hi, false, severity, mergeGap);
+    // a non-finite value is reported once: with the lower limit if that is
+    // checked, else with the upper one
+    bool lowChecked = std::isfinite(lo);
+    stretches(low, values, checkId, measureId, lo, true, lowChecked, severity, mergeGap);
+    stretches(high, values, checkId, measureId, hi, false, !lowChecked, severity, mergeGap);
     // one list in node order
     QList<finding> result;
     int a = 0, b = 0;

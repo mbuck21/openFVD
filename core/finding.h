@@ -51,6 +51,9 @@ struct finding
     int worstNode;          // where it is
     float limit;            // the limit that was broken
     bool below;             // true: the value fell below limit; false: rose above it
+    bool nonFinite;         // the stretch holds values that are not numbers (NaN or
+                            // infinite, as when the train stalls in a force section);
+                            // then worstValue/worstNode are the first such value
     findingSeverity severity;
     QString text;           // "Speed falls to 2.4 m/s, below 3 m/s, between 41.2 s and 43.0 s"
 };
@@ -85,7 +88,8 @@ public:
 // fall below lo or rise above hi, each side on its own, merged across gaps of
 // fewer than mergeGap nodes. A finding gets the measure's name and unit from
 // the registry for its sentence. Pass lo = -INFINITY or hi = INFINITY to check
-// one side only.
+// one side only. A value that is not a finite number counts as outside, once:
+// on the lower side when lo is checked, else on the upper side.
 QList<finding> findOutside(const QVector<float>& values, const QString& checkId, const QString& measureId,
                            float lo, float hi, findingSeverity severity, int mergeGap = FINDING_MERGE_GAP);
 
