@@ -87,6 +87,7 @@ MainWindow::MainWindow(QWidget *parent) :
         }
         ui->splitter->setCollapsible(glIndex, false);
         mRideSheet->setMinimumWidth(220);   // its labels wrap badly below this
+        glView->setMinimumWidth(200);       // "not collapsible" stops at the minimum, which was 0
         ui->splitter->setSizes(sizes);
     }
 
