@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is next and not started; it waits for the owner's word.**
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is in progress** on the integration branch `claude/stage-2`, started 2026-11-11 at the owner's word (decision records 0011 and 0012).
 
 The roadmap says what has to come before what, and what can run side by side. Rewrite a stage's section when its plan changes; move a finished stage to a short summary. Each stage runs on its own integration branch (decision record 0004). The order of the requests is the owner's to change; the last section lists what is asked of the owner and by when.
 
@@ -22,7 +22,7 @@ The roadmap says what has to come before what, and what can run side by side. Re
 | FR-12 Close the circuit | E1 trial; G2 | 2; 4 |
 | FR-13 Energy margin | R8; P1 and A6 | 2; 3 |
 | FR-14 Ride rules | D4 | 5 |
-| FR-15 Import and convert | R11 experiment; I1 analyse; I2 segment and fit | 2; 3; 6 |
+| FR-15 Import and convert | I1 analyse; R11 experiment; I2 segment and fit | 3; before 6; 6 |
 | FR-16 Launches, lifts, brakes, switches, swing launches | R9; P3 lifts, launches, brakes; P4 swing launches, P5 switches | 2; 4; 7 |
 | FR-17 Comfort beyond the standard | R10; A7 | 2; 3 |
 | FR-18 Ride sheet | A5 | 2 |
@@ -53,7 +53,7 @@ flowchart TD
         A1[A1 Measures and findings]
         A5[A5 Ride sheet<br/>FR-18]
         E1[E1 Solver and element trials<br/>FR-7, FR-10, FR-12]
-        RR[R7 to R11 Research, second pack<br/>FR-11, 13, 15, 16, 17]
+        RR[R7 to R10 Research, second pack<br/>FR-11, 13, 16, 17]
     end
     subgraph S3[Stage 3: see the ride, aim a section]
         A2[A2 Minimum radius<br/>FR-3]
@@ -97,7 +97,7 @@ flowchart TD
     R --> E1
     A1 --> A2 & A3 & A7 & P1
     D2 --> A2 & A3
-    RR --> A7 & A6 & P3 & P2 & I2
+    RR --> A7 & A6 & P3 & P2
     P1 --> A6 & I1 & G3 & P2
     F2 --> W1 & T2
     F3 --> T2 & F4
@@ -131,7 +131,7 @@ flowchart TD
 
 **Parallel (safe to run at the same time):**
 
-- The five research notes of the second pack, with each other and with everything in Stage 2. They produce documents and stand-alone experiments, not program code.
+- The four research notes of the second pack, with each other and with everything in Stage 2. They produce documents and stand-alone experiments, not program code.
 - F2, F3 and A1 with each other and with T1 (they add files; A1 touches the plots and the 3D view, not the editing code).
 - In Stage 3, every piece with every other, except that A6 and I1 follow P1: each is a new measure, a new computation or a new panel.
 - In Stage 4, after F4: G4, P3 and G3 with each other; G2 after G4 and P3.
@@ -165,7 +165,9 @@ Done on `claude/stage-1` in eighteen planned pieces and four that came up on the
 
 **Goal.** The program can be driven and measured without a person, every edit is a command, and the open questions behind the new requests are answered by experiment before anything is designed around them.
 
-**What the owner gets:** the ride sheet on screen; undo that restores the design for every kind of edit; five research notes, two of them with numbers from experiments (how much a whole train differs from a point, how well an imported track can be fitted).
+**What the owner gets:** the ride sheet on screen; undo that restores the design for every kind of edit, including the kinds that have no undo today; new curves on the plot and a colour-by-measure view; four research notes, one of them with numbers from an experiment (how much a whole train differs from a point); and the solver tried on the real program.
+
+**How it is built** is in decision records 0011 (undo by snapshot, named commands on top) and 0012 (measures as a registry, the command-line program in `cli/`, the ride sheet and its definitions). The integration pull request lists the units and their state.
 
 | Piece | What | Depends on | Who | Requests |
 |---|---|---|---|---|
@@ -179,7 +181,7 @@ Done on `claude/stage-1` in eighteen planned pieces and four that came up on the
 | **R8** | Friction, resistance and margins: sensible ranges for steel and wooden coasters with sources, for an empty and a full train, and how the program's two numbers (`fFriction`, `fResistance`) relate to rolling and air resistance. | none | Sonnet | FR-13 |
 | **R9** | Special track: typical accelerations and speeds of LSM and hydraulic launches, lifts and brakes, with sources; how a swing launch is specified (passes, peak speed, the spike); how switches and transfer tracks are laid out; what NoLimits 2 can take from an export. | R4 | Sonnet | FR-16 |
 | **R10** | Comfort: which measures match what riders call rough (jerk, roll rate and roll acceleration, sideways movement of the head), and any published values for rides known as smooth or rough. | R3 | Sonnet | FR-17 |
-| **R11** | Import and convert, the feasibility experiment on a stand-in: the forces along a NoLimits 2 track, how noisy they are on a hand-built track, and how closely clean transitions can reproduce a stretch. Says whether I2 is worth building and what tolerance is useful. Needs one or two NoLimits 2 tracks from the owner, exported as CSV. | none | Opus | FR-15 |
+| **R11** | Import and convert, the feasibility experiment on a stand-in: the forces along a NoLimits 2 track, how noisy they are on a hand-built track, and how closely clean transitions can reproduce a stretch. Says whether I2 is worth building and what tolerance is useful. **Deferred on 2026-11-11 at the owner's word:** it waits for one or two NoLimits 2 tracks from the owner, exported as CSV, and is needed before I2 (Stage 6), not before I1. | NoLimits 2 tracks from the owner | Opus | FR-15 |
 
 ## Stage 3: see the ride, aim a section
 
@@ -280,9 +282,9 @@ Everything about how to build this is the architect's call. These are not; each 
 
 | # | What | Needed |
 |---|---|---|
-| 1 | The word to start Stage 2, and whether the order above is right (issue #30 asks for the order to be confirmed or changed). | now |
-| 2 | One or two NoLimits 2 tracks exported as CSV, for R11; and a larger finished layout of the owner's as a test track, if one turns up. | during Stage 2 |
-| 3 | What counts as airtime and as an inversion on the ride sheet. | during Stage 2 (A5) |
+| 1 | The word to start Stage 2. | given 2026-11-11 |
+| 2 | One or two NoLimits 2 tracks exported as CSV, for R11 (deferred); and a larger finished layout of the owner's as a test track, if one turns up. | before Stage 6 |
+| 3 | What counts as airtime and as an inversion on the ride sheet. | given 2026-11-11 (decision record 0012) |
 | 4 | Whether to buy ASTM F2291 and transcribe twelve numbers by hand; the seller prohibits giving it to an AI (R3). | before A3, Stage 3 |
 | 5 | R5's questions: the ranking of the directions; solve on a button or live; which values the program may change; what to do when a pin cannot be met. Recommendation: a button, and a result to accept. | before G2, Stage 4; G1 is built on the recommendation |
 | 6 | The saved file: may a project that uses a feature the 2016 program cannot compute stop opening in the 2016 program? Recommendation in F4 above. | before Stage 4 |
