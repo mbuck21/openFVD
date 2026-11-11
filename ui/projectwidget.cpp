@@ -31,6 +31,8 @@
 #include "lenassert.h"
 #include "trackwidget.h"
 #include "optionsmenu.h"
+#include "smoothui.h"
+#include "command.h"
 #include <QMenu>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -42,6 +44,18 @@
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
+
+// A track is about to be deleted (or the project replaced): a dialog with a
+// step open on its history is cancelled first, so that no step is left open
+// and no dialog keeps a pointer into the track (the dialogs are modal, so a
+// person cannot get here with one open; this is for every other way).
+static void cancelDialogsFor(TrackProperties* properties, trackHandler* handler)
+{
+    if(properties) properties->cancelFor(handler);
+    if(handler->trackWidgetItem && handler->trackWidgetItem->smoothScreen) {
+        handler->trackWidgetItem->smoothScreen->cancelStep();
+    }
+}
 
 projectWidget::projectWidget(QWidget *parent) :
     QWidget(parent),
@@ -105,6 +119,7 @@ void projectWidget::cleanUp()
 {
     glView->paintMode = false;
     while(trackList.size()) {
+        cancelDialogsFor(properties, trackList[0]);
         delete trackList[0];
         trackList.removeFirst();
     }
@@ -286,6 +301,7 @@ void projectWidget::on_deleteButton_released()
         int i;
         for(i = 0; i < trackList.size(); ++i) {
             if(trackList[i] == selTrack) {
+                cancelDialogsFor(properties, selTrack);
                 trackList.removeAt(i);
                 delete selTrack;
                 break;
@@ -327,9 +343,17 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
     case 0:
         return;
     case 1:
-        trackList[index]->trackData->name = item->text(1);
+        // A name typed into the list is a step of its own (track.setName). The
+        // list also shows the name it already has after a load or an undo:
+        // that is no edit.
+        if(item->text(1) != trackList[index]->trackData->name) {
+            QString error;
+            if(!commandRegistry::run(trackList[index]->mHistory, "track.setName", commandTarget::forTrack(index),
+                                     QVariantMap{{"name", item->text(1)}}, &error)) {
+                qWarning("%s", qPrintable(error));
+            }
+        }
         if(trackList[index]->trackWidgetItem) gloParent->renameTab(trackList[index]);
-        trackList[index]->mUndoHandler->takeOutsideChange();
         return;
     case 2:
         if(item->checkState(2) == Qt::Checked) {
