@@ -1,6 +1,6 @@
 # Feature requests
 
-The owner's list of 2026-11-10, kept as he gave it, with the architect's notes on what each one needs. Nothing here is built. The order of work is in `docs/roadmap.md`; this file is the record of what was asked for.
+The owner's list of 2026-11-10 (FR-1 to FR-9) and what he has added since, kept as he gave it, with the architect's notes on what each one needs. Nothing here is built. The order of work is in `docs/roadmap.md`; this file is the record of what was asked for.
 
 Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer to. Add a new request at the end with the next number; do not renumber.
 
@@ -15,6 +15,7 @@ Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer
 | FR-7 | Better force vector design: faster to build, no loss of detail | the main goal; ongoing | Stages 3 to 5 |
 | FR-8 | Refactor and comment for agentic coding | medium, the architect's call | Stage 1 |
 | FR-9 | More coaster and train types | small each, ongoing | from Stage 1 |
+| FR-10 | Parametric elements (for example a camelback hill) | large; research and experiments first | research in Stage 1, experiments in Stage 2, build in Stage 4 |
 
 ---
 
@@ -194,3 +195,26 @@ Zamperla Twister Coaster                    3.61      1.1
 **Where it stands in the code.** The only "type" today is the track style, a fixed list of eight rail cross-sections drawn in the view (`enum trackStyle`: generic, generic flat, Vekoma, B&M, triangle, box, small flat, double spine). It affects the picture only.
 
 **What it needs.** The train-type data file from D2, so that adding a type is adding an entry (name, manufacturer, heartline, seating, restraint class, limits, the track style to draw it on) and not a code change. New rail cross-sections for the view are separate, smaller pieces in `renderer/trackmesh.cpp`. Which types matter most is the owner's to say; the research for FR-1 (R1) produces the candidate list, starting with the main models of Intamin, B&M, RMC, Mack, Vekoma, Gerstlauer and GCI.
+
+---
+
+## FR-10: Parametric elements
+
+**Asked for** (2026-11-10, issue 28). A ride element such as a B&M-style camelback airtime hill added as one thing, defined by a few meaningful numbers (airtime strength and a little more), instead of built by hand from force sections every time. The owner's notes, as written:
+
+- Parametrically defined elements?
+- Premade parametric elements? Like a camelback airtime hill where you define airtime strength and some other things as well.
+- A custom way to create parametric elements.
+- Jerk limits, acceleration limits, curve radius limits for these parametric elements? An option to make sure an element complies with the ASTM acceleration limits in all seats.
+- Should these parametric elements be fully editable after adding them? How do we anchor elements correctly?
+
+**Nothing is to be built yet.** The owner's judgment, which the architect shares: a complicated feature with many caveats and edge cases. It needs research, experiments and testing first, and a design that comes out of them. Issue 28 lists the caveats and the experiments.
+
+**Where it stands in the code.** There is no notion of an element: a track is a flat list of sections, each starting where the one before ends. FR-7 already named "elements as parametric building blocks" as a candidate direction; this request makes it a feature of its own.
+
+**What it needs.**
+
+- Research and thinking first (roadmap R6, in Stage 1): how elements are defined in practice, how other tools offer them, what an element is in terms of this program (sections, parameters, unknowns, goals), every caveat in issue 28 worked through, and a first numerical experiment on a stand-in model. Output: `docs/research/r6-parametric-elements.md`.
+- The experiments on the real program (roadmap E1, Stage 2): they need the core running without a window and the command line.
+- A written design with the owner's choices (roadmap E2), then the build (roadmap E3, Stage 4), which stands on the goal-seeking solver and pinned points from R5 (W2), the analysis framework and force limits (A1 to A3), and for the all-seats option the train model (A4).
+- A saved-file change is likely (rule 4 in `CLAUDE.md`): the owner decides whether files with elements may stop opening in the 2016 program.

@@ -47,6 +47,9 @@ typedef struct pipeoption_s{
     bool smooth;
 } pipeoption_t;
 
+// The vertex data and OpenGL buffers of one track, rebuilt from a node onward by
+// buildMeshes() whenever the track's geometry changes. Created by trackHandler. Needs
+// a GL context unless glView->legacyMode is set. Reads the track; does not change it.
 class trackMesh
 {
 public:
@@ -108,8 +111,6 @@ public:
     track* trackData;
 
     int trackVertexSize, supportsSize, numRails, heartlineSize, railShadowSize;
-
-    bool isWireframe;
 
     void init();
 private:

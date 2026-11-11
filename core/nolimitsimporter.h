@@ -19,19 +19,21 @@
 #    along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "projectwidget.h"
 #include "section.h"
+#include <QString>
+
+class track;
 
 class noLimitsImporter
 {
 public:
-    noLimitsImporter(trackHandler* _track, QString _fileName);
+    noLimitsImporter(track* _track, QString _fileName);
 
     bool importAsNlTrack();
     bool importAsTxt();
 
 private:
-    trackHandler* inTrack;
+    track* inTrack;
     QString fileName;
 };
 

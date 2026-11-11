@@ -26,17 +26,13 @@
 #include "secgeometric.h"
 #include "secbezier.h"
 #include "secnlcsv.h"
-#include "sectionhandler.h"
 #include <QList>
 #include <fstream>
 #include <QString>
+#include <QColor>
+#include "tracklistener.h"
 
-class optionsMenu;
-class sectionHandler;
-class trackWidget;
-class smoothUi;
 class smoothHandler;
-class trackHandler;
 
 enum trackStyle {
     generic = 0,        // 0,5m
@@ -49,11 +45,23 @@ enum trackStyle {
     doublespine
 };
 
+// How the track is drawn. Saved in the project file, so it lives with the
+// track rather than with the window that draws it.
+struct trackDisplay
+{
+    QColor colors[3];   // default, active section, transition
+    bool bWireframe;
+};
+
+// One track: the anchor node, the ordered sections (lSections), the roll smoothing
+// entries (smoothList) and how it is drawn (display). Owns all of them and frees
+// them. Created by trackHandler (ui/) and by projectFileClient::projectNewTrack().
+// Tells its mListener what changed. Must not include or call any window class.
 class track
 {
 public:
     track();
-    track(trackHandler* _parent ,glm::vec3 startPos, float startYaw, float heartLine = 0.0);
+    track(glm::vec3 startPos, float startYaw, float heartLine = 0.0);
     ~track();
     void removeSection(int index);
     void removeSection(section* fromSection);
@@ -61,18 +69,25 @@ public:
     void removeSmooth(int fromNode = 0);
     void applySmooth(int fromNode = 0);
 
+    void applyRollSmooth(int fromNode = 0);
+    void applyRollSmoothFilter(smoothHandler* _handler);
+    void updateSmoothEntries(char* customChar);
+    bool smoothingActive();
+
     void updateTrack(int index, int iNode);
     void updateTrack(section* fromSection, int iNode);
     void newSection(enum secType type, int index = -1);
+    section* appendSectionFromFile(enum secType type);
+    void updateAnchorGeometrics();
 
     int exportTrack3(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack4(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
 
     void exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toIndex);
 
-    QString saveTrack(std::fstream& file, trackWidget* _widget);
-    QString loadTrack(std::fstream& file, trackWidget* _widget);
-    QString legacyLoadTrack(std::fstream& file, trackWidget* _widget);
+    QString saveTrack(std::fstream& file);
+    QString loadTrack(std::fstream& file);
+    QString legacyLoadTrack(std::fstream& file);
     mnode* getPoint(int index);
     int getIndexFromDist(float dist);
     int getNumPoints(section* until = NULL);
@@ -96,14 +111,18 @@ public:
     float fResistance;
     QList<section*> lSections;
 
-    optionsMenu* mOptions;
     QString name;
 
-    smoothUi* smoother;
+    // Roll smoothing is re-applied by updateTrack only once this is set: the
+    // ui sets it when the smoothing dialog first exists for the track or
+    // after the track was loaded (it was "a smoothing dialog exists").
+    bool bAutoSmooth;
 
     QList<smoothHandler*> smoothList;
 
-    trackHandler* mParent;
+    trackListener* mListener;   // told when the geometry changes; may be NULL
+
+    trackDisplay display;
 
     int smoothedUntil;
     enum trackStyle style;

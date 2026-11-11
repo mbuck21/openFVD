@@ -141,12 +141,12 @@ void graphWidget::on_selTree_itemChanged(QTreeWidgetItem *item, int column)
     }
 
     if(item->checkState(1) == Qt::Checked) {
-        if(i%2 && (i-1)/2 >= 0 && (i-1)/2 < 3 && selTrack->trackData->smoother && selTrack->trackData->smoother->active()) {
+        if(i%2 && (i-1)/2 >= 0 && (i-1)/2 < 3 && selTrack->trackData->bAutoSmooth && selTrack->trackData->smoothingActive()) {
             drawGraph(11+(i-1)/2);
         }
         drawGraph(i);
     } else {
-        if(i%2 && (i-1)/2 >= 0 && (i-1)/2 < 3 && selTrack->trackData->smoother && selTrack->trackData->smoother->active()) {
+        if(i%2 && (i-1)/2 >= 0 && (i-1)/2 < 3 && selTrack->trackData->bAutoSmooth && selTrack->trackData->smoothingActive()) {
             undrawGraph(11+(i-1)/2);
         }
         undrawGraph(i);
@@ -446,7 +446,7 @@ void graphWidget::redrawGraphs(bool otherArgument)
         if(pGraphList[i]->drawn) {
             if(i%2 && (i-1)/2 >= 0 && (i-1)/2 < 3) {
                 undrawGraph(11+(i-1)/2);
-                if(selTrack->trackData->smoother && selTrack->trackData->smoother->active()) {
+                if(selTrack->trackData->bAutoSmooth && selTrack->trackData->smoothingActive()) {
                     drawGraph(11+(i-1)/2);
                 }
             }

@@ -22,6 +22,7 @@
 #include "section.h"
 #include "track.h"
 
+// A circular arc (angle, radius, direction, lead in, lead out); its roll function runs over the arc.
 class seccurved : public section
 {
 public:

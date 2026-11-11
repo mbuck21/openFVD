@@ -69,6 +69,11 @@ enum eActionType
     deleteTrack
 };
 
+// One recorded edit of a track: its type (eActionType), the old and new value and the
+// section and transition it concerns. doUndo() and doRedo() re-apply the value through
+// the windows. Made by the window code that makes the edit; owned by the track's
+// undoHandler. Window code until the command list of Stage 2 (docs/decisions/0009).
+// Known to be wrong for eight kinds of edit (issue 31).
 class undoAction
 {
 public:

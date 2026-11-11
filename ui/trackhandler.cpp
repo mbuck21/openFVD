@@ -18,21 +18,20 @@
 
 #include "trackhandler.h"
 #include "graphwidget.h"
-#include "glviewwidget.h"
 #include "undohandler.h"
-#include "optionsmenu.h"
 #include "mainwindow.h"
 #include "trackmesh.h"
 #include "trackwidget.h"
 #include <QTreeWidgetItem>
 
 extern MainWindow* gloParent;
-extern glViewWidget* glView;
 
-trackHandler::trackHandler(QString _name, int _id)
+trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
 {
     id = _id;
-    this->trackData = new track(this, glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
+    mMesh = NULL;
+    this->trackData = new track(glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
+    trackData->mListener = this;
     trackData->name = _name;
     this->listItem = new QTreeWidgetItem(id);
     listItem->setFlags(listItem->flags() | Qt::ItemIsEditable);
@@ -49,12 +48,12 @@ trackHandler::trackHandler(QString _name, int _id)
 
     tabId = -1;
 
-    trackColors[0] = QColor(20, 20, 130);
-    trackColors[1] = QColor(255, 51, 51);
-    trackColors[2] = QColor(51, 255, 51);
+    trackData->display.colors[0] = QColor(20, 20, 130);
+    trackData->display.colors[1] = QColor(255, 51, 51);
+    trackData->display.colors[2] = QColor(51, 255, 51);
 
 
-    mUndoHandler = new undoHandler(gloParent->mOptions->maxUndoChanges);
+    mUndoHandler = new undoHandler(_maxUndoChanges);
     mMesh = new trackMesh(trackData);
 }
 
@@ -77,4 +76,35 @@ void trackHandler::changeID(int _id)
 int trackHandler::getID()
 {
     return id;
+}
+
+void trackHandler::trackGeometryChanged(track* which, int fromNode)
+{
+    Q_UNUSED(which);
+    if(mMesh != NULL)
+        mMesh->buildMeshes(fromNode);
+}
+
+void trackHandler::trackStatusMessage(const QString& text, int timeoutMs)
+{
+    gloParent->showMessage(text, timeoutMs);
+}
+
+void trackHandler::trackSmoothingApplied(track* which)
+{
+    Q_UNUSED(which);
+    graphWidgetItem->redrawGraphs();
+}
+
+void trackHandler::trackSectionAdded(track* which, int index)
+{
+    Q_UNUSED(which);
+    trackWidgetItem->showAddedSection(index);
+}
+
+void trackHandler::trackLoaded(track* which)
+{
+    Q_UNUSED(which);
+    trackWidgetItem->clearSelection();
+    trackWidgetItem->setNames();
 }

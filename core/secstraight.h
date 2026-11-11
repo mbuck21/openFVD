@@ -22,6 +22,7 @@
 #include "section.h"
 #include "track.h"
 
+// A straight of fixed heartline length; its roll function runs over distance.
 class secstraight : public section
 {
 public:

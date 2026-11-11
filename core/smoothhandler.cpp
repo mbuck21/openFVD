@@ -18,12 +18,11 @@
 
 #include "smoothhandler.h"
 #include "track.h"
-#include <QTreeWidgetItem>
 
 #include "exportfuncs.h"
 
 /*
-  List Columns:
+  List Columns (shown by smoothUi; the matching eField bit is 1 << column):
   0     Item Number
   1     Name
   2     From
@@ -36,7 +35,7 @@
 smoothHandler::smoothHandler(track* _track, int _section, char* customChar, int _length, int _iterations, int _fromNode, int _toNode)
 {
     m_track = _track;
-    treeItem = new QTreeWidgetItem();
+    mListener = NULL;
     active = false;
 
     if(_section == -1)
@@ -56,8 +55,7 @@ smoothHandler::smoothHandler(track* _track, int _section, char* customChar, int 
     {
         toNode = _toNode;
         fromNode = _fromNode;
-        treeItem->setText(1, QString("custom Region"));
-        treeItem->setFlags(treeItem->flags() | Qt::ItemIsEditable);
+        sName = QString("custom Region");
     }
     length = _length;
     iterations = _iterations;
@@ -67,7 +65,12 @@ smoothHandler::smoothHandler(track* _track, int _section, char* customChar, int 
 
 smoothHandler::~smoothHandler()
 {
-    if(treeItem) delete treeItem;
+    if(mListener) mListener->smoothHandlerDeleted(this);
+}
+
+void smoothHandler::changed(int fields)
+{
+    if(mListener) mListener->smoothHandlerChanged(this, fields);
 }
 
 
@@ -88,11 +91,11 @@ void smoothHandler::update(char* customChar)
     {
         if(customChar == NULL)
         {
-            treeItem->setText(0, QString());
+            sLabel = QString();
         }
         else
         {
-            treeItem->setText(0, QString(*customChar));
+            sLabel = QString(*customChar);
             (*customChar)++;
         }
     }
@@ -100,20 +103,16 @@ void smoothHandler::update(char* customChar)
     {
         if(sec == (section*)-1)
         {
-            treeItem->setText(0, QString::number(0));
-            treeItem->setText(1, m_track->name);
+            sLabel = QString::number(0);
+            sName = m_track->name;
         }
         else
         {
-            treeItem->setText(0, QString::number(m_track->getSectionNumber(sec)+1));
-            treeItem->setText(1, sec->sName);
+            sLabel = QString::number(m_track->getSectionNumber(sec)+1);
+            sName = sec->sName;
         }
     }
-    treeItem->setText(2, QString::number(fromNode/1000.).append("s"));
-    treeItem->setText(3, QString::number(toNode/1000.).append("s"));
-    treeItem->setText(4, QString::number(length/1000.).append("s"));
-    treeItem->setText(5, QString::number(iterations));
-    treeItem->setCheckState(6, active ? Qt::Checked : Qt::Unchecked);
+    changed(fieldLabel | (sec == NULL ? 0 : fieldName) | fieldFrom | fieldTo | fieldLength | fieldIterations | fieldActive);
 }
 
 int smoothHandler::getFrom()
@@ -139,29 +138,29 @@ int smoothHandler::getIterations()
 void smoothHandler::setFrom(int _arg)
 {
     fromNode = _arg;
-    treeItem->setText(2, QString::number(fromNode/1000.).append("s"));
+    changed(fieldFrom);
 }
 void smoothHandler::setTo(int _arg)
 {
     toNode = _arg;
-    treeItem->setText(3, QString::number(toNode/1000.).append("s"));
+    changed(fieldTo);
 }
 
 void smoothHandler::setLength(int _arg)
 {
     length = _arg;
-    treeItem->setText(4, QString::number(length/1000.).append("s"));
+    changed(fieldLength);
 }
 
 void smoothHandler::setIterations(int _arg)
 {
     iterations = _arg;
-    treeItem->setText(5, QString::number(iterations));
+    changed(fieldIterations);
 }
 
 void smoothHandler::saveSmooth(std::fstream& file)
 {
-    QString name = treeItem->text(1);
+    QString name = sName;
     int namelength = name.length();
     std::string stdName = name.toStdString();
 
@@ -180,7 +179,8 @@ void smoothHandler::loadSmooth(std::fstream &file)
     int namelength = readInt(&file);
     QString name = QString(readString(&file, namelength).c_str());
 
-    treeItem->setText(1, name);
+    sName = name;
+    changed(fieldName);
 
     setFrom(readInt(&file));
     setTo(readInt(&file));
@@ -196,7 +196,8 @@ void smoothHandler::legacyLoadSmooth(std::fstream &file)
     int namelength = readInt(&file);
     QString name = QString(readString(&file, namelength).c_str());
 
-    treeItem->setText(1, name);
+    sName = name;
+    changed(fieldName);
 
     setFrom(readInt(&file));
     setTo(readInt(&file));

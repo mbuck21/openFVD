@@ -46,7 +46,6 @@ trackMesh::trackMesh(track* parent)
     heartlineSize = 0;
     railShadowSize = 0;
     trackData = parent;
-	isWireframe = false;
 }
 
 void trackMesh::init() {
@@ -1255,7 +1254,7 @@ void trackMesh::buildMeshes(int fromNode)
         break;
     }
 
-    if(!isWireframe)
+    if(!trackData->display.bWireframe)
     {
         // delete obsolete railnodes
         int railNode;
@@ -3559,7 +3558,7 @@ void trackMesh::createIndices()
     pipeBorders.clear();
     pipeIndices.clear();
     pipeBorders.append(0);
-    if(isWireframe)
+    if(trackData->display.bWireframe)
     {
         for(int p = 0; p < numRails; ++p)
         {

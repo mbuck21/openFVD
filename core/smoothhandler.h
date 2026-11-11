@@ -20,11 +20,28 @@
 */
 
 #include <iostream>
+#include <QString>
 
-class QTreeWidgetItem;
 class track;
 class section;
+class smoothHandler;
 
+// What a smoothing entry tells whoever shows it (the smoothing dialog's list).
+// fields says which of the entry's shown values were just written, as
+// smoothHandler::eField bits; an entry without a listener tells nobody.
+// Implemented by smoothUi (ui/smoothui.h).
+class smoothHandlerListener
+{
+public:
+    virtual ~smoothHandlerListener() {}
+    virtual void smoothHandlerChanged(smoothHandler* which, int fields) = 0;
+    virtual void smoothHandlerDeleted(smoothHandler* which) = 0;
+};
+
+// One roll-smoothing entry of a track (a section or a span of nodes, a length and a
+// number of passes). Owned by the track's smoothList and made by track or by
+// smoothUi. Tells its mListener when a shown value changes. The filter itself is
+// track::applyRollSmoothFilter(); this class only holds the settings.
 class smoothHandler
 {
 public:
@@ -33,8 +50,15 @@ public:
 
     void update(char* customChar = NULL);
 
+    // The shown values, one bit per column of the smoothing dialog's list.
+    enum eField {
+        fieldLabel = 1, fieldName = 2, fieldFrom = 4, fieldTo = 8,
+        fieldLength = 16, fieldIterations = 32, fieldActive = 64
+    };
 
-    QTreeWidgetItem* treeItem;
+    QString sLabel;     // the item number shown ("0", a section number, a letter or empty)
+    QString sName;      // the name; saved with the project
+    smoothHandlerListener* mListener;   // may be NULL
 
     section* sec;
 
@@ -55,6 +79,8 @@ public:
     bool active;
 
 private:
+    void changed(int fields);
+
     track* m_track;
     int fromNode;
     int toNode;

@@ -22,6 +22,7 @@
 #include "track.h"
 #include "section.h"
 
+// The force vector section: normal and lateral force are functions of time or distance, and updateSection() turns the direction so the rider feels them.
 class secforced : public section
 {
 public:

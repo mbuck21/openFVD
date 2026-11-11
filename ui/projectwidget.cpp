@@ -30,6 +30,7 @@
 #include "trackproperties.h"
 #include "lenassert.h"
 #include "trackwidget.h"
+#include "optionsmenu.h"
 #include <QMenu>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -139,7 +140,7 @@ void projectWidget::on_addButton_released()
 
 void projectWidget::newEmptyTrack()
 {
-    trackHandler* _newTrack = new trackHandler(QString("unnamed Track"), trackList.size()+1);
+    trackHandler* _newTrack = new trackHandler(QString("unnamed Track"), trackList.size()+1, gloParent->mOptions->maxUndoChanges);
     trackList.append(_newTrack);
     ui->trackListWidget->addTopLevelItem(_newTrack->listItem);
 }
@@ -185,12 +186,17 @@ void projectWidget::importNLTrack()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-        noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
-        importer->importAsNlTrack();
-        delete importer;
+        importNLTrackFile(fileName);
     }
+}
+
+void projectWidget::importNLTrackFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
+    importer->importAsNlTrack();
+    delete importer;
 }
 
 void projectWidget::importNoLimitsCSV()
@@ -210,14 +216,19 @@ void projectWidget::importNoLimitsCSV()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-
-        newTrack->trackData->fHeart = 0.0f;
-        newTrack->trackWidgetItem->addSection(nolimitscsv);
-
-        dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+        importNoLimitsCSVFile(fileName);
     }
+}
+
+void projectWidget::importNoLimitsCSVFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+
+    newTrack->trackData->fHeart = 0.0f;
+    newTrack->trackWidgetItem->addSection(nolimitscsv);
+
+    dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
 }
 
 void projectWidget::importPointList()
@@ -237,12 +248,17 @@ void projectWidget::importPointList()
 #endif
 
     if(!fileName.isEmpty()) {
-        newEmptyTrack();
-        trackHandler* newTrack = trackList.back();
-        noLimitsImporter* importer = new noLimitsImporter(newTrack, fileName);
-        importer->importAsTxt();
-        delete importer;
+        importPointListFile(fileName);
     }
+}
+
+void projectWidget::importPointListFile(QString fileName)
+{
+    newEmptyTrack();
+    trackHandler* newTrack = trackList.back();
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
+    importer->importAsTxt();
+    delete importer;
 }
 
 void projectWidget::appendTracks(QList<trackHandler *> &_list)
@@ -355,110 +371,90 @@ bool projectWidget::areYouSure()
     }
 }
 
-QString projectWidget::saveProject(std::fstream& file)
+// The project file is read and written in core (core/projectfile.cpp); the
+// functions after these two are what it asks of the windows, at the points
+// where the old loadProject() and saveProject() did the same.
+QString projectWidget::saveProject(const QString& fileName)
 {
-    file << "FVD";
-    file << "v0.77";
-
-    int namelength = texPath.length();
-    std::string stdName = texPath.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << stdName;
-
-
+    QList<track*> tracks;
     for(int i = 0; i < this->trackList.size(); ++i) {
-        trackList[i]->trackWidgetItem->writeNames();
-        trackList[i]->trackData->saveTrack(file, trackList[i]->trackWidgetItem);
+        tracks.append(trackList[i]->trackData);
     }
-
-    file << "EOP";
-    return QString("Project Saved!");
+    return saveProjectFile(fileName, texPath, tracks, this);
 }
 
-QString projectWidget::loadProject(std::fstream& file)
+QString projectWidget::loadProject(const QString& fileName)
 {
-    int errType = -1;
-    std::string temp = readString(&file, 3);
-    if(temp != "FVD") return QString("Error while Loading: No FVD File!");
-    temp = readString(&file, 5);
-    int legacy;
-    if(temp == "v0.30") {
-        legacy = 1;
-    } else if(temp == "v0.77") {
-        legacy = 0;
-    } else {
-        legacy = -1;
-    }
+    return loadProjectFile(fileName, this);
+}
 
+trackHandler* projectWidget::handlerFor(track* which)
+{
+    for(int i = 0; i < trackList.size(); ++i) {
+        if(trackList[i]->trackData == which) return trackList[i];
+    }
+    lenAssert(0 && "found no corresponding Track");
+    return NULL;
+}
+
+void projectWidget::projectCleared()
+{
     this->cleanUp();
-    if(legacy > -1) { // supported versions
-        int namelength = readInt(&file);
-        texPath = QString(readString(&file, namelength).c_str());
+}
 
-        if(!glView->loadGroundTexture(texPath)) { // error while Loading
-            texPath = QString(":/background.png");
-            glView->loadGroundTexture(texPath);
-            errType = 1;
-        }
-        ui->texEdit->setText(texPath);
+bool projectWidget::projectGroundTexture(const QString& path)
+{
+    bool loaded = true;
+    texPath = path;
 
-        int i = 0;
-        while(1) {
-            temp = readString(&file, 3);
-            if(temp == "TRC") {
-                newEmptyTrack();
-                if(legacy == 1) {
-                    trackList[i]->trackData->legacyLoadTrack(file, trackList[i]->trackWidgetItem);
-                    errType = 0;
-                } else {
-                    trackList[i]->trackData->loadTrack(file, trackList[i]->trackWidgetItem);
+    if(!glView->loadGroundTexture(texPath)) { // error while Loading
+        texPath = QString(":/background.png");
+        glView->loadGroundTexture(texPath);
+        loaded = false;
+    }
+    ui->texEdit->setText(texPath);
+    return loaded;
+}
 
-                    trackWidget* _widget = trackList[i]->trackWidgetItem;
-                    if(!_widget->smoothScreen) {
-                        _widget->smoothScreen = new smoothUi(trackList[i], gloParent);
-                        trackList[i]->trackData->smoother = _widget->smoothScreen;
-                    }
+track* projectWidget::projectNewTrack()
+{
+    newEmptyTrack();
+    return trackList.back()->trackData;
+}
 
-                    _widget->smoothScreen->updateUi();
-                    _widget->smoothScreen->applyRollSmooth();
-                }
-                trackList[i]->listItem->setText(1, trackList[i]->trackData->name);
-                trackList[i]->mUndoHandler->clearActions();
-            }
-            else if(temp == "EOP") {
-                break;
-            } else {
-                errType = 11;
-                break;
-            }
-            ++i;
-        }
-    } else {
-        errType = 10;
+// The loaded track gets its smoothing dialog, hidden, which shows the entries
+// the reader just brought up to date.
+void projectWidget::projectTrackSmoothingUpdated(track* which)
+{
+    trackHandler* handler = handlerFor(which);
+    trackWidget* _widget = handler->trackWidgetItem;
+    if(!_widget->smoothScreen) {
+        _widget->smoothScreen = new smoothUi(handler, gloParent);
     }
 
+    _widget->smoothScreen->showRows();
+}
+
+void projectWidget::projectTrackLoaded(track* which)
+{
+    trackHandler* handler = handlerFor(which);
+    handler->listItem->setText(1, handler->trackData->name);
+    handler->mUndoHandler->clearActions();
+}
+
+void projectWidget::projectLoadFinished()
+{
     for(int i = 0; i < trackList.size(); ++i) {
         if(trackList[i]->trackData->drawTrack == false) {
             trackList[i]->listItem->setCheckState(2, Qt::Unchecked);
         }
     }
+}
 
-    switch(errType) {
-    case -1:
-        return QString("Load Successfull.");
-    case 0:
-        return QString("Warning: Loaded old File Version. Please save to convert to new File version!");
-    case 1:
-        return QString("Warning: Could Not find corresponding texture. Loaded default texture instead.");
-    case 10:
-        this->cleanUp();
-        return QString("Error: Unsupported File Version!");
-    case 11:
-        this->cleanUp();
-        return QString("Error: File Corrupted!");
-    }
-    return QString();
+// The section names typed into the track panel go into the track first.
+void projectWidget::projectTrackSaving(track* which)
+{
+    handlerFor(which)->trackWidgetItem->writeNames();
 }
 
 void projectWidget::on_texChooser_released()

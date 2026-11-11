@@ -88,7 +88,7 @@ trackWidget::trackWidget(QWidget *parent, trackHandler* _track) :
     ui->yawChangeLabel->setText(QString("d%1/dt").arg(QChar(0x03a8)));
 
     smoothScreen = NULL;
-    inTrack->trackData->smoother = smoothScreen;
+    inTrack->trackData->bAutoSmooth = smoothScreen != NULL;
 
     //connect(this, SIGNAL(done()), this, SLOT(update()));
 
@@ -151,6 +151,23 @@ void trackWidget::addSection(secType _type)
     sectionHandler* newSec = new sectionHandler(inTrack->trackData, _type, sectionList.size());
     this->inTrack->trackData->updateTrack(newSec->sectionData, 0);
 
+    showNewSection(newSec, _type);
+}
+
+// A section the track added itself (track::appendSectionFromFile(), told
+// through trackHandler) is shown as addSection() shows the one it creates.
+void trackWidget::showAddedSection(int index)
+{
+    section* added = inTrack->trackData->lSections[index];
+    sectionHandler* newSec = new sectionHandler(added, sectionList.size());
+
+    showNewSection(newSec, added->type);
+}
+
+// The panel's part of adding a section at the end: its row, selected; the
+// graphs; an undo step.
+void trackWidget::showNewSection(sectionHandler* newSec, secType _type)
+{
     sectionList.append(newSec);
     ui->sectionListWidget->addTopLevelItem(newSec->listItem);
     ui->sectionListWidget->clearSelection();
@@ -1162,20 +1179,14 @@ void trackWidget::on_lateralBox_valueChanged(double arg1)
 
 void trackWidget::updateAnchorGeometrics()
 {
-    glm::vec3 forceVec = glm::vec3(0, 1, 0) + inTrack->trackData->anchorNode->forceNormal*inTrack->trackData->anchorNode->vNorm + inTrack->trackData->anchorNode->forceLateral*inTrack->trackData->anchorNode->vLat;
-
-    glm::vec3 pitchVec = (float)cos(inTrack->trackData->anchorNode->fRoll*F_PI/180)*inTrack->trackData->anchorNode->vNorm - (float)sin(inTrack->trackData->anchorNode->fRoll*F_PI/180)*inTrack->trackData->anchorNode->vLat;
-    glm::vec3 yawVec = (float)sin(inTrack->trackData->anchorNode->fRoll*F_PI/180)*inTrack->trackData->anchorNode->vNorm + (float)cos(inTrack->trackData->anchorNode->fRoll*F_PI/180)*inTrack->trackData->anchorNode->vLat;
-
-    inTrack->trackData->anchorNode->fPitchFromLast = glm::dot(forceVec, pitchVec)/inTrack->trackData->anchorNode->fVel*1.8/F_PI;
-    inTrack->trackData->anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/inTrack->trackData->anchorNode->fVel*1.8/F_PI;
+    inTrack->trackData->updateAnchorGeometrics();
 }
 
 void trackWidget::on_smoothButton_released()
 {
     if(!smoothScreen) {
         smoothScreen = new smoothUi(inTrack, gloParent);
-        inTrack->trackData->smoother = smoothScreen;
+        inTrack->trackData->bAutoSmooth = true;
     }
 
     smoothScreen->updateUi();

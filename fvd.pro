@@ -45,24 +45,9 @@ TARGET = FVD
 TEMPLATE = app
 
 SOURCES += main.cpp\
-    core/undohandler.cpp \
-    core/undoaction.cpp \
-    core/trackhandler.cpp \
-    core/track.cpp \
-    core/subfunction.cpp \
-    core/smoothhandler.cpp \
-    core/sectionhandler.cpp \
-    core/section.cpp \
-    core/secstraight.cpp \
-    core/secgeometric.cpp \
-    core/secforced.cpp \
-    core/seccurved.cpp \
-    core/secbezier.cpp \
-    core/saver.cpp \
-    core/nolimitsimporter.cpp \
-    core/mnode.cpp \
-    core/function.cpp \
-    core/exportfuncs.cpp \
+    ui/undohandler.cpp \
+    ui/undoaction.cpp \
+    ui/trackhandler.cpp \
     osx/common.cpp \
     renderer/trackmesh.cpp \
     renderer/mytexture.cpp \
@@ -73,6 +58,7 @@ SOURCES += main.cpp\
     ui/trackwidget.cpp \
     ui/trackproperties.cpp \
     ui/smoothui.cpp \
+    ui/sectionhandler.cpp \
     ui/qcustomplot.cpp \
     ui/projectwidget.cpp \
     ui/optionsmenu.cpp \
@@ -85,27 +71,11 @@ SOURCES += main.cpp\
     ui/graphhandler.cpp \
     ui/exportui.cpp \
     ui/draglabel.cpp \
-    ui/conversionpanel.cpp \
-    core/secnlcsv.cpp
+    ui/conversionpanel.cpp
 
-HEADERS  += core/undohandler.h \
-    core/undoaction.h \
-    core/trackhandler.h \
-    core/track.h \
-    core/subfunction.h \
-    core/smoothhandler.h \
-    core/sectionhandler.h \
-    core/section.h \
-    core/secstraight.h \
-    core/secgeometric.h \
-    core/secforced.h \
-    core/seccurved.h \
-    core/secbezier.h \
-    core/saver.h \
-    core/nolimitsimporter.h \
-    core/mnode.h \
-    core/function.h \
-    core/exportfuncs.h \
+HEADERS  += ui/undohandler.h \
+    ui/undoaction.h \
+    ui/trackhandler.h \
     osx/common.h \
     renderer/trackmesh.h \
     renderer/mytexture.h \
@@ -116,6 +86,7 @@ HEADERS  += core/undohandler.h \
     ui/trackwidget.h \
     ui/trackproperties.h \
     ui/smoothui.h \
+    ui/sectionhandler.h \
     ui/qcustomplot.h \
     ui/projectwidget.h \
     ui/optionsmenu.h \
@@ -129,8 +100,8 @@ HEADERS  += core/undohandler.h \
     ui/exportui.h \
     ui/draglabel.h \
     ui/conversionpanel.h \
-    lenassert.h \
-    core/secnlcsv.h
+    lenassert.h
+
 
 FORMS    += ui/transitionwidget.ui \
     ui/trackwidget.ui \
@@ -254,3 +225,11 @@ OTHER_FILES += \
     sky/posx.jpg \
     sky/posy.jpg \
     sky/posz.jpg
+
+# Batch mode for testing (docs/testing.md)
+SOURCES += ui/batchrunner.cpp ui/batchscenarios.cpp
+HEADERS += ui/batchrunner.h ui/batchscenarios.h
+
+# Core separation (docs/decisions/0007): the model builds from this one list,
+# which tests/coreonly/coreonly.pro uses as well.
+include(core/core.pri)

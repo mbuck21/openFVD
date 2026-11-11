@@ -1,0 +1,3 @@
+{
+  "_about": "Tolerances for tools/run-baseline.py, keyed by reference file name. A file not listed here must match exactly. See docs/testing.md. Empty since 2026-11-10: every reference matches exactly (docs/research/n2-matching-the-2016-maths.md)."
+}

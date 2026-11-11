@@ -96,9 +96,9 @@ void objectExporter::on_buttonBox_accepted()
     {
         Lib3dsMaterial* mat = lib3ds_material_new("coaster");
         lib3ds_file_insert_material(file, mat, -1);
-        mat->diffuse[0] = curTrack->trackColors[0].red()/255.f;
-        mat->diffuse[1] = curTrack->trackColors[0].green()/255.f;
-        mat->diffuse[2] = curTrack->trackColors[0].blue()/255.f;
+        mat->diffuse[0] = curTrack->trackData->display.colors[0].red()/255.f;
+        mat->diffuse[1] = curTrack->trackData->display.colors[0].green()/255.f;
+        mat->diffuse[2] = curTrack->trackData->display.colors[0].blue()/255.f;
     }
 
     {

@@ -1,5 +1,5 @@
-#ifndef TRACKHANDLER_H
-#define TRACKHANDLER_H
+#ifndef SECTIONHANDLER_H
+#define SECTIONHANDLER_H
 
 /*
 #    FVD++, an advanced coaster design tool for NoLimits
@@ -19,39 +19,34 @@
 #    along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "glviewwidget.h"
+#include "section.h"
 
+class track;
 class QTreeWidgetItem;
-class trackWidget;
-class graphWidget;
-class undoHandler;
-class trackMesh;
 
-class trackHandler
+// One row of the track panel's section list (row 0 is the anchor).
+// Owns the row (listItem), not the section: the section belongs to its track. Made by
+// trackWidget; the first constructor also asks the track to make the section. No
+// model logic.
+class sectionHandler
 {
 public:
-    trackHandler(QString _name, int _id);
-    ~trackHandler();
-    void changeID(int _id);
-    int getID();
+    // Creates the section in the track (at index _id-1, named "unnamed"),
+    // unless _type is anchor, and its row: what the panel's "add" does.
+    sectionHandler(track* _track, enum secType _type, int _id);
+    // The row of a section that is already in the track.
+    sectionHandler(section* _section, int _id);
+    ~sectionHandler();
+    void updateID(int _id);
 
-
-    track* trackData;
+    enum secType type;
     QTreeWidgetItem* listItem;
-    trackWidget* trackWidgetItem;
-    graphWidget* graphWidgetItem;
-    int tabId;
-
-    trackMesh* mMesh;
-    undoHandler* mUndoHandler;
-    QColor trackColors[3];
+    section* sectionData;
 
 private:
+    void createRow(const QString& name);
 
     int id;
-    //mnode* curNode;
-    //section* curSection;
-    //int j;
 };
 
-#endif // TRACKHANDLER_H
+#endif // SECTIONHANDLER_H

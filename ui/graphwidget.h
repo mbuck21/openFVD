@@ -32,6 +32,9 @@ namespace Ui {
 class graphWidget;
 }
 
+// The plots of one track (QCustomPlot): one graphHandler per curve type, and the
+// transitionWidget under them. Created and owned by trackHandler. Reads the track's
+// nodes; dragging on a curve edits the selected subfunc.
 class graphWidget : public QWidget
 {
     Q_OBJECT

@@ -18,34 +18,29 @@
 
 #include "track.h"
 #include "exportfuncs.h"
-#include "optionsmenu.h"
-#include "mainwindow.h"
 #include "smoothhandler.h"
-#include "trackhandler.h"
-#include "trackmesh.h"
-#include "smoothui.h"
-#include "trackwidget.h"
+#include <QElapsedTimer>
+#include <QVector>
+#include <limits>
+#include <cmath>
 
 #define RELTHRESH 0.98f
 
 using namespace std;
 
-extern MainWindow* gloParent;
-extern glViewWidget* glView;
 
 track::track()
 {
 
 }
 
-track::track(trackHandler* _parent, glm::vec3 startPos, float startYaw, float heartLine)
+track::track(glm::vec3 startPos, float startYaw, float heartLine)
 {
     this->anchorNode = new mnode(glm::vec3(0.f, 0.f, 0.f), glm::vec3(0, 0, -1), 0., 10.f, 1., 0.);
     this->startPos = startPos;
     this->startYaw = startYaw;
     this->startPitch = 0.f;
     povPos = glm::vec2(0, 0);
-    mParent = _parent;
     anchorNode->updateNorm();
     anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*heartLine);
     this->fHeart = heartLine;
@@ -54,7 +49,9 @@ track::track(trackHandler* _parent, glm::vec3 startPos, float startYaw, float he
     hasChanged = true;
     drawTrack = true;
     drawHeartline = 0;
-    mOptions = gloParent->mOptions;
+    mListener = NULL;
+    bAutoSmooth = false;
+    display.bWireframe = false;
     activeSection = NULL;
 
     smoothList.append(new smoothHandler(this, -1));
@@ -91,7 +88,8 @@ void track::removeSection(int index)
         this->lSections.removeAt(index);
         if(lSections.size() != 0) activeSection = lSections.at(index-1);
 
-        mParent->mMesh->buildMeshes(getNumPoints()-50 < 0 ? 0 : getNumPoints()-50);
+        if(mListener != NULL)
+            mListener->trackGeometryChanged(this, getNumPoints()-50 < 0 ? 0 : getNumPoints()-50);
 
         //updateTrack(index-1, lSections[index-1]->lNodes.size()-2);
     }
@@ -193,6 +191,186 @@ void track::applySmooth(int fromNode)
     }
 }
 
+// Moved unchanged from the smoothing dialog's code; only m_track-> became this->
+// and the graph redraw goes through the listener.
+void track::applyRollSmooth(int fromNode)
+{
+    this->removeSmooth(fromNode);
+
+    this->anchorNode->fRollSpeed = 0.0;
+
+    int sec, curNode = fromNode < 0 ? 0 : fromNode;
+    for(sec = 0; sec < this->lSections.size(); ++sec) {
+        if(this->lSections[sec]->lNodes.size() >= curNode) {
+            break;
+        }
+        curNode -= this->lSections[sec]->lNodes.size()-1;
+    }
+
+    for(; sec < this->lSections.size(); ++sec) {
+        section* curSection = this->lSections[sec];
+        for(int i = curNode; i < curSection->lNodes.size(); ++i) {
+			curSection->lNodes[i].fSmoothSpeed = 0.f;
+        }
+        curNode = 0;
+    }
+
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        smoothHandler* cur = this->smoothList[i];
+        if(cur->active == false) continue;
+
+        if(cur->getTo() > fromNode) {
+            applyRollSmoothFilter(cur);
+        }
+    }
+
+    if(smoothingActive()) {
+        this->applySmooth(fromNode);
+    }
+    if(mListener != NULL)
+        mListener->trackSmoothingApplied(this);
+    this->hasChanged = true;
+    return;
+}
+
+void track::applyRollSmoothFilter(smoothHandler* _handler)
+{
+    const int iter = _handler->getIterations();
+    const int length = _handler->getLength()/iter;
+    const int fromNode = _handler->getFrom();
+    const int toNode = _handler->getTo();
+
+    QVector<double> adjustValues;
+
+    QVector<double> *cur = new QVector<double>();
+    QVector<double> *last = new QVector<double>();
+    QVector<double> orig;
+    QVector<double> *swap;
+
+    mnode* curNode;
+
+    if(toNode - fromNode - length/2*iter < 0) {
+        lenAssert(0 && "Smoothing not possible");
+        return;
+    }
+
+    double lastValue = 0., firstValue = 0.;
+    for(int i = 0; i <= length/2*iter; ++i) {
+        curNode = this->getPoint(toNode - i);
+        lastValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
+        curNode =  this->getPoint(fromNode + i);
+        firstValue += curNode->fRollSpeed + curNode->fSmoothSpeed;
+    }
+    lastValue /= length/2*iter + 1;
+    firstValue /= length/2*iter + 1;
+
+    for(int i = fromNode; i < toNode; ++i) {
+        if(length == 0) {
+            curNode = this->getPoint(i);
+            cur->append(curNode->fRollSpeed + curNode->fSmoothSpeed);
+            last->append(cur->last());
+            orig.append(cur->last());
+            continue;
+        }
+        double t1 = (i - fromNode - length/2.*iter)/(length/2. * iter);
+        double t2 = (toNode - length/2.*iter - i)/(length/2. * iter);
+        if(t1 < 0) t1 = 1.;
+        else t1 = exp(-2*t1*t1);
+        if(t2 < 0) t2 = 1.;
+        else t2 = exp(-2*t2*t2);
+        double t = (1. - t1)*(1. - t2);
+        if(t != t) t = 0.;
+
+        if(t2 > t1) {
+            if(t > t2) { // max = t
+                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
+                    t2 = t2/(t1+t2)*(1.-t);
+                    t1 = t1/(t1+t2)*(1.-t);
+                }
+            } else {   // max = t2
+                if(fabs(t1+t) > std::numeric_limits<double>::epsilon()) {
+                    t = t/(t1+t)*(1.-t2);
+                    t1 = t1/(t1+t)*(1.-t2);
+                }
+            }
+        } else {
+            if(t > t1) { // max = t
+                if(fabs(t1+t2) > std::numeric_limits<double>::epsilon()) {
+                    t2 = t2/(t1+t2)*(1.-t);
+                    t1 = t1/(t1+t2)*(1.-t);
+                }
+            } else {   // max = t1
+                if(fabs(t+t2) > std::numeric_limits<double>::epsilon()) {
+                    t = t/(t2+t)*(1.-t1);
+                    t2 = t2/(t2+t)*(1.-t1);
+                }
+            }
+        }
+        if(i < fromNode + length/2 * iter) {
+            cur->append(firstValue);
+        } else if(i > toNode - length/2*iter) {
+            cur->append(lastValue);
+        } else {
+            curNode = this->getPoint(i);
+            cur->append(t*(curNode->fRollSpeed + curNode->fSmoothSpeed) + t1*firstValue + t2*lastValue);
+        }
+        last->append(cur->last());
+        orig.append(cur->last());
+    }
+
+    for(int iterations = 0; iterations < iter; ++iterations) {
+        swap = cur;
+        cur = last;
+        last = swap;
+        for(int i = 0; i < cur->size(); ++i) {
+            double temp = 0.0, div = 0.;
+
+            for(int j = -length/2; j <= length/2; ++j) {
+                if(i+j < 0) {
+                    temp += last->at(0);
+                } else if(i+j >= last->size()) {
+                    temp += last->last();
+                } else {
+                    temp += last->at(i+j);
+                }
+                div = length/2 * 2 + 1;
+            }
+            cur->replace(i, temp/div);
+        }
+    }
+
+    for(int i = 0; i < cur->size(); ++i) {
+        adjustValues.append(cur->at(i) - orig[i]);
+    }
+
+    for(int i = 0; i < adjustValues.size(); ++i) {
+        this->getPoint(i+fromNode)->fSmoothSpeed += adjustValues[i];
+    }
+
+    delete cur;
+    delete last;
+}
+
+// Brings every roll smoothing entry up to date from the track (range, label,
+// name; see smoothHandler::update()), first to last, labelling the custom
+// regions 'a', 'b', ... through *customChar, which ends one past the last
+// letter used. Was the model part of the smoothing dialog's updateUi().
+void track::updateSmoothEntries(char* customChar)
+{
+    *customChar = 'a';
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        this->smoothList[i]->update(customChar);
+    }
+}
+
+bool track::smoothingActive()
+{
+    for(int i = 0; i < this->smoothList.size(); ++i) {
+        if(this->smoothList[i]->active) return true;
+    }
+    return false;
+}
+
 void track::updateTrack(int index, int iNode)
 {
     //qDebug("called updateTrack(%d, %d)", index, iNode);
@@ -243,18 +421,19 @@ void track::updateTrack(int index, int iNode)
         lSections.at(i)->updateSection(0);
     }
 
-    if(useSmoothing && smoother && smoother->active()) smoother->applyRollSmooth(nodeAt);
+    if(useSmoothing && bAutoSmooth && smoothingActive()) applyRollSmooth(nodeAt);
 
     unsigned int count = getNumPoints() - nodeAt;
     unsigned int count2 = getNumPoints() - iNode - getNumPoints(lSections[index]);
 
     nodeAt = nodeAt > getNumPoints(lSections[index])+updateFrom ? getNumPoints(lSections[index])+updateFrom : nodeAt;
 
-    if(mParent->mMesh != NULL)
-        mParent->mMesh->buildMeshes(nodeAt);
+    if(mListener != NULL)
+        mListener->trackGeometryChanged(this, nodeAt);
 
     mSec = timer.nsecsElapsed()/1000000.;
-    gloParent->showMessage(QString::number(mSec).append(QString("ms used to update %1 (%2) points").arg(count2).arg(count)), 3000);
+    if(mListener != NULL)
+        mListener->trackStatusMessage(QString::number(mSec).append(QString("ms used to update %1 (%2) points").arg(count2).arg(count)), 3000);
 
     hasChanged = true;
 }
@@ -355,6 +534,40 @@ void track::newSection(enum secType type, int index)
         smoothList.insert(index+1, new smoothHandler(this, index));
     }
     hasChanged = true;
+}
+
+// Adds a section of the given type at the end of the track with the model
+// work the track panel's "add section" does (trackWidget::addSection(), the
+// sectionHandler constructor): creates it, names it "unnamed" and computes
+// the track from it with its default values. Then tells the listener, which
+// shows the new section as the panel's "add" does. For sections that come
+// from a file (a project being loaded, an imported track); the caller fills
+// in the values. The panel passed its row count less the anchor row as the
+// index, which is lSections.size() on a track whose rows all came this way.
+section* track::appendSectionFromFile(enum secType type)
+{
+    int index = lSections.size();
+    newSection(type, index);
+    section* added = lSections[index];
+    added->sName = QString("unnamed");
+    updateTrack(added, 0);
+
+    if(mListener != NULL)
+        mListener->trackSectionAdded(this, index);
+
+    return added;
+}
+
+// The anchor's pitch and yaw change rates from its forces and speed.
+void track::updateAnchorGeometrics()
+{
+    glm::vec3 forceVec = glm::vec3(0, 1, 0) + anchorNode->forceNormal*anchorNode->vNorm + anchorNode->forceLateral*anchorNode->vLat;
+
+    glm::vec3 pitchVec = (float)cos(anchorNode->fRoll*F_PI/180)*anchorNode->vNorm - (float)sin(anchorNode->fRoll*F_PI/180)*anchorNode->vLat;
+    glm::vec3 yawVec = (float)sin(anchorNode->fRoll*F_PI/180)*anchorNode->vNorm + (float)cos(anchorNode->fRoll*F_PI/180)*anchorNode->vLat;
+
+    anchorNode->fPitchFromLast = glm::dot(forceVec, pitchVec)/anchorNode->fVel*1.8/F_PI;
+    anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/anchorNode->fVel*1.8/F_PI;
 }
 
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
@@ -649,7 +862,7 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
     return;
 }
 
-QString track::saveTrack(fstream& file, trackWidget* _widget)
+QString track::saveTrack(fstream& file)
 {   
     file << "TRC";
 
@@ -659,7 +872,10 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     writeBytes(&file, (const char*)&namelength, sizeof(int));
     file << stdName;
 
-    writeBytes(&file, (const char*)&(_widget->inTrack->trackColors), 3*sizeof(QColor));
+    // The three colours are written as the raw bytes of three QColor objects,
+    // so the project file format depends on the size of QColor (issue 18).
+    Q_STATIC_ASSERT_X(sizeof(QColor) == 16, "the .fvd format stores QColor as 16 raw bytes");
+    writeBytes(&file, (const char*)&(display.colors), 3*sizeof(QColor));
 
     // ANCHOR
     writeBytes(&file, (const char*)&startPos, sizeof(glm::vec3));
@@ -679,7 +895,7 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     writeBytes(&file, (const char*)&drawTrack, sizeof(bool));
     writeBytes(&file, (const char*)&drawHeartline, sizeof(int));
     writeBytes(&file, (const char*)&style, sizeof(int));
-    writeBytes(&file, (const char*)&mParent->mMesh->isWireframe, sizeof(bool));
+    writeBytes(&file, (const char*)&display.bWireframe, sizeof(bool));
 
     writeBytes(&file, (const char*)&povPos.x, sizeof(float));
     writeBytes(&file, (const char*)&povPos.y, sizeof(float));
@@ -706,12 +922,12 @@ QString track::saveTrack(fstream& file, trackWidget* _widget)
     return QString("Save Successful");
 }
 
-QString track::loadTrack(fstream& file, trackWidget* _widget)
+QString track::loadTrack(fstream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
 
-    readBytes(&file, &_widget->inTrack->trackColors, 3*sizeof(QColor));
+    readBytes(&file, &display.colors, 3*sizeof(QColor));
 
     startPos = readVec3(&file);
     anchorNode->fRoll = readFloat(&file);
@@ -728,7 +944,7 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     drawTrack = readBool(&file);
     drawHeartline = readInt(&file);
     style = (enum trackStyle)readInt(&file);
-    mParent->mMesh->isWireframe = readBool(&file);
+    display.bWireframe = readBool(&file);
 
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
@@ -738,63 +954,56 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     anchorNode->changePitch(startPitch, false);
     anchorNode->setRoll(anchorNode->fRoll);
 
-    _widget->updateAnchorGeometrics();
+    updateAnchorGeometrics();
 
     anchorNode->updateNorm();
 
     string temp;
-    //gloParent->treeInit(this);
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
     {
         temp = readString(&file, 3);
         if(temp == "STR")
         {
-            _widget->addStraightSec();
+            appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addStraightSec(activeSection);
         }
         else if(temp == "CUR")
         {
-            _widget->addCurvedSec();
+            appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addCurvedSec(activeSection);
         }
         else if(temp == "GEO")
         {
-            _widget->addGeometricSec();
+            appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addGeometricSec(activeSection);
         }
         else if(temp == "FRC")
         {
-            _widget->addForceSec();
+            appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "BEZ")
         {
-            _widget->addSection(bezier);
+            appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "CSV")
         {
-            _widget->addSection(nolimitscsv);
+            appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->loadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else
         {
@@ -814,8 +1023,8 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     if(temp == "EOT")
     {
         updateTrack(0, 0);
-        _widget->clearSelection();
-        _widget->setNames();
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
         return QString("Load Successful");
     }
     else
@@ -824,12 +1033,12 @@ QString track::loadTrack(fstream& file, trackWidget* _widget)
     }
 }
 
-QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
+QString track::legacyLoadTrack(fstream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
 
-    readBytes(&file, &_widget->inTrack->trackColors, 3*sizeof(QColor));
+    readBytes(&file, &display.colors, 3*sizeof(QColor));
 
     startPos = readVec3(&file);
     anchorNode->fRoll = readFloat(&file);
@@ -846,7 +1055,7 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     drawTrack = readBool(&file);
     drawHeartline = readInt(&file);
     style = (enum trackStyle)readInt(&file);
-    mParent->mMesh->isWireframe = readBool(&file);
+    display.bWireframe = readBool(&file);
 
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
@@ -856,63 +1065,56 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     anchorNode->changePitch(startPitch, false);
     anchorNode->setRoll(anchorNode->fRoll);
 
-    _widget->updateAnchorGeometrics();
+    updateAnchorGeometrics();
 
     anchorNode->updateNorm();
 
     string temp;
-    //gloParent->treeInit(this);
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
     {
         temp = readString(&file, 3);
         if(temp == "STR")
         {
-            _widget->addStraightSec();
+            appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addStraightSec(activeSection);
         }
         else if(temp == "CUR")
         {
-            _widget->addCurvedSec();
+            appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addCurvedSec(activeSection);
         }
         else if(temp == "GEO")
         {
-            _widget->addGeometricSec();
+            appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addGeometricSec(activeSection);
         }
         else if(temp == "FRC")
         {
-            _widget->addForceSec();
+            appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "BEZ")
         {
-            _widget->addSection(bezier);
+            appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else if(temp == "CSV")
         {
-            _widget->addSection(nolimitscsv);
+            appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->legacyLoadSection(file);
             activeSection->updateSection();
-            //gloParent->addForceSec(activeSection);
         }
         else
         {
@@ -932,8 +1134,8 @@ QString track::legacyLoadTrack(fstream& file, trackWidget* _widget)
     if(temp == "EOT")
     {
         updateTrack(0, 0);
-        _widget->clearSelection();
-        _widget->setNames();
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
         return QString("Load Successful");
     }
     else

@@ -43,6 +43,10 @@ typedef struct bezier_s
     float fVel;
 } bezier_t;
 
+// One sample of the train, 1/F_HZ second apart: position, frame, roll, speed, energy
+// and the felt forces. A plain value that holds no pointers; sections copy it along
+// the chain. Floats only: keep every operation and its order as it is, the results
+// must stay bit-identical to the 2016 binary (core/CLAUDE.md).
 class mnode
 {
 public:

@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. Nothing here is started. It says what has to come before what, and what can run side by side.
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. **Stage 1 is finished** (2026-11-10, integration branch `claude/stage-1`, pull request #17; summary below). Stage 2 is next and not started. It says what has to come before what, and what can run side by side.
 
 Rewrite a stage's section when its plan changes; move a finished stage to a one-line summary at the top. Each stage runs on its own integration branch (decision record 0004).
 
@@ -19,7 +19,7 @@ flowchart TD
     subgraph S1[Stage 1: foundations and research]
         B0[B0 Widen the baseline]
         F1[F1 Core runs without a window<br/>FR-5, FR-8]
-        R[R1 to R5 Research pack<br/>heartlines, radii, ASTM, NL2 blocks, FVD study]
+        R[R1 to R6 Research pack<br/>heartlines, radii, ASTM, NL2 blocks, FVD study, elements]
         D2[D2 Train types as data<br/>FR-9]
         D3[D3 Heartline presets<br/>FR-1]
     end
@@ -27,6 +27,7 @@ flowchart TD
         F2[F2 Command line and automated baseline test]
         F3[F3 Project as text]
         A1[A1 Analysis framework]
+        E1[E1 Element experiments on the real core<br/>FR-10]
     end
     subgraph S3[Stage 3: first analysis, agent tooling]
         T2[T2 Automation interface and live link<br/>FR-5]
@@ -38,6 +39,7 @@ flowchart TD
         A4[A4 Forces at every seat<br/>FR-4 part 2]
         W2[W2 Goal-seeking sections, elements, auto-banking<br/>FR-7 wave 2]
         T3[T3 Agent as co-designer<br/>FR-5, FR-7]
+        E3[E3 Parametric elements<br/>FR-10]
     end
     subgraph S5[Stage 5: operations]
         O1[O1 Station, lift, brake, trim sections]
@@ -47,6 +49,11 @@ flowchart TD
     B0 --> F1
     R --> D2 --> D3
     F1 --> F2 & F3 & A1
+    F2 --> E1
+    R --> E1
+    E1 --> E3
+    W2 --> E3
+    A3 --> E3
     F2 --> T2
     F3 --> T2
     A1 --> A2 & A3
@@ -76,7 +83,7 @@ flowchart TD
 
 **Parallel (safe to run at the same time):**
 
-- All five research tasks, with each other and with F1. They produce documents, not code.
+- All six research tasks, with each other and with F1. They produce documents, not code.
 - D2 and D3 beside F1, on one condition: they add new files and change only `ui/trackproperties.*`, which F1 agrees to leave until D3 is merged.
 - F2, F3 and A1 with each other, once F1 is in.
 - A2, A3, T2 and W1 with each other.
@@ -85,25 +92,28 @@ flowchart TD
 
 Two pieces can share a stage only if they do not edit the same files. The lead checks that when cutting the pieces, and gives each its own worktree.
 
-## Stage 1: foundations and research
+## Stage 1: foundations and research (finished 2026-11-10)
 
-**Goal.** The model loads, computes and exports with no window; the facts for the analysis features are collected; the first visible feature (heartline presets) lands.
+Done on `claude/stage-1` in eighteen planned pieces and four that came up on the way; decision records 0007, 0008 and 0009; `STATUS.md` has what was verified.
 
-| Piece | What | Depends on | Who | Requests |
-|---|---|---|---|---|
-| **B0** | Widen the baseline: more sample projects saved and exported with the 2016 binary, covering every section type, every transition shape, both roll orientations, time and distance arguments, smoothing, and a full-length layout. Needs screen access to drive the 2016 program once. | nothing | lead | all (the safety net) |
-| **F1** | Core runs without a window. `core/` stops including widget headers and calling `gloParent`; loading a file no longer goes through the track widget's slots; every edit becomes a command object that both the window and undo use. No change in what the program computes: the baseline comparison is the gate. | nothing | lead and Opus; one piece at a time through `core/track.cpp`, `core/trackhandler.*`, `core/undoaction.cpp` (243 references into the UI), then the widgets | FR-5, FR-8 |
-| **R1** | Heartlines and the train catalogue: check the owner's table, find sources, list missing types (Intamin, B&M, RMC, Mack, Vekoma, Gerstlauer, GCI first). | nothing | Sonnet, web research | FR-1, FR-9 |
-| **R2** | Minimum radii by track system and train. | nothing | Sonnet | FR-3 |
-| **R3** | ASTM F2291 (and EN 13814) force limits, durations, combined directions, restraint classes; what can be encoded, and whether the owner needs to buy the standard. | nothing | Opus (a wrong reading here is costly) | FR-4 |
-| **R4** | NoLimits 2 blocks and block scripting: what the script language is and whether running the same script here is feasible in full or as a subset. | nothing | Sonnet | FR-6 |
-| **R5** | The FVD workflow study: where time goes when building a layout, what other tools do, a ranked shortlist of directions with sketches. | nothing; better with the owner's input on what annoys him most | lead, with Sonnet for surveys | FR-7 |
-| **D2** | Train types as data: a schema and a data file (name, manufacturer, heartline, seating, car length, restraint class, radius limits, source and confidence per value) and a loader. | R1 | Sonnet | FR-1, FR-9 |
-| **D3** | Heartline presets: a train picker in Track Properties that fills in the heartline. Fills the number only, so the saved-file format is unchanged. | D2 | Sonnet | FR-1 |
+| Piece | What it delivered |
+|---|---|
+| B1, B2, B0 | A batch mode in the program and `tools/run-baseline.py`: eight projects compared with the 2016 binary with no tolerance, five of them generated by the program itself, an undo and redo round trip, the importers. |
+| F1a to F1h | Nothing in `core/` names a window. A console program built from `core/` alone (`fvdcore`) loads, computes, exports and saves with identical files. A guard script, per-folder notes, the map rewritten. |
+| N1, N2 | Why the owner's project differed from the 2016 binary (one C maths function), and the change that removed the difference (`core/fvdmath.*`). |
+| R1 to R6 | The research notes in `docs/research/`. |
+| D2, D2b, D3 | `data/traintypes.json` with 64 train types, its loader and test, the "Train type" list in Track Properties. |
 
-Research goes into `docs/research/`, one file per task, each ending with what it could not establish.
+**What Stage 1 changed in the plan for later stages:**
 
-**The owner's part.** Answer R5's questions about how he works; say which train types matter most; try the heartline picker.
+- **Undo was not split (decision record 0009).** Every edit becoming a core function, and undo with it, is piece T1 in Stage 2. The undo check found eight kinds of edit that undo gets wrong today (issue #31); T1 fixes them.
+- **F2 is smaller:** the one-command baseline exists. F2 builds the command-line front end on `fvdcore`.
+- **A2 (minimum radius) cannot rest on published numbers:** R2 found that no manufacturer publishes them. The check derives limits from speed and the force limit and lets the owner enter track and train limits he knows.
+- **A3 (force limits) can be built from public sources,** with twelve numbers of lower confidence that the owner would transcribe from the standard if he buys it (R3).
+- **O3 (block logic) should not aim at running NoLimits 2 scripts unchanged:** R4 recommends reproducing NoLimits 2's standard automatic block behaviour. The owner's decision, before Stage 5.
+- **W2 has its shortlist (R5):** pinned points with a slack piece, built on a goal-seeking solver; then keep-shape-or-keep-forces per element, transitions that end at a value, a knock-on view. The owner ranks them.
+- **Parametric elements (FR-10) have their first findings (R6):** goals must be independent, an element can promise its exit height or its exit speed but not both, and the solver needs a search for a valid start. E1 repeats the experiments on the real core.
+- **Float maths is pinned where it matters and listed where it is not** (N2): five more C maths functions differ from the 2016 binary in the last digit without reaching any file yet.
 
 ## Stage 2: reach and measure
 
@@ -111,9 +121,11 @@ Research goes into `docs/research/`, one file per task, each ending with what it
 
 | Piece | What | Depends on | Who |
 |---|---|---|---|
-| **F2** | A command-line front end (load, summarise, export, run checks) and the baseline comparison as one command with no clicking. From here every pull request that touches code runs it. | F1 | Sonnet |
+| **F2** | A command-line front end (load, summarise, export, run checks) on the window-less core. The one-command baseline comparison already exists since Stage 1 (pieces B1 and B2); F2 moves it from the windowed program's batch mode onto the core-only program. | F1 | Sonnet |
+| **T1** | The command list: every edit a person can make becomes a core function and a named command with typed parameters, units and a description; the window's controls call the commands; undo and redo record them and replace today's `undoAction`. The eight undo defects of issue 31 are fixed here, command by command. Decision record 0009. | F1 | lead for the design, Opus to build, in small groups of commands each checked by the undo round trip |
 | **F3** | The project as text: a readable description of a project that can be written and read back, beside the binary `.fvd`. The binary format stays as it is. | F1 | Sonnet; Opus for the round-trip tests |
 | **A1** | The analysis framework: a check returns findings (where, value, limit, severity); findings show as marks on the 3D view and the plots, and as a report from the command line. One trivial check to prove it. | F1 | Opus for the design, Sonnet to build |
+| **E1** | Element experiments on the real core (FR-10): R6's protocols re-run through the command line (a solved camelback, the exit contract, limits as inputs, a second element that turns or rolls), then the written design, **E2**, with the owner's choices. Scripts only; nothing changes in the program. | F2, R6 | Opus |
 
 ## Stage 3: first analysis, agent tooling, first FVD wave
 
@@ -133,6 +145,7 @@ Research goes into `docs/research/`, one file per task, each ending with what it
 | **A4** | Forces at every seat: a train on the track (cars, couplings, seat positions) and the acceleration at each seat, checked against the same limits. | A3, D2 with seat geometry | Opus | FR-4 |
 | **W2** | The big FVD improvements chosen from R5 (candidates: sections that solve for a goal such as an end height or position; parametric elements; banking computed for a target lateral force; limits shown live while editing). | A1, T2, R5 | lead and Opus | FR-7 |
 | **T3** | The agent as co-designer: build and adjust a layout from a description through T2, using the checks to judge its own work. | T2, A2, A3 | lead | FR-5, FR-7 |
+| **E3** | Parametric elements as designed in E2: an element expands into ordinary sections, re-solves when what comes before it changes, and can be converted to plain sections. First element: the camelback. A saved-file version bump is likely. | E2, W2 (the solver), A3; A4 for the all-seats option | lead and Opus | FR-10 |
 
 ## Stage 5: operations
 
@@ -165,4 +178,5 @@ Everything about how to build this is the architect's call. These are not:
 3. The ranking of FR-7's directions after R5.
 4. Whether to buy the ASTM standard if R3 says it is needed.
 5. How much NoLimits 2 script compatibility is worth if R4 says full compatibility is very large.
-6. When to start Stage 1.
+6. When to start Stage 1. (Given on 2026-11-10.)
+7. For FR-10, after R6 and E1: which numbers define each first element, whether elements hold their position by default, and whether files with elements may stop opening in the 2016 program.
