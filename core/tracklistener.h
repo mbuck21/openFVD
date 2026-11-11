@@ -52,6 +52,18 @@ public:
     // The track finished loading from a project file (all sections read in,
     // the track computed).
     virtual void trackLoaded(track* which) = 0;
+
+    // A saved state is about to be put back into the track
+    // (restoreTrackState(), core/trackstate.h): every section, smoothing entry
+    // and node will be deleted and made anew. Drop every pointer into the
+    // track's sections, functions, nodes and smoothing entries now. No other
+    // notice comes until trackReset().
+    virtual void trackAboutToReset(track* which) = 0;
+
+    // The state was put back and the whole track computed. Rebuild everything
+    // shown from the track (section list, graphs, mesh, smoothing list); the
+    // active section is the last one, or NULL.
+    virtual void trackReset(track* which) = 0;
 };
 
 #endif // TRACKLISTENER_H

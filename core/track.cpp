@@ -863,11 +863,30 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
 }
 
 QString track::saveTrack(std::iostream& file)
-{   
+{
+    saveTrackHeader(file);
+
+    for(int i = 0; i < lSections.size(); ++i)
+    {
+        lSections.at(i)->saveSection(file);
+    }
+
+    saveTrackSmoothing(file);
+
+    return QString("Save Successful");
+}
+
+// The track's saved bytes up to its sections: "TRC", the name, the colours,
+// the anchor, the display values and the number of sections. Split out of
+// saveTrack() so a trackState (trackstate.h) can keep it apart from the
+// sections; the bytes are the same.
+void track::saveTrackHeader(std::iostream& file)
+{
     file << "TRC";
 
-    int namelength = name.length();
+    // The count is in bytes: the name is written as UTF-8.
     std::string stdName = name.toStdString();
+    int namelength = (int)stdName.length();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
     file << stdName;
@@ -903,14 +922,12 @@ QString track::saveTrack(std::iostream& file)
     //float fFriction;
     int size = lSections.size();
     writeBytes(&file, (const char*)&size, sizeof(int));
+}
 
-
-    for(int i = 0; i < lSections.size(); ++i)
-    {
-        lSections.at(i)->saveSection(file);
-    }
-
-    size = smoothList.size();
+// The track's saved bytes after its sections: the smoothing entries and "EOT".
+void track::saveTrackSmoothing(std::iostream& file)
+{
+    int size = smoothList.size();
     writeBytes(&file, (const char*)&size, sizeof(int));
     for(int i = 0; i < size; ++i)
     {
@@ -918,11 +935,36 @@ QString track::saveTrack(std::iostream& file)
     }
 
     file << "EOT";
-
-    return QString("Save Successful");
 }
 
 QString track::loadTrack(std::iostream& file)
+{
+    loadTrackHeader(file);
+
+    QString error = loadTrackSections(file);
+    if(!error.isEmpty())
+    {
+        return error;
+    }
+
+    string temp = readString(&file, 3);
+    if(temp == "EOT")
+    {
+        updateTrack(0, 0);
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
+        return QString("Load Successful");
+    }
+    else
+    {
+        return QString("Load not Successful");
+    }
+}
+
+// The first part of loadTrack(): the name, colours, anchor and display values,
+// read after the "TRC" tag, and the anchor node set up from them. Shared with
+// restoreTrackState() (trackstate.cpp), which overwrites the anchor afterwards.
+void track::loadTrackHeader(std::iostream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -957,7 +999,14 @@ QString track::loadTrack(std::iostream& file)
     updateAnchorGeometrics();
 
     anchorNode->updateNorm();
+}
 
+// The second part of loadTrack(): the number of sections, each section
+// (appended, read and computed), then the smoothing entries; it stops before
+// the "EOT" tag. Returns an error text, or an empty string when all was read.
+// Shared with restoreTrackState() (trackstate.cpp).
+QString track::loadTrackSections(std::iostream& file)
+{
     string temp;
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
@@ -1019,18 +1068,7 @@ QString track::loadTrack(std::iostream& file)
         smoothList[i]->loadSmooth(file);
     }
 
-    temp = readString(&file, 3);
-    if(temp == "EOT")
-    {
-        updateTrack(0, 0);
-        if(mListener != NULL)
-            mListener->trackLoaded(this);
-        return QString("Load Successful");
-    }
-    else
-    {
-        return QString("Load not Successful");
-    }
+    return QString();
 }
 
 QString track::legacyLoadTrack(std::iostream& file)

@@ -45,6 +45,8 @@ public:
     void trackSmoothingApplied(track* which);
     void trackSectionAdded(track* which, int index);
     void trackLoaded(track* which);
+    void trackAboutToReset(track* which);
+    void trackReset(track* which);
 
 
     track* trackData;

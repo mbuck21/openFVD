@@ -165,11 +165,20 @@ void secnlcsv::loadSection(std::iostream &file)
 
     int size = readInt(&file);
 
+    // saveSection() writes x, y and z as three separate floats; read them back
+    // in that order, one statement each. readVec3() suits a vector written as
+    // one reversed 12-byte block: its three readFloat() calls are evaluated
+    // right to left by this compiler, so here it swapped x and z (the track
+    // came back mirrored on every load).
     for(int i=0; i < size; i++) {
         mnode node;
-        node.vPos = readVec3(&file);
-        node.vDir = readVec3(&file);
-        node.vLat = readVec3(&file);
+        glm::vec3* vectors[3] = { &node.vPos, &node.vDir, &node.vLat };
+        for(int v = 0; v < 3; ++v) {
+            float x = readFloat(&file);
+            float y = readFloat(&file);
+            float z = readFloat(&file);
+            *vectors[v] = glm::vec3(x, y, z);
+        }
 
         csvNodes.append(node);
     }

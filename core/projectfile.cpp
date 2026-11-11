@@ -30,7 +30,7 @@ QString writeProject(std::iostream& file, const QString& texPath, const QList<tr
     file << "FVD";
     file << "v0.77";
 
-    int namelength = texPath.length();
+    int namelength = texPath.toUtf8().length(); // bytes, as written below
     std::string stdName = texPath.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));

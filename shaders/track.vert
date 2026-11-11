@@ -25,9 +25,12 @@ in float aRoll;
 in float aNForce;
 in float aLForce;
 in float aFlex;
+in float aMeasure;   // chosen measure scaled to 0..1, -1 where it is not a number
+in float aFinding;   // 0 none, 1 information, 2 warning, 3 problem
 out vec3 color;
 
 uniform int colorMode;
+uniform int showFindings;
 
 
 vec3 getColor()
@@ -116,12 +119,33 @@ vec3 getColor()
             return vec3(0., 1., (2.5-aFlex)/1.5);
             else
             return vec3(0., aFlex, 1.);
+        case 6: // by measure: blue, cyan, green, yellow, red over 0..1
+            if(aMeasure < 0.)
+            return vec3(1., 0., 1.);    // not a number
+            else if(aMeasure < 0.25)
+            return vec3(0., aMeasure*4., 1.);
+            else if(aMeasure < 0.5)
+            return vec3(0., 1., (0.5-aMeasure)*4.);
+            else if(aMeasure < 0.75)
+            return vec3((aMeasure-0.5)*4., 1., 0.);
+            else
+            return vec3(1., (1.-aMeasure)*4., 0.);
     }
+}
+
+// Stretches with findings are pulled toward white (information), orange
+// (warning) or dark red (problem), on whatever colour mode is chosen.
+vec3 tintFinding(vec3 c)
+{
+    if(showFindings == 0 || aFinding < 0.5) return c;
+    if(aFinding < 1.5) return mix(c, vec3(1., 1., 1.), 0.6);
+    if(aFinding < 2.5) return mix(c, vec3(1., 0.5, 0.), 0.75);
+    return mix(c, vec3(0.6, 0., 0.), 0.85);
 }
 
 void main(void)
 {
-    color = getColor();
+    color = tintFinding(getColor());
     bPosition = anchorBase * vec4(aPosition, 1);
     gl_Position = projectionMatrix * modelMatrix * bPosition;
     bPosition -= vec4(eyePos, 0);

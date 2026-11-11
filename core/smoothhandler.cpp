@@ -161,7 +161,7 @@ void smoothHandler::setIterations(int _arg)
 void smoothHandler::saveSmooth(std::iostream& file)
 {
     QString name = sName;
-    int namelength = name.length();
+    int namelength = name.toUtf8().length(); // bytes, as written below
     std::string stdName = name.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
