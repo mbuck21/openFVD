@@ -10,7 +10,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 - **One guide per folder:** `core/CLAUDE.md` (the model), `ui/CLAUDE.md` (the windows), `renderer/CLAUDE.md` (the 3D view): what the folder may depend on, its main classes, where a change lands, its traps, how to check a change. Read the one for the folder you are about to change.
 - **Building:** `docs/building.md` (MSYS2 UCRT64; one command, `tools\build-windows.cmd`). **Testing:** `docs/testing.md`, against the 2016 baseline in `samples/baseline/`.
 - **Research behind the plan:** `docs/research/` (R1 heartlines and trains, R2 minimum radii, R3 ride-force limits, R4 NoLimits 2 blocks, R5 the force-vector-design workflow study). Read the one for your feature before designing it.
-- **The plan:** `docs/roadmap.md` (stages, what is serial, what runs together) and `docs/feature-requests.md` (the owner's requests, `FR-1` to `FR-9`).
+- **The plan:** `docs/roadmap.md` (stages, what is serial, what runs together) and `docs/feature-requests.md` (the owner's requests, `FR-1` to `FR-18`).
 - **Status:** `STATUS.md`, rewritten in place, never appended. Deferred ideas: `docs/maybe-later.md`. How a session runs the work: `docs/development-workflow.md`.
 - **Upstream:** altlenny/openFVD, its five issues and the `readme.txt` changelog. The official FVD++ documentation and the NoLimits Exchange forum it pointed to are gone.
 

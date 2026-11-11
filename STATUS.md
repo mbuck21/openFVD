@@ -4,12 +4,13 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-10, written by the lead session at the end of Stage 1. Stage 1 was merged into `master` that evening at the owner's word (pull request #17, merge commit 365892c).
+2026-11-10, written by the lead session at the end of Stage 1. Stage 1 was merged into `master` that evening at the owner's word (pull request #17, merge commit 365892c). The roadmap was then reworked for FR-10 to FR-18 (decision record 0010); no code changed.
 
 ## Focus
 
 - **Stage 1 of the roadmap is finished and in `master`.** It delivers: a safety net that runs in one command, the model separated from the windows, the research behind the planned features, a train catalogue with a picker for the heartline, and a rebuilt program that matches the 2016 release exactly on every project tested, the owner's own included.
-- **Stage 2 is next and not started:** the command-line front end on the window-less core (F2), the project as text (F3), the analysis framework (A1), the command list that replaces undo (T1), and the experiments for parametric elements on the real core (E1). `docs/roadmap.md` has the order.
+- **The plan now covers all eighteen requests, in seven stages** (`docs/roadmap.md`, reworked 2026-11-10; `docs/feature-requests.md` has FR-11 to FR-18). It is built around seven shared pieces: the window-less core and the train data (done), the command list, measures and findings, the solver, riding the finished track, and one way to add to the saved file.
+- **Stage 2 is next and not started:** the command-line front end on the window-less core (F2), the command list that replaces undo (T1), the project as text (F3), measures and findings (A1), the ride sheet (A5, FR-18), the solver and element trials on the real core (E1), and a second research pack (R7 to R11) for the train, friction, special track, comfort and import.
 
 ## Milestone now
 
@@ -23,7 +24,8 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 - **Notes for sessions.** A `CLAUDE.md` in `core/`, `ui/` and `renderer/`, a header comment on each main class, the map rewritten.
 
 Open issues:
-- #28 (`claude`): parametric elements. Research done (R6); experiments on the real core and the design are Stage 2 and later.
+- #28 (`claude`): parametric elements (FR-10). Research done (R6); trials on the real core in Stage 2, the design in Stage 4, the build in Stage 5.
+- #30 (`claude`): FR-11 to FR-18. In the documents and the roadmap since the rework; open until the experiments for FR-11 and FR-15 are written up (R7, R11) and the owner has confirmed or changed the order.
 - #31 (`claude`, `bug`): undo does not restore the design for eight kinds of edit. Fixed with the command list (T1).
 - #41 (`claude`, `bug`): defects in the importers, the export and smoothing dialogs.
 - #18 (`claude`): three latent defects in the core.
@@ -32,11 +34,13 @@ Open issues:
 
 ## Waiting on the owner
 
-- **The word to start Stage 2,** and which of its pieces first if he has a preference (`docs/roadmap.md`, Stage 2).
-- **Try the "Train type" list** in Track Properties (File, Load a project; select the track; Properties), at his convenience.
-- **Read the questions at the end of `docs/research/r5-fvd-workflow.md` and `docs/research/r6-parametric-elements.md`.** They decide what the main-goal work of Stages 3 and 4 is: the ranking of the directions (pinned points with a slack piece, the goal-seeking solver, and the others), whether re-solving happens on a button or live, which numbers define the first parametric element, and whether a file with elements must still open in the 2016 program.
-- **A larger finished layout,** if he finds one, as a test track. `TheDays.fvd` is in use, kept out of the repository in `samples/private/`.
-- **Later, when the force check is built (Stage 3):** whether to buy ASTM F2291 (about US$121) and transcribe twelve uncertain numbers himself; the standard's seller prohibits giving it to an AI (`docs/research/r3-force-limits.md`).
+The full list, with when each answer is needed, is the last section of `docs/roadmap.md`. The ones that matter now:
+
+- **The word to start Stage 2,** and whether the order of the reworked roadmap is right ("What can move at the owner's word" lists what can be swapped).
+- **One or two NoLimits 2 tracks exported as CSV,** for the import experiment (R11), and a larger finished layout as a test track, if one turns up. `TheDays.fvd` is in use, kept out of the repository in `samples/private/`.
+- **Try the "Train type" list** in Track Properties (File, Load a project; select the track; Properties), when convenient.
+- **Before Stage 4, not before:** the questions at the end of `docs/research/r5-fvd-workflow.md` and `docs/research/r6-parametric-elements.md` (the ranking of the directions, solve on a button or live, which numbers define the first element), and whether a project that uses a new feature may stop opening in the 2016 program.
+- **When the force check is built (Stage 3):** whether to buy ASTM F2291 (about US$121) and transcribe twelve uncertain numbers by hand; the standard's seller prohibits giving it to an AI (`docs/research/r3-force-limits.md`).
 - #13, when convenient.
 
 ## Verified

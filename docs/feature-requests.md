@@ -1,21 +1,29 @@
 # Feature requests
 
-The owner's list of 2026-11-10 (FR-1 to FR-9) and what he has added since, kept as he gave it, with the architect's notes on what each one needs. Nothing here is built. The order of work is in `docs/roadmap.md`; this file is the record of what was asked for.
+The owner's list of 2026-11-10 (FR-1 to FR-9) and what has been added since (FR-10 in issue #28, FR-11 to FR-18 in issue #30), kept as given, with the architect's notes on what each one needs. The order of work is in `docs/roadmap.md`; what is built so far is in `STATUS.md`; this file is the record of what was asked for.
 
-Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer to. Add a new request at the end with the next number; do not renumber.
+Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer to. Add a new request at the end with the next number; do not renumber. Piece names in the notes below (A1, G1, P1 and so on) are the roadmap's; where an older note names a stage, the table here and the roadmap are right.
 
 | Id | Request | Size | Roadmap |
 |---|---|---|---|
-| FR-1 | Standard heartline per train type | small, after research | Stage 1 |
+| FR-1 | Standard heartline per train type | small, after research | done in Stage 1 |
 | FR-2 | No macOS build | none (a non-goal) | deferred |
 | FR-3 | Minimum curve radius check | medium | Stage 3 |
-| FR-4 | Ride-force limits (ASTM), for every seat | large | Stages 3 and 4 |
-| FR-5 | Tooling for Claude to work the program without clicking | large, a foundation | Stages 1 to 3 |
-| FR-6 | Throughput simulation with blocks, as in NoLimits 2 | very large | Stage 5 |
+| FR-4 | Ride-force limits (ASTM), for every seat | large | Stage 3 at the heartline, Stage 6 at every seat |
+| FR-5 | Tooling for Claude to work the program without clicking | large, a foundation | Stages 1 to 3, the co-designer in Stage 5 |
+| FR-6 | Throughput simulation with blocks, as in NoLimits 2 | very large | Stage 7 |
 | FR-7 | Better force vector design: faster to build, no loss of detail | the main goal; ongoing | Stages 3 to 5 |
-| FR-8 | Refactor and comment for agentic coding | medium, the architect's call | Stage 1 |
-| FR-9 | More coaster and train types | small each, ongoing | from Stage 1 |
-| FR-10 | Parametric elements (for example a camelback hill) | large; research and experiments first | research in Stage 1, experiments in Stage 2, build in Stage 4 |
+| FR-8 | Refactor and comment for agentic coding | medium, the architect's call | done in Stage 1; large files split as they are touched |
+| FR-9 | More coaster and train types | small each, ongoing | any time |
+| FR-10 | Parametric elements (for example a camelback hill) | large; research and experiments first | research done in Stage 1, trials in Stage 2, design in Stage 4, build in Stage 5 |
+| FR-11 | Simulate the train as a train | large | experiment in Stage 2, the base in Stage 3, build in Stage 6 |
+| FR-12 | Close the circuit | medium, on the solver | trial in Stage 2, build in Stage 4 |
+| FR-13 | Energy margin | small, on a new base | research in Stage 2, build in Stage 3 |
+| FR-14 | Ride rules | medium | Stage 5 |
+| FR-15 | Import and convert | very large | experiment in Stage 2, analysis in Stage 3, the fit in Stage 6 |
+| FR-16 | Launches, lifts, brakes, transfer track, switch track, swing launches | large; swing launches and switches very large | research in Stage 2; lifts, launches and brakes in Stage 4; the rest in Stage 7 |
+| FR-17 | Comfort beyond the standard | medium | research in Stage 2, build in Stage 3 |
+| FR-18 | Ride sheet | small | Stage 2 |
 
 ---
 
@@ -216,5 +224,135 @@ Zamperla Twister Coaster                    3.61      1.1
 
 - Research and thinking first (roadmap R6, in Stage 1): how elements are defined in practice, how other tools offer them, what an element is in terms of this program (sections, parameters, unknowns, goals), every caveat in issue 28 worked through, and a first numerical experiment on a stand-in model. Output: `docs/research/r6-parametric-elements.md`.
 - The experiments on the real program (roadmap E1, Stage 2): they need the core running without a window and the command line.
-- A written design with the owner's choices (roadmap E2), then the build (roadmap E3, Stage 4), which stands on the goal-seeking solver and pinned points from R5 (W2), the analysis framework and force limits (A1 to A3), and for the all-seats option the train model (A4).
-- A saved-file change is likely (rule 4 in `CLAUDE.md`): the owner decides whether files with elements may stop opening in the 2016 program.
+- A written design with the owner's choices (roadmap E2, Stage 4), then the build (roadmap E3, Stage 5), which stands on the goal-seeking solver (G1), transitions that end at a value (G4), the measures and force limits (A1 to A3), and for the all-seats option the train model (A4, Stage 6). Holding an element's position is a pin (G2), placed by the designer.
+- An addition to the saved file (roadmap F4; rule 4 in `CLAUDE.md`). R6 found a place for the element record that the 2016 program never reads, so files with elements could still open there as plain sections; the owner decides.
+
+---
+
+## FR-11: Simulate the train as a train
+
+**Asked for** (2026-11-10, issue 30, as are FR-12 to FR-18). The physics should follow a whole train, not one point.
+
+**Why.** The program moves a single point along the heartline and takes its speed from that point's height. A real train is 15 to 20 m of mass spread along the track: going over a crest, part of it is still climbing while part is already descending, so its speed differs from a point's. NoLimits 2 simulates the whole train, which is a likely reason the forces seen there do not quite match the design.
+
+**Where it stands in the code.** Each node's speed comes from its own energy and height (`core/secforced.cpp` and the other section files). There is no train: no length, no cars. The train catalogue has no car lengths yet, and no manufacturer publishes them (R1).
+
+**What it needs.**
+
+- An experiment first (roadmap R7, Stage 2): how big the difference is, on a camelback and a loop, for a short and a long train. The size of the effect decides the priority.
+- A computation that rides a finished track shape (roadmap P1, Stage 3), first with a point. It is shared with FR-13, FR-15 and FR-16.
+- The train itself (roadmap P2, Stage 6), in two steps. First the ride over the finished shape with all the cars, which shows what each car feels and changes no design. Then a setting per project that makes the design use the train's speed. It changes what a project computes, so it is off for every existing project and the baseline keeps testing the point model.
+- Car lengths and counts in the train data, entered by the owner where no source exists. FR-4's every-seat check (A4) uses the same train.
+
+---
+
+## FR-12: Close the circuit
+
+**Asked for.** One command that builds the run from where the track ends back to the station.
+
+**Why.** It is the owner's second-biggest time sink ("hitting a target") at the scale of the whole ride.
+
+**What it needs.**
+
+- It is the first slice of pinned points (R5, direction C2; roadmap G2, Stage 4): the station is a pin, and the piece that is solved to meet it is the closing run. So it is built on the goal-seeking solver (G1, Stage 3), not as a tool of its own.
+- A trial first (roadmap E1, Stage 2): re-close one of the owner's projects by script, with a straight's length and a curve's angle as the unknowns. It shows whether a turn-and-brake-run template with a few unknowns is enough or a more general connecting piece is needed.
+- An honest answer when no connection exists within the limits (too much speed, too little room): say so, show the closest result, leave the track as it was.
+- Brakes for the last stretch (FR-16, roadmap P3).
+
+---
+
+## FR-13: Energy margin
+
+**Asked for.** Show how much speed the ride has in reserve, and where it would stall or roll back.
+
+**Why.** A design that just clears a hill at the nominal friction does not clear it on a cold day or with an empty train.
+
+**The architect's note on how.** The first thought in issue 30 was to re-run the existing computation with a low and a high friction. That answers a different question: with other friction the design computation would reshape every force section to keep its forces, so the hills themselves would change. The margin has to be measured on the shape as designed. That needs the computation that rides a finished track (roadmap P1), which is why this request sits in Stage 3 and not first; the same computation serves FR-11, FR-15 and FR-16.
+
+**What it needs.**
+
+- Research (roadmap R8, Stage 2): sensible friction and resistance ranges for steel and wooden coasters, empty and full, with sources, and how the program's `fFriction` and `fResistance` relate to rolling and air resistance.
+- P1, then the margin itself (roadmap A6, Stage 3): the speed band along the ride, the reserve at each crest, and the first point where the worst case stops, shown through the measures and findings (A1).
+
+---
+
+## FR-14: Ride rules
+
+**Asked for.** Named values for the whole ride that sections and elements refer to.
+
+**Why.** Today every limit and habit of a design (maximum g, airtime target, onset rate, roll rate) is typed into each transition by hand. Changing the character of a ride means editing every one.
+
+**What it needs** (roadmap D4, Stage 5).
+
+- A small table of named values per project. A transition or an element uses a rule instead of a number; changing the rule updates everything that uses it, as one undo step (the command list, T1). Saved sets of rules are styles the owner can reuse.
+- Transitions that end at a value (G4) first: "end at the airtime target" is a rule a transition can point to; "change by" is not.
+- Something that keeps a rule change from disturbing the rest of the ride: pins (G2) and elements (E3). Without them, changing a rule is the knock-on problem at full scale.
+- The thresholds of the checks and the comfort measures (FR-17) come from the same table.
+- A field in the saved file (F4).
+
+**Find out first.** How a value in a transition refers to a rule without making the transition editor harder to use.
+
+---
+
+## FR-15: Import and convert
+
+**Asked for.** Read an existing NoLimits 2 track and turn it into an editable force-vector project.
+
+**Why.** To start from a ride that already exists, or to clean up a hand-built NoLimits track, instead of rebuilding it from nothing.
+
+**Where it stands in the code.** The NoLimits 2 CSV import exists, but its section holds one speed throughout and computes no forces or energy (found in R5), and the importers have known defects (issue 41).
+
+**What it needs.** Three steps of rising difficulty.
+
+1. **Analyse** (roadmap I1, Stage 3): ride the imported shape with P1 and show its forces like a designed track's. Worth having alone.
+2. **Segment** and 3. **fit** (roadmap I2, Stage 6): split the ride into stretches that behave like force or geometric sections, and find clean transitions that reproduce each within a tolerance, with the solver (G1). The result is an approximation; the tool shows how far it strays from the original.
+
+Before step 2 is designed, an experiment (roadmap R11, Stage 2): how noisy a hand-built track's forces are, how well a fit can work, what tolerance is useful. It needs one or two NoLimits 2 tracks from the owner. I2 is built only if the experiment shows a useful fit.
+
+---
+
+## FR-16: Launches, lifts, brakes, transfer track, high-speed switch track, swing launches
+
+**Asked for.** The special track a real ride has, as part of the design.
+
+**Why.** These set the energy the rest of the ride lives on (a launch or lift puts it in, brakes and trims take it out), and they shape the layout.
+
+**Where it stands in the code.** A section can hold a fixed speed (`bSpeed`, `fVel`), which is close to a lift. There is no acceleration given along the track, no along-track force, and a project is a list of separate tracks with no connections.
+
+**What it needs.** Three groups, very different in size.
+
+- **Lifts, launches, brakes, trims** (roadmap P3, Stage 4): sections where the speed is driven instead of carried by gravity. The first plan had these in the last stage with the block logic; for design they matter earlier, so the physics is pulled forward and the blocks stay where they were. They change what a project computes and add to the saved file, so they wait for F4.
+- **Swing launches** (roadmap P4, Stage 7): the train passes over the same track several times, forwards and backwards. A force-vector design fixes the forces for one speed at each point, so the track is shaped for one chosen pass and the ride computation (P2) runs all the passes and checks each.
+- **Transfer track and high-speed switches** (roadmap P5, Stage 7): tracks joined at a point, with the geometry of each position. Mostly a layout and export matter until the block simulation (FR-6) uses them.
+
+Research first (roadmap R9, Stage 2): typical accelerations and speeds of LSM and hydraulic launches, lifts and brakes, with sources; how a swing launch is specified; what NoLimits 2 can take from an export (R4 found that the element file carries geometry only, so stations, lifts and brakes are set up again inside NoLimits 2).
+
+---
+
+## FR-17: Comfort beyond the standard
+
+**Asked for.** Measures of how a ride feels that the acceleration limits do not capture.
+
+**Why.** A ride can pass every limit and still be rough: abrupt transitions, snappy rolls, the head thrown sideways.
+
+**What it needs** (roadmap A7, Stage 3).
+
+- Measures computed along the track and drawn as colour and plots (A1): jerk (the rate of change of each force), roll rate and roll acceleration, and the sideways movement of the rider's head in a transition. With the train (A4, Stage 6), the same for the outer and end seats.
+- Thresholds the designer sets, later from the ride rules (FR-14). These are the designer's own measures, not a standard: R3 found no general jerk limit in ASTM F2291.
+- Research first (roadmap R10, Stage 2): which measures match what riders report as rough, and typical values on rides known as smooth and as rough, if any are published.
+
+---
+
+## FR-18: Ride sheet
+
+**Asked for.** The ride's key numbers on one panel, updated while editing.
+
+**Why.** To see at a glance what an edit did to the ride as a whole.
+
+**What it needs** (roadmap A5, Stage 2).
+
+- Length, height, drop, duration, top speed, total seconds of airtime, peak g in each direction, number of inversions, and the count of open findings from the checks. Mostly a matter of collecting what the nodes already hold.
+- The same sheet as text from the command line. It is the "compact summary of a track" that FR-5 asks for, so it is built once and used by the panel, the command line and the automation interface.
+- It is the first thing built on the measures and findings (A1), and the proof that they work.
+
+**The owner's part.** Definitions to agree on: what counts as airtime, what counts as an inversion.
