@@ -36,6 +36,7 @@ qint64 defaultClock()
 
 trackHistory::trackHistory(track* t)
     : mTrack(t),
+      mRestoring(false),
       mPosition(0),
       mMergeWindowMs(0),
       mMergeOpen(false),
@@ -149,7 +150,7 @@ void trackHistory::recordCall(const commandCall& call)
 
 void trackHistory::noteEdit(const QString& label, const commandTarget& selection, const QString& mergeKey)
 {
-    if(inScope()) return;
+    if(inScope() || mRestoring) return;
     trackState after = captureTrackState(mTrack, &mHead);
     if(after == mHead) return;
     record(label, selection, mergeKey, QList<commandCall>(), mHead, after);
@@ -157,9 +158,30 @@ void trackHistory::noteEdit(const QString& label, const commandTarget& selection
 
 void trackHistory::rebase()
 {
-    if(inScope()) return;
+    if(inScope() || mRestoring) return;
     mHead = captureTrackState(mTrack, &mHead);
     mMergeOpen = false;
+}
+
+void trackHistory::foldOutsideChange()
+{
+    if(inScope() || mRestoring) return;
+    trackState now = captureTrackState(mTrack, &mHead);
+    if(now == mHead) return;
+
+    dropRedoBranch();
+    if(mSteps.isEmpty()) {
+        mPosition = 0;
+    } else {
+        historyStep& newest = mSteps.last();
+        mBytes -= newest.cost;
+        newest.after = now;
+        newest.cost = stepCost(mSteps.size()-1);
+        mBytes += newest.cost;
+    }
+    mHead = now;
+    mMergeOpen = false;
+    notify();
 }
 
 void trackHistory::clear()
@@ -332,7 +354,9 @@ bool trackHistory::undo(commandTarget* selection)
     trackState state = mSteps[mPosition-1].before;
     commandTarget sel = mSteps[mPosition-1].selection;
     --mPosition;
+    mRestoring = true;
     restoreTrackState(mTrack, state);   // rebuilds the track: old pointers are dead
+    mRestoring = false;
     headAfterRestore(state);
     if(selection != NULL) *selection = sel;
     notify();
@@ -346,7 +370,9 @@ bool trackHistory::redo(commandTarget* selection)
     trackState state = mSteps[mPosition].after;
     commandTarget sel = mSteps[mPosition].selection;
     ++mPosition;
+    mRestoring = true;
     restoreTrackState(mTrack, state);   // rebuilds the track: old pointers are dead
+    mRestoring = false;
     headAfterRestore(state);
     if(selection != NULL) *selection = sel;
     notify();

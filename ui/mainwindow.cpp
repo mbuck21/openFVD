@@ -696,17 +696,9 @@ void MainWindow::setUndoButtons()
         return;
     }
 
-    if(mWidget->inTrack->mUndoHandler->stackIndex > 0) {
-        ui->actionRedo->setEnabled(true);
-    } else {
-        ui->actionRedo->setEnabled(false);
-    }
-
-    if(mWidget->inTrack->mUndoHandler->stackIndex != -1 && mWidget->inTrack->mUndoHandler->stackIndex != mWidget->inTrack->mUndoHandler->lActions.size()) {
-        ui->actionUndo->setEnabled(true);
-    } else {
-        ui->actionUndo->setEnabled(false);
-    }
+    // read from the track's history, whoever changed it
+    ui->actionRedo->setEnabled(mWidget->inTrack->mHistory->canRedo());
+    ui->actionUndo->setEnabled(mWidget->inTrack->mHistory->canUndo());
 }
 
 void MainWindow::displayStatusMessage(QString message)
@@ -738,7 +730,7 @@ void MainWindow::openTab(trackHandler* _track)
 {
     // A track opened with nothing to undo starts its undo list from what it
     // is now, whatever reached it without a step.
-    if(_track->mUndoHandler->lActions.isEmpty()) {
+    if(_track->mHistory->steps().isEmpty()) {
         _track->mUndoHandler->clearActions();
     }
     this->setUpdatesEnabled(false);

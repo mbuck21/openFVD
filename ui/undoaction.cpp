@@ -60,20 +60,42 @@ undoAction::~undoAction()
     }
 }
 
-bool undoAction::reselect(bool undone)
+commandTarget undoAction::target(int trackNumber) const
 {
     // anchor and track edits: what was selected stays selected
-    if(type == newTrack || type == deleteTrack || sectionNumber < 0) return false;
+    if(type == newTrack || type == deleteTrack || sectionNumber < 0) return commandTarget::forTrack(trackNumber);
+    if(!hasFunction) return commandTarget::forSection(trackNumber, sectionNumber);
+    return commandTarget::forTransition(trackNumber, sectionNumber, (int)inFunction, subfuncNumber);
+}
 
-    // what the edit was made on; an undone append or a redone delete has one
-    // section (or transition) fewer, so the one before it is selected
-    int sec = sectionNumber;
-    int sub = subfuncNumber;
-    if(type == appendSegment && undone) --sec;
-    if(type == removeSegment && !undone) --sec;
-    if(type == appendSubFunction && undone && sub > 0) --sub;
-    if(type == removeSubFunction && !undone && sub > 0) --sub;
+// The names are the ones the reports print; keep them in the order of eActionType.
+static const char* ACTION_NAMES[] = {
+    "onLengthSpin", "onChangeSpin", "onArg1", "onCenterSpin", "onTensionSpin", "onTransitionBox",
+    "appendSubFunction", "removeSubFunction", "changeSegmentLength", "changeCurveDirection",
+    "changeCurveLeadIn", "changeCurveLeadOut", "changeCurveRadius", "changeSpeedState",
+    "changeSegmentSpeed", "changeAnchorPosX", "changeAnchorPosY", "changeAnchorPosZ",
+    "changeAnchorRoll", "changeAnchorPitch", "changeAnchorYaw", "changeAnchorNormal",
+    "changeAnchorLateral", "changeAnchorPitchChange", "changeAnchorYawChange", "changeAnchorSpeed",
+    "changeTrackHeartline", "changeTrackFriction", "changeTrackResistance", "appendSegment",
+    "removeSegment", "changeSegmentArgument", "changeSegmentOrientation", "changeFunctionStatus",
+    "newTrack", "deleteTrack"
+};
 
-    hTrack->selectInPanel(sec, hasFunction && sec == sectionNumber ? (int)inFunction : -1, sub);
-    return true;
+int undoActionTypeCount()
+{
+    return (int)(sizeof(ACTION_NAMES)/sizeof(ACTION_NAMES[0]));
+}
+
+QString undoActionTypeName(int type)
+{
+    if(type < 0 || type >= undoActionTypeCount()) return QString("type%1").arg(type);
+    return QString(ACTION_NAMES[type]);
+}
+
+int undoActionTypeFromName(const QString& name)
+{
+    for(int i = 0; i < undoActionTypeCount(); ++i) {
+        if(name == ACTION_NAMES[i]) return i;
+    }
+    return -1;
 }

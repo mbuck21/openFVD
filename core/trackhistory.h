@@ -138,6 +138,15 @@ public:
     // The track changed outside the history (a load, an import): take its
     // state as the head state without recording a step. Ends a merge run.
     void rebase();
+    // The track was changed by an edit that is not a step (a rename, a colour,
+    // a dialog): takes its state as the newest applied step's state after (or
+    // as the head state when no step is applied), so that the next step's state
+    // before includes the change and undoing that step keeps it. Undoing an
+    // older step still takes it back. Like a recorded step it ends Redo: the
+    // steps that could be redone are dropped. Records no step; nothing when
+    // nothing changed. Differs from rebase(), which keeps the steps and the
+    // redo branch.
+    void foldOutsideChange();
     // Forgets every step and rebases.
     void clear();
 
@@ -202,6 +211,7 @@ private:
     void notify();
 
     track* mTrack;
+    bool mRestoring;        // an undo or a redo is putting a state back: nothing is recorded
     trackState mHead;
     QList<historyStep> mSteps;
     int mPosition;

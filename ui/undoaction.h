@@ -20,7 +20,7 @@
 */
 
 #include "function.h"
-#include "trackstate.h"
+#include "command.h"
 
 class MainWindow;
 class trackHandler;
@@ -67,31 +67,35 @@ enum eActionType
     deleteTrack
 };
 
-// One recorded edit of a track: its type (eActionType, for the reports), what to
-// select again after undo or redo (the section and, for a transition edit, the
-// function and transition), and the state of the track after the edit
-// (core/trackstate.h). The state before it is the state after the step before,
-// or the undo list's base state; undo and redo put those states back. Made by
-// the window code that makes the edit, once the edit is finished; owned by the
-// track's undoHandler. docs/decisions/0011-undo-by-snapshot-commands-on-top.md.
+// The names of the action types ("onLengthSpin", ...): the labels of the steps
+// the edit slots record, and the words of the batch reports.
+int undoActionTypeCount();
+QString undoActionTypeName(int type);
+int undoActionTypeFromName(const QString& name);    // -1 when it is none of them
+
+// What an edit slot hands to undoHandler::addAction() once the edit is made:
+// its type (eActionType) and what was selected (the section and, for a
+// transition edit, the function and transition), which becomes the step's
+// label and selection in the track's trackHistory. Made by the window code
+// that makes the edit; addAction() reads it and deletes it.
 class undoAction
 {
 public:
     undoAction(trackHandler* _track, eActionType _type);
     ~undoAction();
 
-    // After the track was put back to the state before this step (undone) or
-    // after it: selects its section and transition again in the panel. False
-    // for an edit of the anchor or the whole track, which selects nothing.
-    bool reselect(bool undone);
+    // The step's selection: the section and, for a transition edit, the
+    // function and transition (-1: an edit of the anchor or the whole track,
+    // which selects nothing).
+    commandTarget target(int trackNumber) const;
 
     trackHandler* hTrack;
 
     eActionType type;
 
     // Other actions recorded with this one as the same step (the anchor
-    // position that follows a roll, pitch, yaw or heartline change); for the
-    // reports only.
+    // position that follows a roll, pitch, yaw or heartline change); they
+    // make the step's label ("changeAnchorRoll+changeAnchorPosX").
     undoAction* nextAction;
 
     track* inTrack;
@@ -99,8 +103,6 @@ public:
     bool hasFunction;       // a transition edit: inFunction and subfuncNumber are set
     eFunctype inFunction;
     int subfuncNumber;
-
-    trackState after;       // the track once the edit was made
 };
 
 #endif // UNDOACTION_H

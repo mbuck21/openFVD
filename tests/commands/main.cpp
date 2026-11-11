@@ -568,6 +568,34 @@ static void checkHistory(const QString& repo)
         check(t->name == "a123", "merge: and redoing the merged step lands on its last state after");
     }
 
+    // an outside change is folded into the newest step
+    {
+        rename(t, original);
+        trackHistory h(t);
+        rename(t, "f1");
+        h.noteEdit("S1");
+        rename(t, "f2");
+        h.noteEdit("S2");
+        rename(t, "outside");
+        h.foldOutsideChange();
+        check(h.steps().size() == 2 && h.position() == 2 && h.headState() == captureTrackState(t),
+              "fold: an outside change adds no step");
+        check(h.undo() && t->name == "f1" && h.redo() && t->name == "outside",
+              "fold: it is in the newest step's state after; the older step still undoes to f1");
+        h.undo();
+        h.undo();
+        check(t->name == original && h.canRedo(), "fold: undone to the start, two steps to redo");
+        rename(t, "outside 2");
+        h.foldOutsideChange();
+        check(h.steps().isEmpty() && !h.canRedo() && !h.canUndo() && h.headState() == captureTrackState(t),
+              "fold: with nothing applied it ends Redo and becomes the start");
+        h.foldOutsideChange();
+        check(h.steps().isEmpty(), "fold: nothing changed, nothing done");
+        rename(t, "g1");
+        h.noteEdit("G1");
+        check(h.undo() && t->name == "outside 2", "fold: the next step undoes to the folded state");
+    }
+
     // the caps
     {
         rename(t, original);

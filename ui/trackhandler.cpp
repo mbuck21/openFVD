@@ -36,8 +36,7 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
 {
     id = _id;
     mMesh = NULL;
-    resetStep = NULL;
-    resetUndone = false;
+    resetHasSelection = false;
     resetSection = -2;
     resetFunc = -1;
     resetSubfunc = 0;
@@ -65,7 +64,10 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
     trackData->display.colors[2] = QColor(51, 255, 51);
 
 
-    mUndoHandler = new undoHandler(trackData, _maxUndoChanges);
+    mHistory = new trackHistory(trackData);
+    mHistory->setMaxSteps(_maxUndoChanges);
+    mHistory->setListener(this);
+    mUndoHandler = new undoHandler(this);
     mMesh = new trackMesh(trackData);
 }
 
@@ -74,8 +76,9 @@ trackHandler::~trackHandler()
     delete trackWidgetItem;
     delete graphWidgetItem;
     delete listItem;
-    delete trackData;
     delete mUndoHandler;
+    delete mHistory;
+    delete trackData;
     delete mMesh;
 }
 
@@ -189,7 +192,10 @@ void trackHandler::trackReset(track* which)
     listItem->setText(1, trackData->name);
     if(tabId >= 0) gloParent->renameTab(this);
 
-    if(resetStep == NULL || !resetStep->reselect(resetUndone)) {
+    // the step's selection (anchor and track edits have none: what was selected stays)
+    if(resetHasSelection && resetSelection.section >= 0) {
+        selectInPanel(resetSelection.section, resetSelection.function, resetSelection.transition);
+    } else {
         selectInPanel(resetSection, resetFunc, resetSubfunc);
     }
     // The panel's selection slot converts the plot's horizontal range between
@@ -220,10 +226,16 @@ void trackHandler::trackReset(track* which)
     gloParent->rideSheetChanged(which);
 }
 
-void trackHandler::selectAfterReset(undoAction* step, bool undone)
+void trackHandler::historyChanged(trackHistory* which)
 {
-    resetStep = step;
-    resetUndone = undone;
+    Q_UNUSED(which);
+    gloParent->setUndoButtons();
+}
+
+void trackHandler::selectAfterReset(const commandTarget* selection)
+{
+    resetHasSelection = selection != NULL;
+    if(selection != NULL) resetSelection = *selection;
 }
 
 void trackHandler::selectInPanel(int sec, int funcType, int sub)

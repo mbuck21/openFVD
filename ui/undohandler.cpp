@@ -23,44 +23,54 @@
 
 extern MainWindow* gloParent;
 
-undoHandler::undoHandler(track* _track, int _stackSize)
+undoHandler::undoHandler(trackHandler* handler)
 {
     busy = false;
-    maxStackSize = _stackSize;
-    stackIndex = -1;
-    mTrack = _track;
-    baseState = captureTrackState(mTrack);
+    hTrack = handler;
+    mHistory = handler->mHistory;
 }
 
 undoHandler::~undoHandler()
 {
-    for(int i=0; i < lActions.size(); ++i)
-    {
-        delete lActions[i];
-    }
 }
 
-const trackState& undoHandler::stateNow() const
+// An undone append or a redone delete has one section (or transition) fewer,
+// so the one before it is selected. The step's label starts with the name of
+// its main action (undoAction.cpp); a step made some other way has no such
+// name and is selected as it says.
+commandTarget undoHandler::selectionAfter(const historyStep& step, bool undone) const
 {
-    if(stackIndex >= 0 && stackIndex < lActions.size()) return lActions[stackIndex]->after;
-    return baseState;
+    commandTarget sel = step.selection;
+    if(sel.section < 0) return sel;
+
+    int type = undoActionTypeFromName(step.label.section('+', 0, 0));
+    int sec = sel.section;
+    int sub = sel.transition;
+    if(type == appendSegment && undone) --sec;
+    if(type == removeSegment && !undone) --sec;
+    if(type == appendSubFunction && undone && sub > 0) --sub;
+    if(type == removeSubFunction && !undone && sub > 0) --sub;
+
+    // a transition is only kept on the section it was edited on
+    int func = sec == sel.section ? sel.function : -1;
+    return commandTarget(sel.track, sec, func, sub);
 }
 
-const trackState& undoHandler::stateBefore(int index) const
+void undoHandler::putBack(bool undo)
 {
-    if(index+1 < lActions.size()) return lActions[index+1]->after;
-    return baseState;
-}
+    // the step that is undone is the newest applied one, the one redone the
+    // first after it
+    int index = undo ? mHistory->position()-1 : mHistory->position();
+    commandTarget sel = selectionAfter(mHistory->steps()[index], undo);
 
-void undoHandler::putBack(undoAction* step, const trackState& state, bool undone)
-{
     gloParent->setUpdatesEnabled(false);
     busy = true;
     // the panel selects the step's section and transition again once the
     // track is rebuilt (trackHandler::trackReset())
-    step->hTrack->selectAfterReset(step, undone);
-    restoreTrackState(mTrack, state);
-    step->hTrack->selectAfterReset(NULL, false);
+    hTrack->selectAfterReset(&sel);
+    if(undo) mHistory->undo();
+    else mHistory->redo();
+    hTrack->selectAfterReset(NULL);
     busy = false;
     gloParent->setUpdatesEnabled(true);
 }
@@ -68,20 +78,14 @@ void undoHandler::putBack(undoAction* step, const trackState& state, bool undone
 // The bounds are checked here, not only by the menu entries (issue 31).
 void undoHandler::doUndo()
 {
-    if(stackIndex < 0 || stackIndex >= lActions.size()) return;
-
-    trackState before = stateBefore(stackIndex);
-    putBack(lActions[stackIndex], before, true);
-    ++stackIndex;
+    if(busy || !mHistory->canUndo()) return;
+    putBack(true);
 }
 
 void undoHandler::doRedo()
 {
-    if(stackIndex <= 0 || stackIndex > lActions.size()) return;
-
-    --stackIndex;
-    trackState after = lActions[stackIndex]->after;
-    putBack(lActions[stackIndex], after, false);
+    if(busy || !mHistory->canRedo()) return;
+    putBack(false);
 }
 
 void undoHandler::addAction(undoAction* _action)
@@ -92,62 +96,22 @@ void undoHandler::addAction(undoAction* _action)
         return;
     }
 
-    trackState before = stateNow();
-    _action->after = captureTrackState(mTrack, &before);
-    if(_action->after == before)
+    QStringList names;
+    for(undoAction* a = _action; a; a = a->nextAction)
     {
-        delete _action;
-        return;
+        names.append(undoActionTypeName(a->type));
     }
-
-    while(stackIndex > 0)
-    {
-        delete lActions[0];
-        lActions.removeFirst();
-        stackIndex--;
-    }
-
-    lActions.prepend(_action);
-    if(lActions.size() > maxStackSize)
-    {
-        undoAction* oldest = lActions.takeLast();
-        baseState = oldest->after;
-        delete oldest;
-    }
-
-    stackIndex = 0;
+    mHistory->noteEdit(names.join("+"), _action->target(hTrack->getID()-1));
+    delete _action;
 }
 
 void undoHandler::takeOutsideChange()
 {
     if(busy) return;   // a restore in progress is not an edit
-
-    trackState now = captureTrackState(mTrack, &stateNow());
-    if(now == stateNow()) return;
-
-    // an edit after an undo ends Redo, as a recorded step does (addAction())
-    while(stackIndex > 0)
-    {
-        delete lActions[0];
-        lActions.removeFirst();
-        stackIndex--;
-    }
-    if(lActions.isEmpty()) {
-        stackIndex = -1;
-        baseState = now;
-    } else {
-        lActions[0]->after = now;
-    }
-    gloParent->setUndoButtons();
+    mHistory->foldOutsideChange();
 }
 
 void undoHandler::clearActions()
 {
-    while(lActions.size())
-    {
-        delete lActions[0];
-        lActions.removeFirst();
-    }
-    stackIndex = -1;
-    baseState = captureTrackState(mTrack);
+    mHistory->clear();
 }

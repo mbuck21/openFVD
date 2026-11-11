@@ -421,12 +421,15 @@ QStringList batchRunner::panelState(MainWindow* w)
         }
 
         QStringList types;
-        QList<undoAction*>& actions = h->mUndoHandler->lActions;
-        for(int a = 0; a < actions.size(); ++a) {
-            types.append(batchScenarios::actionTypeName(actions[a]->type));
+        // newest first; the first name of a step's label is its main action
+        const QList<historyStep>& actions = h->mHistory->steps();
+        for(int a = actions.size()-1; a >= 0; --a) {
+            types.append(actions[a].label.section('+', 0, 0));
         }
+        // the position as the window's list counted it: the steps that can be redone, or -1 with none
+        int position = actions.isEmpty() ? -1 : actions.size() - h->mHistory->position();
         lines.append(QString("%1 undo list: %2 actions, position %3, newest first: %4")
-                     .arg(label).arg(actions.size()).arg(h->mUndoHandler->stackIndex)
+                     .arg(label).arg(actions.size()).arg(position)
                      .arg(types.isEmpty() ? QString("none") : types.join(" ")));
 
         QCustomPlot* plot = h->graphWidgetItem ? h->graphWidgetItem->findChild<QCustomPlot*>("plotter") : NULL;
