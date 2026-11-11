@@ -148,7 +148,7 @@ float func::changeLength(float newlength, int index)
     return getMaxArgument();
 }
 
-void func::saveFunction(std::fstream& file)
+void func::saveFunction(std::iostream& file)
 {
     file << "FUNC";
     int size = funcList.size();
@@ -158,7 +158,7 @@ void func::saveFunction(std::fstream& file)
     }
 }
 
-void func::loadFunction(std::fstream& file)
+void func::loadFunction(std::iostream& file)
 {
     if(readString(&file, 4) != "FUNC") {
         lenAssert(0 && "Error Loading Function");
@@ -172,7 +172,7 @@ void func::loadFunction(std::fstream& file)
     }
 }
 
-void func::legacyLoadFunction(std::fstream& file)
+void func::legacyLoadFunction(std::iostream& file)
 {
     if(readString(&file, 4) != "FUNC") {
         lenAssert(0 && "Error Loading Function");

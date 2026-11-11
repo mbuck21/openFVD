@@ -48,8 +48,9 @@ Tolerances: exact, unless tolerances.json next to the references lists the file.
               with a rebuilt program, not the 2016 binary; see the README there).
 
 --core        runs every comparison above with the console program fvdcore
-              (tests/coreonly/, built from core/ alone; tools/run-tests.sh builds it
-              into build/tests/coreonly/) in place of FVD.exe --batch-export:
+              (cli/, built from core/ alone; build/dist/fvdcore.exe, else the one
+              tools/run-tests.sh builds into build/tests/coreonly/) in place of
+              FVD.exe --batch-export:
                   fvdcore export <project> <temporary folder>
               It writes the same files, so the same references apply. --core-exe
               names another fvdcore. It does not combine with --undo-check,
@@ -86,7 +87,8 @@ UNSTABLE_IMPORTS = {
                      "so the exports change from run to run",
 }
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
-CORE_DIR = ROOT / "build" / "tests" / "coreonly"  # where tools/run-tests.sh builds fvdcore
+CORE_DEPLOYED = ROOT / "build" / "dist" / "fvdcore.exe"  # tools/build-windows.sh puts fvdcore beside FVD.exe
+CORE_DIR = ROOT / "build" / "tests" / "coreonly"  # where tools/run-tests.sh builds it (the older place)
 TIME_LIMIT_S = 60
 FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
@@ -124,7 +126,10 @@ def compare(reference: Path, candidate: Path, tolerance: dict):
 
 
 def default_core_exe() -> Path:
-    """fvdcore as tools/run-tests.sh builds it (in a release folder on Windows)."""
+    """build/dist/fvdcore.exe when it exists, else fvdcore as tools/run-tests.sh
+    builds it (in a release folder on Windows)."""
+    if CORE_DEPLOYED.is_file():
+        return CORE_DEPLOYED
     for name in ("release/fvdcore.exe", "fvdcore.exe", "release/fvdcore", "fvdcore"):
         if (CORE_DIR / name).is_file():
             return CORE_DIR / name
@@ -132,8 +137,8 @@ def default_core_exe() -> Path:
 
 
 def core_environment() -> dict:
-    """fvdcore is not deployed with its Qt libraries (build/dist/ is the windowed
-    program's): it finds them on the PATH. Adds the MSYS2 UCRT64 folder, where
+    """The copy in build/dist/ has its Qt libraries beside it; the one tools/run-tests.sh
+    builds does not and finds them on the PATH. Adds the MSYS2 UCRT64 folder, where
     docs/building.md installs Qt, when a PATH without it was inherited."""
     env = dict(os.environ)
     extra = [str(Path(found).parent) for found in [shutil.which("qmake-qt5")] if found]
@@ -388,7 +393,7 @@ def main() -> int:
     parser.add_argument("--imports", action="store_true",
                         help="also import every input in samples/import/ and compare with the references there")
     parser.add_argument("--core", action="store_true",
-                        help="export with fvdcore (tests/coreonly, core/ alone) instead of FVD.exe --batch-export")
+                        help="export with fvdcore (cli/, core/ alone; build/dist/fvdcore.exe) instead of FVD.exe --batch-export")
     parser.add_argument("--core-exe", type=Path,
                         help="the fvdcore to test (default: where tools/run-tests.sh builds it)")
     args = parser.parse_args()

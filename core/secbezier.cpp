@@ -278,7 +278,7 @@ int secbezier::updateSection(int node)
     return node;
 }
 
-void secbezier::saveSection(std::fstream& file)
+void secbezier::saveSection(std::iostream& file)
 {
     file << "BEZ";
     int namelength = sName.length();
@@ -307,7 +307,7 @@ void secbezier::saveSection(std::fstream& file)
     }
 }
 
-void secbezier::loadSection(std::fstream& file)
+void secbezier::loadSection(std::iostream& file)
 {
     int namelength = readInt(&file);
     sName = QString(readString(&file, namelength).c_str());
@@ -332,7 +332,7 @@ void secbezier::loadSection(std::fstream& file)
     }
 }
 
-void secbezier::legacyLoadSection(std::fstream& file)
+void secbezier::legacyLoadSection(std::iostream& file)
 {
     int namelength = readInt(&file);
     sName = QString(readString(&file, namelength).c_str());

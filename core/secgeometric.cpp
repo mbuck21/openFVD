@@ -399,7 +399,7 @@ float secgeometric::getMaxArgument()
     return min;
 }
 
-void secgeometric::saveSection(std::fstream& file)
+void secgeometric::saveSection(std::iostream& file)
 {
     file << "GEO";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
@@ -419,7 +419,7 @@ void secgeometric::saveSection(std::fstream& file)
     latForce->saveFunction(file);
 }
 
-void secgeometric::loadSection(std::fstream& file)
+void secgeometric::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -437,7 +437,7 @@ void secgeometric::loadSection(std::fstream& file)
 }
 
 
-void secgeometric::legacyLoadSection(std::fstream& file)
+void secgeometric::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 

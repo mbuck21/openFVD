@@ -25,7 +25,7 @@ using namespace std;
 
 // Was projectWidget::saveProject(); the section names typed into the track
 // panel are copied into the track by the client, just before it is written.
-QString writeProject(std::fstream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client)
+QString writeProject(std::iostream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client)
 {
     file << "FVD";
     file << "v0.77";
@@ -48,7 +48,7 @@ QString writeProject(std::fstream& file, const QString& texPath, const QList<tra
 
 // Was projectWidget::loadProject(); what it did to the windows is done by the
 // client, at the same points.
-QString readProject(std::fstream& file, projectFileClient* client)
+QString readProject(std::iostream& file, projectFileClient* client)
 {
     int errType = -1;
     std::string temp = readString(&file, 3);
