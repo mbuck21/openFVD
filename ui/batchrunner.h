@@ -37,6 +37,7 @@ class track;
 //   FVD.exe --batch-make-fixtures <outdir>
 //   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
 //   FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>
+//   FVD.exe --batch-ride-sheet <project.fvd> <outdir>
 //
 // The result is reported in a text file and the exit code (0 or 1), because
 // the program has no console.
@@ -66,6 +67,7 @@ private:
     int runMakeFixtures();
     int runUndoCheck();
     int runImport();
+    int runRideSheet();
 
     bool writeProjectFiles(MainWindow* w, const QDir& dir, const QString& stem, QString& error);
     static QStringList panelState(MainWindow* w);
