@@ -102,29 +102,6 @@ track* trackByNumber(coreProject& project, int number, QString& error)
     return project.tracks.at(number-1);
 }
 
-placement::placement(const track* t, bool world) : bWorld(world), base(1.f), fYaw(0.f)
-{
-    if(world) {
-        fYaw = t->startYaw;
-        base = glm::translate(t->startPos) * glm::rotate(TO_RAD(t->startYaw-90.f), glm::vec3(0.f, 1.f, 0.f));
-    }
-}
-
-glm::vec3 placement::point(const glm::vec3& p) const
-{
-    return glm::vec3(base * glm::vec4(p, 1.f));
-}
-
-glm::vec3 placement::direction(const glm::vec3& d) const
-{
-    return glm::vec3(base * glm::vec4(d, 0.f));
-}
-
-float placement::heading(float rawHeading) const
-{
-    return rawHeading + fYaw;
-}
-
 bool parseOptions(const QStringList& args, const QStringList& flags, const QStringList& values,
                   QStringList& positional, QStringList& givenFlags, QMap<QString, QString>& givenValues,
                   QString& error)

@@ -20,6 +20,7 @@ SOURCES += \
     $$PWD/nolimitsimporter.cpp \
     $$PWD/projectfile.cpp \
     $$PWD/projecttext.cpp \
+    $$PWD/ridesummary.cpp \
     $$PWD/secbezier.cpp \
     $$PWD/seccurved.cpp \
     $$PWD/secforced.cpp \
@@ -44,6 +45,7 @@ HEADERS += \
     $$PWD/nolimitsimporter.h \
     $$PWD/projectfile.h \
     $$PWD/projecttext.h \
+    $$PWD/ridesummary.h \
     $$PWD/secbezier.h \
     $$PWD/seccurved.h \
     $$PWD/secforced.h \

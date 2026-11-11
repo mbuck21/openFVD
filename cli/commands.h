@@ -44,6 +44,11 @@ struct command
 extern const command cmdExport;
 extern const command cmdNodes;
 extern const command cmdCompare;
+extern const command cmdSummary;
+extern const command cmdMeasures;
+extern const command cmdCheck;
+extern const command cmdToText;
+extern const command cmdFromText;
 extern const command cmdSelftest;
 extern const command cmdHelp;
 

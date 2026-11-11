@@ -28,6 +28,15 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <cstdio>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
+#include "../core/measure.h"
+#include "../core/finding.h"
+#include "../core/ridesummary.h"
 
 static QByteArray readAll(const QString& fileName)
 {
@@ -54,6 +63,27 @@ static void checkSame(bool& allOk, const QString& label, const QString& made, co
 static int lineCount(const QByteArray& bytes)
 {
     return bytes.isEmpty() ? 0 : bytes.count('\n');
+}
+
+// Runs a command with its standard output going to a file, returns the exit
+// code and puts what it printed in out.
+static int runCaptured(const command& cmd, const QStringList& args, const QString& file, QByteArray& out)
+{
+    fflush(stdout);
+    int saved = dup(fileno(stdout));
+    FILE* redirected = fopen(qPrintable(file), "wb");
+    if(!redirected || saved < 0) {
+        if(redirected) fclose(redirected);
+        return -1;
+    }
+    dup2(fileno(redirected), fileno(stdout));
+    int code = cmd.run(args);
+    fflush(stdout);
+    dup2(saved, fileno(stdout));
+    close(saved);
+    fclose(redirected);
+    out = readAll(file);
+    return code;
 }
 
 // Exports samples/baseline/four-sections.fvd and compares the Spline export
@@ -119,6 +149,73 @@ static int runSelftest(const QStringList& args)
     }
     report(allOk, zero && rowCount >= 2, QString("compare of a project with itself: zero in all %1 rows").arg(rowCount));
 
+    // summary: the ride sheet of four-sections.fvd, as text and as JSON
+    QByteArray printed;
+    QString captureFile = QDir(tmp.path()).filePath("captured.txt");
+    code = runCaptured(cmdSummary, QStringList() << project << "--sections", captureFile, printed);
+    report(allOk, code == 0 && printed.contains("Length (centre line)") && printed.contains("Top speed") && printed.contains("force"),
+           QString("summary of four-sections.fvd prints the ride sheet and its sections (exit code %1, %2 bytes)").arg(code).arg(printed.size()));
+    code = runCaptured(cmdSummary, QStringList() << project << "--json", captureFile, printed);
+    report(allOk, code == 0 && printed.contains("\"tracks\"") && printed.contains("\"note\"") && printed.contains("\"length_m\"") && printed.contains("\"floater_airtime_s\"") && printed.contains("\"section_list\""),
+           QString("summary --json prints one object with a tracks array and the note (exit code %1)").arg(code));
+    code = cmdSummary.run(QStringList() << project << "--track" << "0");
+    int code2 = cmdSummary.run(QStringList() << project << "--track" << "-1");
+    report(allOk, code == 1 && code2 == 1, QString("summary with --track 0 or -1 exits 1 (exit codes %1, %2)").arg(code).arg(code2));
+    if(!loaded.tracks.isEmpty()) {
+        rideSummary sheet = computeRideSummary(loaded.tracks.at(0));
+        report(allOk, !sheet.empty && sheet.sections.size() == loaded.tracks.at(0)->lSections.size()
+               && sheet.length_m == (double)loaded.tracks.at(0)->getPoint(points)->fTotalLength,
+               QString("the ride sheet of four-sections.fvd: %1 sections, %2 m, %3 s").arg(sheet.sections.size()).arg(sheet.length_m, 0, 'f', 1).arg(sheet.duration_s, 0, 'f', 1));
+    }
+
+    // totext then fromtext gives back the bytes of a re-save
+    QString textFile = QDir(tmp.path()).filePath("four-sections.json");
+    QString backFile = QDir(tmp.path()).filePath("four-sections.back.fvd");
+    int c1 = cmdToText.run(QStringList() << project << textFile);
+    int c2 = cmdFromText.run(QStringList() << textFile << backFile);
+    checkSame(allOk, QString("totext then fromtext (exit codes %1, %2) gives the re-saved project").arg(c1).arg(c2), backFile,
+              QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
+
+    // an existing output file is not replaced without --force
+    code = cmdToText.run(QStringList() << project << textFile);
+    c1 = cmdToText.run(QStringList() << project << textFile << "--force");
+    report(allOk, code == 1 && c1 == 0, QString("totext refuses an existing file (exit code %1) and writes it with --force (exit code %2)").arg(code).arg(c1));
+    code = cmdFromText.run(QStringList() << textFile << backFile);
+    c2 = cmdFromText.run(QStringList() << textFile << backFile << "--force");
+    report(allOk, code == 1 && c2 == 0, QString("fromtext refuses an existing file (exit code %1) and writes it with --force (exit code %2)").arg(code).arg(c2));
+    checkSame(allOk, "the forced fromtext still gives the re-saved project", backFile, QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
+
+    // measures --list names every measure of the registry; the table has a column for each
+    code = runCaptured(cmdMeasures, QStringList() << "--list", captureFile, printed);
+    const QVector<measureDef>& registry = measureRegistry::all();
+    bool listed = code == 0;
+    for(int i = 0; i < registry.size(); ++i) {
+        if(!printed.contains(("\n" + registry.at(i).id + "\t").toUtf8()) || !printed.contains(registry.at(i).name.toUtf8())) listed = false;
+    }
+    report(allOk, listed && !registry.isEmpty(), QString("measures --list names all %1 measures (exit code %2)").arg(registry.size()).arg(code));
+    QString measuresFile = QDir(tmp.path()).filePath("measures.tsv");
+    code = cmdMeasures.run(QStringList() << project << "--all" << "--out" << measuresFile);
+    QList<QByteArray> measureRows = readAll(measuresFile).split('\n');
+    bool header = !measureRows.isEmpty() && measureRows.at(0).startsWith("index\ttime_s\tsection\tdist_m\t");
+    for(int i = 0; i < registry.size() && header; ++i) {
+        if(!measureRows.at(0).contains(("\t" + registry.at(i).id).toUtf8())) header = false;
+    }
+    report(allOk, code == 0 && header && lineCount(readAll(measuresFile)) == points + 2,
+           QString("measures --all writes a header with a column per measure and %1 rows (exit code %2)").arg(points + 1).arg(code));
+    code = cmdMeasures.run(QStringList() << project << "--ids" << "nonsense");
+    report(allOk, code == 1, QString("measures with an unknown id exits 1 (exit code %1)").arg(code));
+
+    // check: exit 0 when it ran, 3 when --fail-on finds one that bad, 1 on a load error
+    code = runCaptured(cmdCheck, QStringList() << project, captureFile, printed);
+    bool counts = printed.contains("problem(s)") && printed.contains("warning(s)");
+    report(allOk, code == 0 && counts, QString("check of four-sections.fvd exits 0 and ends with the counts (exit code %1)").arg(code));
+    code = runCaptured(cmdCheck, QStringList() << project << "--fail-on" << "problem", captureFile, printed);
+    report(allOk, code == 3, QString("check --fail-on problem exits 3 when a problem exists (exit code %1)").arg(code));
+    code = runCaptured(cmdCheck, QStringList() << QDir(baseline).filePath("gen-curves-speed.fvd") << "--fail-on" << "information", captureFile, printed);
+    report(allOk, code == 0, QString("check --fail-on information exits 0 when there is no finding (exit code %1)").arg(code));
+    code = cmdCheck.run(QStringList() << QDir(baseline).filePath("no-such-project.fvd"));
+    report(allOk, code == 1, QString("check of a missing project exits 1 (exit code %1)").arg(code));
+
     // angle changes go the short way round: -179 to +179 degrees is 2, not 358
     double turn = wrap180(179.0 - (-179.0));
     report(allOk, turn > -2.0001 && turn < -1.9999, QString("a change from -179 to 179 degrees wraps to %1").arg(turn));
@@ -134,6 +231,6 @@ static int runSelftest(const QStringList& args)
 const command cmdSelftest = {
     "selftest",
     "fvdcore selftest <repository folder>",
-    "export, nodes and compare the baseline project four-sections.fvd and check the results (also: fvdcore <folder>)",
+    "export, nodes, compare, summary, measures, check and totext/fromtext on the baseline project four-sections.fvd and check the results (also: fvdcore <folder>)",
     runSelftest
 };
