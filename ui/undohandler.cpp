@@ -53,6 +53,9 @@ bool undoHandler::selectionAfter(const historyStep& step, bool undone, commandTa
     bool deletesTransition = name == undoActionTypeName(removeSubFunction) || name == "transition.delete";
     int sec = sel.section;
     int sub = sel.transition;
+    // transition.add "after" has the transition it started from as its target;
+    // the window selects the new one after it (one further on)
+    if(name == "transition.add" && !step.calls.isEmpty() && step.calls.first().args.value("where").toString() == "after") ++sub;
     if(addsSection && undone) --sec;
     if(deletesSection && !undone) --sec;
     if(addsTransition && undone && sub > 0) --sub;

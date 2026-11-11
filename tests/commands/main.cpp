@@ -1021,6 +1021,56 @@ static void checkDialogSteps(const QString& repo)
     }
 }
 
+// The transition commands beyond the generic harness: add then delete leaves
+// the saved bytes as they were (after and before the target), locking twice is
+// refused and leaves no step, and a lock then an unlock records two steps.
+static void checkTransitionCommands(const QString& repo)
+{
+    testProject project;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/four-sections.fvd"), &project);
+    track* t = project.tracks[0];
+    trackHistory h(t);
+    QString error;
+    commandTarget target;
+    const commandSpec* addSpec = commandRegistry::find("transition.add");
+    check(addSpec && addSpec->findExampleTarget(t, 0, &target), "transition commands: four-sections has a transition to add to");
+    if(!addSpec) return;
+    const QByteArray bytes0 = savedBytes(t);
+
+    const char* places[] = { "after", "before" };
+    for(int k = 0; k < 2; ++k) {
+        QString where = places[k];
+        h.clear();
+        bool ok = commandRegistry::run(&h, "transition.add", target, commandArgs{{"where", where}}, &error);
+        check(ok && savedBytes(t) != bytes0, "transition commands: add " + where + " adds a transition: " + error);
+        // the new transition is after the target, or in its place
+        commandTarget added = commandTarget::forTransition(target.track, target.section, target.function,
+                                                           k == 0 ? target.transition+1 : target.transition);
+        ok = commandRegistry::run(&h, "transition.delete", added, commandArgs(), &error);
+        check(ok && savedBytes(t) == bytes0, "transition commands: delete of the added one (" + where + ") returns the saved bytes to the start: " + error);
+        check(h.steps().size() == 2, "transition commands: add and delete are one step each");
+        while(h.canUndo()) h.undo();
+        check(savedBytes(t) == bytes0, "transition commands: undo of both returns the saved bytes to the start");
+    }
+
+    h.clear();
+    commandTarget lockTarget;
+    const commandSpec* lockSpec = commandRegistry::find("transition.setLocked");
+    if(lockSpec && lockSpec->findExampleTarget(t, 0, &lockTarget)) {
+        bool ok = commandRegistry::run(&h, "transition.setLocked", lockTarget, commandArgs{{"locked", true}}, &error);
+        check(ok && h.steps().size() == 1, "transition commands: lock is one step: " + error);
+        error.clear();
+        ok = commandRegistry::run(&h, "transition.setLocked", lockTarget, commandArgs{{"locked", true}}, &error);
+        check(!ok && h.steps().size() == 1, "transition commands: locking a locked transition is refused: " + error);
+        ok = commandRegistry::run(&h, "transition.setLocked", lockTarget, commandArgs{{"locked", false}}, &error);
+        check(ok && h.steps().size() == 2, "transition commands: unlock is a step of its own: " + error);
+        while(h.canUndo()) h.undo();
+        check(savedBytes(t) == bytes0, "transition commands: undo of lock and unlock returns the saved bytes to the start");
+    } else {
+        check(false, "transition commands: four-sections has a transition that can be locked");
+    }
+}
+
 static void timeLargest(const QStringList& projects)
 {
     QString largest;
@@ -1090,6 +1140,7 @@ int main(int argc, char *argv[])
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));
     checkOutsideChangeWarning(repo);
     checkCommands(repo);
+    checkTransitionCommands(repo);
     checkDialogSteps(repo);
     timeLargest(projects);
 
