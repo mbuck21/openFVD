@@ -158,7 +158,8 @@ int smoothUi::entryIndex(smoothHandler* _handler)
 }
 
 // The arguments of smoothing.setEntry that leave the entry as it is; a slot
-// changes the one value its box edits.
+// changes the one value its box edits. The dialog smooths the track once, at
+// OK (apply false).
 QVariantMap smoothUi::entryArgs(int entry)
 {
     smoothHandler* cur = m_track->smoothList[entry];
@@ -170,6 +171,7 @@ QVariantMap smoothUi::entryArgs(int entry)
     args.insert("from", cur->getFrom()/1000.);
     args.insert("to", cur->getTo()/1000.);
     args.insert("name", cur->sName);
+    args.insert("apply", false);
     return args;
 }
 
@@ -221,14 +223,18 @@ void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fie
     bShowingFields = oldShowing;
 }
 
+// An entry with no row yet is a region added from outside the dialog
+// (smoothing.addRegion gives it this listener): the list gets its row.
 void smoothUi::smoothHandlerChanged(smoothHandler* which, int fields)
 {
     QTreeWidgetItem* row = rowFor(which);
     if(row) showFields(which, row, fields);
+    else if(m_track->smoothList.contains(which)) showRows();
 }
 
 void smoothUi::smoothHandlerDeleted(smoothHandler* which)
 {
+    if(which == curHandler) curHandler = NULL;   // removed from outside the dialog
     delete rowFor(which);
     rows.remove(which);
 }
@@ -394,6 +400,7 @@ void smoothUi::on_newButton_released()
     args.insert("passes", 1);
     args.insert("on", true);
     args.insert("name", QString("custom Region"));
+    args.insert("apply", false);
     runCommand("smoothing.addRegion", args);
     showRows();
 }
@@ -408,7 +415,7 @@ void smoothUi::on_removeButton_released()
     // The command takes the entry out of the list before deleting it (deleting
     // it deletes its row, and the selection that moves on must not find it).
     curHandler = NULL;
-    runCommand("smoothing.removeRegion", QVariantMap{{"region", i - m_track->lSections.size()}});
+    runCommand("smoothing.removeRegion", QVariantMap{{"region", i - m_track->lSections.size()}, {"apply", false}});
 }
 
 // Before the track's model is replaced (trackHandler::trackAboutToReset()): no

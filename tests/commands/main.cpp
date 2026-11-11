@@ -831,7 +831,8 @@ static bool runIn(trackHistory& h, const QString& name, const commandArgs& args,
     return commandRegistry::run(&h, name, commandTarget::forTrack(0), args, error);
 }
 
-// smoothing.setEntry's arguments that leave entry as it is (as the dialog makes them).
+// smoothing.setEntry's arguments that leave entry as it is (as the dialog makes
+// them: the dialog smooths once, at OK).
 static commandArgs entryArgs(track* t, int entry)
 {
     smoothHandler* cur = t->smoothList[entry];
@@ -843,6 +844,7 @@ static commandArgs entryArgs(track* t, int entry)
     args.insert("from", cur->getFrom()/1000.);
     args.insert("to", cur->getTo()/1000.);
     args.insert("name", cur->sName);
+    args.insert("apply", false);
     return args;
 }
 
@@ -850,8 +852,18 @@ static commandArgs entryArgs(track* t, int entry)
 static commandArgs newRegionArgs()
 {
     return commandArgs{{"from", 0.0}, {"to", 1.0}, {"length", 0.4}, {"passes", 1}, {"on", true},
-                       {"name", QString("custom Region")}};
+                       {"name", QString("custom Region")}, {"apply", false}};
 }
+
+// What the smoothing dialog's list hears from the entries.
+class countingSmoothListener : public smoothHandlerListener
+{
+public:
+    QMap<smoothHandler*, int> fields;   // the field bits each entry reported
+    QList<smoothHandler*> deleted;
+    void smoothHandlerChanged(smoothHandler* which, int f) { fields[which] |= f; }
+    void smoothHandlerDeleted(smoothHandler* which) { deleted.append(which); }
+};
 
 static void checkDialogSteps(const QString& repo)
 {
@@ -943,18 +955,48 @@ static void checkDialogSteps(const QString& repo)
         trackHistory h(t);
         const int entries = t->smoothList.size();
         bool added = runIn(h, "smoothing.addRegion", newRegionArgs(), &error);
-        bool removed = runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}}, &error);
+        bool removed = runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}, {"apply", false}}, &error);
         check(added && removed && t->smoothList.size() == entries && h.steps().size() == 2,
               "dialogs: a region added and removed again, two steps " + error);
         error.clear();
-        bool refused = !runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}}, &error);
+        bool refused = !runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}, {"apply", false}}, &error);
         check(refused && error.contains("\"region\"") && h.steps().size() == 2,
               "dialogs: removing a region that is not there is refused: " + error);
         error.clear();
         refused = !runIn(h, "smoothing.setEntry", commandArgs{{"entry", entries}, {"length", 0.4}, {"passes", 1}, {"on", false},
-                                                              {"from", 0.0}, {"to", 1.0}, {"name", QString("x")}}, &error);
+                                                              {"from", 0.0}, {"to", 1.0}, {"name", QString("x")},
+                                                              {"apply", false}}, &error);
         check(refused && error.contains("\"entry\"") && h.steps().size() == 2,
               "dialogs: an entry that is not there is refused: " + error);
+    }
+
+    // A command run from outside the dialog tells the dialog's list: a new
+    // region reaches it (it gets the other entries' listener), and a renamed
+    // or switched region, and a removed one, report it.
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        countingSmoothListener listener;
+        error.clear();
+        for(int i = 0; i < t->smoothList.size(); ++i) t->smoothList[i]->mListener = &listener;
+        bool added = runIn(h, "smoothing.addRegion", newRegionArgs(), &error);
+        smoothHandler* region = t->smoothList.last();
+        check(added && region->mListener == &listener && (listener.fields.value(region) & smoothHandler::fieldLabel),
+              "dialogs: a region added from outside the dialog reaches the dialog's list " + error);
+        listener.fields.clear();
+        commandArgs rename = entryArgs(t, t->smoothList.size()-1);
+        rename.insert("name", QString("Renamed"));
+        rename.insert("on", false);
+        bool renamed = runIn(h, "smoothing.setEntry", rename, &error);
+        int heard = listener.fields.value(region);
+        check(renamed && region->sName == "Renamed" && !region->active
+              && (heard & smoothHandler::fieldName) && (heard & smoothHandler::fieldActive),
+              QString("dialogs: renaming and switching off a region from outside the dialog tells its list (fields %1)").arg(heard));
+        bool removed = runIn(h, "smoothing.removeRegion", commandArgs{{"region", 1}, {"apply", false}}, &error);
+        check(removed && listener.deleted.contains(region), "dialogs: removing a region from outside the dialog tells its list");
+        for(int i = 0; i < t->smoothList.size(); ++i) t->smoothList[i]->mListener = NULL;
     }
 
     // smoothing.apply on the smoothed project gives what the dialog's OK gave:

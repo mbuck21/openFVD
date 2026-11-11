@@ -30,8 +30,8 @@
 
 namespace {
 
-// TrackProperties::on_buttonBox_accepted() (ui/trackproperties.cpp), its
-// model steps: the box's double is compared with the float, assigned to it,
+// The Track Properties dialog's OK (TrackProperties::applyBoxes(), run from
+// done(), ui/trackproperties.cpp), its model steps: the box's double is compared with the float, assigned to it,
 // and the whole track recomputed; nothing when they are equal.
 bool applySetFriction(track* t, const commandTarget&, const commandArgs& args, QString*)
 {

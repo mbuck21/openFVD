@@ -26,10 +26,16 @@
 // and range are stored in nodes (1/F_HZ s, so milliseconds); the commands take
 // seconds, as the dialog shows them, and convert as the dialog does.
 //
-// Changing an entry does not smooth the track: smoothing.apply does, as the
-// dialog's OK does. Until then the entries say one thing and the track's roll
-// another, so a script runs smoothing.apply after its changes (the dialog runs
-// its changes and the apply in one undo step).
+// Changing an entry reshapes the track only when the track is smoothed
+// again: setEntry, addRegion and removeRegion do it themselves when their
+// "apply" is true (what a script passes), with the full recompute an undo or
+// a redo runs, so the track a lone command leaves is exactly the one undo and
+// redo reproduce. The dialog passes false for each change and smooths once,
+// at OK (smoothing.apply, the dialog's own arithmetic: smoothing applied over
+// the track as it is), all of it in one undo step.
+//
+// Every change tells the entries' listener (the dialog's list), so a change
+// made from outside the dialog shows in it.
 
 #include "command.h"
 #include "track.h"
@@ -46,6 +52,34 @@ int nodesFromSeconds(double seconds)
 QString entryRangeText(track* t)
 {
     return QString("the track has entries 0 to %1").arg(t->smoothList.size()-1);
+}
+
+// What the dialog's OK does, after the dialog had brought every entry up to
+// date from the track when it opened: the same refresh (for the dialog it
+// changes nothing, nothing having changed the sections since; for a script it
+// takes in any section edits), then the roll smoothing applied. The track is
+// marked as one whose smoothing is re-applied by every recompute
+// (bAutoSmooth, which a loaded track and a track with a smoothing dialog have
+// already), so that a recompute (and so undo and redo) keeps the smoothing.
+void smoothNow(track* t)
+{
+    t->bAutoSmooth = true;
+    char customChar;
+    t->updateSmoothEntries(&customChar);
+    t->applyRollSmooth();
+}
+
+// "apply" of the other commands: the same refresh and switch, then the whole
+// track recomputed and smoothed (track::updateTrack(0, 0), which re-applies
+// the smoothing because bAutoSmooth is on), as restoreTrackState() does for
+// an undo or a redo. Applying the smoothing again over a track that is
+// smoothed already (smoothNow()) can end a last digit away from that.
+void recomputeSmoothed(track* t)
+{
+    t->bAutoSmooth = true;
+    char customChar;
+    t->updateSmoothEntries(&customChar);
+    t->updateTrack(0, 0);
 }
 
 // The dialog's edits of one entry, each its own slot there: the length box,
@@ -88,16 +122,19 @@ bool applySetEntry(track* t, const commandTarget&, const commandArgs& args, QStr
     if(custom) {
         if(cur->getFrom() != from) cur->setFrom(from);
         if(cur->getTo() != to) cur->setTo(to);
-        if(cur->sName != name) cur->sName = name;
+        if(cur->sName != name) cur->setName(name);
     }
-    cur->active = on;
+    if(cur->active != on) cur->setActive(on);
+    if(args.value("apply").toBool()) recomputeSmoothed(t);
     return true;
 }
 
 // The dialog's "New" button: a custom region appended to the list, then every
 // entry brought up to date (track::updateSmoothEntries(), which also labels
 // the custom regions a, b, c, ...), as the dialog's updateUi() did. The
-// dialog's region is 0 to 1 s, 0.4 s long, one pass, on, "custom Region".
+// dialog's region is 0 to 1 s, 0.4 s long, one pass, on, "custom Region". The
+// region gets the listener of the track's other entries (the dialog's list,
+// or none), so the list learns of it when the refresh tells it.
 bool applyAddRegion(track* t, const commandTarget&, const commandArgs& args, QString*)
 {
     char customChar = 'a';
@@ -109,8 +146,10 @@ bool applyAddRegion(track* t, const commandTarget&, const commandArgs& args, QSt
     QString name = args.value("name").toString();
     if(region->sName != name) region->sName = name;
     region->active = args.value("on").toBool();
+    region->mListener = t->smoothList.isEmpty() ? NULL : t->smoothList[0]->mListener;
     t->smoothList.append(region);
     t->updateSmoothEntries(&customChar);
+    if(args.value("apply").toBool()) recomputeSmoothed(t);
     return true;
 }
 
@@ -128,30 +167,14 @@ bool applyRemoveRegion(track* t, const commandTarget&, const commandArgs& args, 
     }
     smoothHandler* entry = t->smoothList.takeAt(index);
     delete entry;
+    if(args.value("apply").toBool()) recomputeSmoothed(t);
     return true;
 }
 
-// The dialog's OK: every entry brought up to date from the track (the dialog
-// did this when it opened; nothing changed the sections since, so for the
-// dialog it changes nothing, and for a script it takes in any section edits
-// since), then the roll smoothing applied (track::applyRollSmooth()).
+// The dialog's OK.
 bool applyApply(track* t, const commandTarget&, const commandArgs&, QString*)
 {
-    char customChar;
-    t->updateSmoothEntries(&customChar);
-    t->applyRollSmooth();
-    return true;
-}
-
-// The example of smoothing.setEntry changes the whole-track entry; on a track
-// where that entry is on, the change would only reach the track's shape at
-// smoothing.apply, and the test compares the shape after a redo (which
-// recomputes it) with the shape after the run. So the example runs where the
-// whole-track entry is off.
-bool wholeTrackEntryOff(track* t, int trackIndex, commandTarget* out)
-{
-    if(t->smoothList.isEmpty() || t->smoothList[0]->active) return false;
-    *out = commandTarget::forTrack(trackIndex);
+    smoothNow(t);
     return true;
 }
 
@@ -160,6 +183,12 @@ bool hasCustomRegion(track* t, int trackIndex, commandTarget* out)
     if(t->smoothList.size() <= t->lSections.size() + 1) return false;
     *out = commandTarget::forTrack(trackIndex);
     return true;
+}
+
+commandParam applyParam()
+{
+    return commandParam::boolParam("apply", "True to reshape the track now (recompute it and smooth it as its entries say); "
+                                            "the smoothing dialog passes false for each change and smooths once, at OK (smoothing.apply).");
 }
 
 }
@@ -171,7 +200,7 @@ QList<commandSpec> smoothingCommands()
     {
         commandSpec s;
         s.name = "smoothing.setEntry";
-        s.description = "Sets the values of one roll-smoothing entry (the whole track, a section, or a custom region); the track's shape changes at smoothing.apply.";
+        s.description = "Sets the values of one roll-smoothing entry (the whole track, a section, or a custom region), and with apply smooths the track as the entries now say.";
         s.target = targetTrack;
         s.params << commandParam::intParam("entry", "none",
                                            "The entry: 0 is the whole track, 1 to n the track's n sections, n+1 and on the custom regions (a, b, ...).")
@@ -179,23 +208,24 @@ QList<commandSpec> smoothingCommands()
                                              "The smoothing filter's length (0.4 s for a new entry; the time is rounded to whole milliseconds).",
                                              0.0, 6.0)
                  << commandParam::intParam("passes", "none", "How many times the filter runs over the entry.", 1, 16)
-                 << commandParam::boolParam("on", "True to smooth this entry at smoothing.apply, false to leave it as it is.")
+                 << commandParam::boolParam("on", "True to smooth this entry, false to leave it as it is.")
                  << commandParam::floatParam("from", "s",
                                              "Where a custom region starts, as time from the track's start (rounded to whole milliseconds; not used for the whole track or a section, which follow the track).",
                                              0.0, 900000.0)
                  << commandParam::floatParam("to", "s",
                                              "Where a custom region ends, as time from the track's start, at most the track's end (not used for the whole track or a section).",
                                              0.0, 900000.0)
-                 << commandParam::textParam("name", "A custom region's name (not used for the whole track or a section, which carry the track's or the section's name).");
+                 << commandParam::textParam("name", "A custom region's name (not used for the whole track or a section, which carry the track's or the section's name).")
+                 << applyParam();
         s.label = "Change smoothing";
         s.example.insert("entry", 0);
         s.example.insert("length", 0.437);
         s.example.insert("passes", 3);
-        s.example.insert("on", false);
+        s.example.insert("on", true);
         s.example.insert("from", 0.0);
         s.example.insert("to", 1.0);
         s.example.insert("name", QString("not used for entry 0"));
-        s.exampleTarget = wholeTrackEntryOff;
+        s.example.insert("apply", true);
         s.apply = applySetEntry;
         list << s;
     }
@@ -203,7 +233,7 @@ QList<commandSpec> smoothingCommands()
     {
         commandSpec s;
         s.name = "smoothing.addRegion";
-        s.description = "Adds a custom roll-smoothing region, a span of the track given by time, after the existing entries; the track's shape changes at smoothing.apply.";
+        s.description = "Adds a custom roll-smoothing region, a span of the track given by time, after the existing entries, and with apply smooths the track as the entries now say.";
         s.target = targetTrack;
         s.params << commandParam::floatParam("from", "s",
                                              "Where the region starts, as time from the track's start (the dialog's New makes 0 s).",
@@ -213,15 +243,17 @@ QList<commandSpec> smoothingCommands()
                                              0.0, 900000.0)
                  << commandParam::floatParam("length", "s", "The smoothing filter's length (the dialog's New makes 0.4 s).", 0.0, 6.0)
                  << commandParam::intParam("passes", "none", "How many times the filter runs over the region (the dialog's New makes 1).", 1, 16)
-                 << commandParam::boolParam("on", "True to smooth the region at smoothing.apply (the dialog's New makes it on).")
-                 << commandParam::textParam("name", "The region's name (the dialog's New makes \"custom Region\").");
+                 << commandParam::boolParam("on", "True to smooth the region (the dialog's New makes it on).")
+                 << commandParam::textParam("name", "The region's name (the dialog's New makes \"custom Region\").")
+                 << applyParam();
         s.label = "Add smoothing region";
         s.example.insert("from", 0.0);
         s.example.insert("to", 1.0);
         s.example.insert("length", 0.4);
         s.example.insert("passes", 1);
-        s.example.insert("on", false);
+        s.example.insert("on", true);
         s.example.insert("name", QString("custom Region"));
+        s.example.insert("apply", true);
         s.apply = applyAddRegion;
         list << s;
     }
@@ -229,12 +261,14 @@ QList<commandSpec> smoothingCommands()
     {
         commandSpec s;
         s.name = "smoothing.removeRegion";
-        s.description = "Removes a custom roll-smoothing region; the track's shape changes at smoothing.apply.";
+        s.description = "Removes a custom roll-smoothing region, and with apply smooths the track as the remaining entries say.";
         s.target = targetTrack;
         s.params << commandParam::intParam("region", "none",
-                                           "The custom region, counted from 1 (the first region, labelled a, is entry n+1 of a track with n sections).", 1, 1000);
+                                           "The custom region, counted from 1 (the first region, labelled a, is entry n+1 of a track with n sections).", 1, 1000)
+                 << applyParam();
         s.label = "Remove smoothing region";
         s.example.insert("region", 1);
+        s.example.insert("apply", true);
         s.exampleTarget = hasCustomRegion;
         s.apply = applyRemoveRegion;
         list << s;
