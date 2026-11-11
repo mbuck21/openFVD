@@ -74,7 +74,22 @@ MainWindow::MainWindow(QWidget *parent) :
     mRideSheetAction = NULL;
     mRideSheet = new rideSheet(ui->splitter);
     ui->splitter->addWidget(mRideSheet);
-    ui->splitter->setStretchFactor(ui->splitter->indexOf(mRideSheet), 0);
+    // The 3D view takes the room: it alone stretches, it cannot be dragged shut,
+    // and it starts wide with the sheet at about 230 pixels. Without this the
+    // splitter gave the sheet everything and opened with the 3D view at width 0.
+    {
+        const int glIndex = ui->splitter->indexOf(glView);
+        const int sheetIndex = ui->splitter->indexOf(mRideSheet);
+        QList<int> sizes;
+        for(int i = 0; i < ui->splitter->count(); ++i) {
+            ui->splitter->setStretchFactor(i, i == glIndex ? 1 : 0);
+            sizes << (i == glIndex ? 1000 : (i == sheetIndex ? 230 : 250));
+        }
+        ui->splitter->setCollapsible(glIndex, false);
+        mRideSheet->setMinimumWidth(220);   // its labels wrap badly below this
+        glView->setMinimumWidth(200);       // "not collapsible" stops at the minimum, which was 0
+        ui->splitter->setSizes(sizes);
+    }
 
     // set up all sub widgets etc
     project = ui->projectTab;
