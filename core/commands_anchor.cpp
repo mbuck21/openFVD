@@ -33,9 +33,12 @@
 // other two alone (they need not equal what the other boxes show, so setting
 // all three would change them).
 //
-// An edit that changes the anchor node computes the track with
-// track::updateFromAnchor(): the first section starts again from the anchor
-// as it is now, as it does after saving and reopening.
+// An edit that changes the anchor node ends in anchorChanged(): the slot's
+// steps fix the values a save writes (roll, pitch, yaw, speed, the forces,
+// startPos), then track::rebuildAnchor() builds the node from them exactly as
+// a load does and track::updateFromAnchor() computes the track from it, the
+// first section included. The running track is then what saving and
+// reopening gives.
 
 #include "command.h"
 #include "track.h"
@@ -59,6 +62,31 @@ namespace {
 double arg(const commandArgs& args, const char* name)
 {
     return args.value(QString(name)).toDouble();
+}
+
+// The end of every edit that changes the anchor node. The slot's steps have
+// set the values a save writes; the node is now built from them as a load
+// builds it, the first section starts from it, and the track is computed.
+// So the running track is the one saving and reopening gives, whatever order
+// the anchor's values were edited in.
+//
+// A load sets fRoll again from the node it builds (setRoll() ends in
+// updateRoll()), so after one build the roll a save writes can be one or two
+// last digits from the roll the node was built from (15 becomes 15.0000019,
+// then 15.0000029), and a reopened track would be built from that. So the
+// node is built again until the roll it is built from is the roll it holds;
+// a save then writes the values the node was built from, and a load builds
+// the same node. On the baseline projects that takes one to three passes; at
+// most eight are made.
+void anchorChanged(track* t)
+{
+    float roll;
+    int passes = 0;
+    do {
+        roll = t->anchorNode->fRoll;
+        t->rebuildAnchor();
+    } while(t->anchorNode->fRoll != roll && ++passes < 8);
+    t->updateFromAnchor();
 }
 
 // on_xBox_valueChanged(): the x of startPos that puts the anchor's heartline
@@ -115,7 +143,7 @@ bool applySetRoll(track* t, const commandTarget&, const commandArgs& args, QStri
     double roll = arg(args, "roll");
     t->anchorNode->setRoll(roll-t->anchorNode->fRoll);
     holdAnchorPoint(t, args);
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -126,7 +154,7 @@ bool applySetPitch(track* t, const commandTarget&, const commandArgs& args, QStr
     t->startPitch = pitch;
     t->anchorNode->changePitch(pitch-t->anchorNode->getPitch(), fabs(t->anchorNode->fRoll) >= 90.f);
     holdAnchorPoint(t, args);
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -136,7 +164,7 @@ bool applySetYaw(track* t, const commandTarget&, const commandArgs& args, QStrin
     double yaw = arg(args, "yaw");
     t->startYaw = yaw;
     holdAnchorPoint(t, args);
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -147,7 +175,7 @@ bool applySetSpeed(track* t, const commandTarget&, const commandArgs& args, QStr
     t->anchorNode->fEnergy = 0.5*t->anchorNode->fVel*t->anchorNode->fVel + F_G*t->anchorNode->fPosHearty(0.9*t->fHeart);
 
     t->updateAnchorGeometrics();
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -157,7 +185,7 @@ bool applySetNormalForce(track* t, const commandTarget&, const commandArgs& args
     t->anchorNode->forceNormal = arg(args, "force");
 
     t->updateAnchorGeometrics();
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -167,7 +195,7 @@ bool applySetLateralForce(track* t, const commandTarget&, const commandArgs& arg
     t->anchorNode->forceLateral = arg(args, "force");
 
     t->updateAnchorGeometrics();
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -197,7 +225,7 @@ bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, 
     mnode* anchor = t->anchorNode;
     anchor->fPitchFromLast = arg(args, "rate")/F_HZ;
     forcesFromRates(anchor);
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 
@@ -207,7 +235,7 @@ bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QS
     mnode* anchor = t->anchorNode;
     anchor->fYawFromLast = arg(args, "rate")/F_HZ;
     forcesFromRates(anchor);
-    t->updateFromAnchor();
+    anchorChanged(t);
     return true;
 }
 

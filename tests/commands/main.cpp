@@ -362,26 +362,20 @@ static QString anchorFieldsDiffering(const mnode& a, const mnode& b)
 }
 
 // Every anchor command on every track of every baseline project, against the
-// same project saved to a file and loaded into a fresh model.
-// - When the reloaded anchor node is the live one bit for bit, the live
-//   exports must equal the reloaded exports byte for byte: what the track is
-//   after an anchor edit is what saving and reopening gives. Before
-//   track::updateFromAnchor() the first section kept the anchor it was made
-//   from, and these differ on every project where the edit matters.
-// - A load builds the anchor node from its saved values with arithmetic of
-//   its own (track::loadTrackHeader(): changePitch() and setRoll() from a level
-//   node, the energy with 0.5f, the change rates from the forces); the slots,
-//   whose arithmetic the commands keep, turn the node as it is. Where that
-//   leaves the reloaded anchor different in its last bits, the live anchor is
-//   put into the reloaded model and the track computed from it: the exports
-//   must then equal the live ones, so the sections hold nothing of the old
-//   anchor. Such runs are listed, with the anchor fields that differ.
+// same project saved to a file and loaded into a fresh model: the reloaded
+// anchor node is the live one bit for bit, and the three exports are the live
+// ones byte for byte. What the track is after an anchor edit is what saving
+// and reopening gives. (Before track::updateFromAnchor() the first section
+// kept the anchor it was made from; before track::rebuildAnchor() the node
+// an edit left behind depended on the order of the edits, where a load builds
+// it from the saved values.) Then the same command again with the same
+// values: the runs where that changes the track are listed (information).
 // Undo and redo of the same runs are checked by runHarness().
 static void checkAnchorReload(const QStringList& projects)
 {
     const QList<commandSpec>& all = commandRegistry::all();
-    int runs = 0, sameAnchor = 0;
-    QStringList otherAnchor;
+    int runs = 0, same = 0;
+    QStringList notIdempotent;
     for(int c = 0; c < all.size(); ++c) {
         const commandSpec& spec = all[c];
         if(!spec.name.startsWith("anchor.")) continue;
@@ -415,38 +409,26 @@ static void checkAnchorReload(const QStringList& projects)
                 track* r = reloaded.tracks[ti];
                 ++runs;
 
-                if(memcmp(static_cast<const void*>(t->anchorNode), static_cast<const void*>(r->anchorNode), sizeof(mnode)) == 0) {
-                    ++sameAnchor;
-                    QList<QByteArray> reloadedExports = exportsOf(r);
-                    check(reloadedExports == liveExports, label + ": the live exports equal those after saving and reloading ("
-                          + exportDiff(liveExports, reloadedExports) + ")");
-                } else {
-                    QString fields = anchorFieldsDiffering(*t->anchorNode, *r->anchorNode);
-                    // how far apart the live and the reloaded track are, node by node
-                    double dv = 0., dp = 0.;
-                    int n = qMin(t->getNumPoints(), r->getNumPoints());
-                    for(int k = 0; k < n; ++k) {
-                        dv = qMax(dv, (double)fabs(t->getPoint(k)->fVel - r->getPoint(k)->fVel));
-                        dp = qMax(dp, (double)glm::distance(t->getPoint(k)->vPos, r->getPoint(k)->vPos));
-                    }
-                    otherAnchor << QString("%1 on %2 track %3 (%4; up to %5 m/s and %6 m apart, %7 and %8 nodes)")
-                                   .arg(spec.name, stem).arg(ti+1).arg(fields).arg(dv, 0, 'g', 3).arg(dp, 0, 'g', 3)
-                                   .arg(t->getNumPoints()).arg(r->getNumPoints());
-                    *r->anchorNode = *t->anchorNode;
-                    r->updateFromAnchor();
-                    QList<QByteArray> reloadedExports = exportsOf(r);
-                    check(reloadedExports == liveExports, label + ": the reloaded anchor differs in " + fields
-                          + "; with the live anchor put in, the exports equal the live ones ("
-                          + exportDiff(liveExports, reloadedExports) + ")");
+                bool sameAnchor = memcmp(static_cast<const void*>(t->anchorNode), static_cast<const void*>(r->anchorNode), sizeof(mnode)) == 0;
+                check(sameAnchor, label + ": the reloaded anchor node is the live one bit for bit"
+                      + (sameAnchor ? QString() : QString(" (differs in ") + anchorFieldsDiffering(*t->anchorNode, *r->anchorNode) + ")"));
+                QList<QByteArray> reloadedExports = exportsOf(r);
+                check(reloadedExports == liveExports, label + ": the live exports equal those after saving and reloading ("
+                      + exportDiff(liveExports, reloadedExports) + ")");
+                if(sameAnchor && reloadedExports == liveExports) ++same;
+
+                // the same command again
+                trackState once = captureTrackState(t);
+                commandRegistry::run(&history, spec.name, commandTarget::forTrack(ti), spec.example, &error);
+                if(captureTrackState(t, &once) != once) {
+                    notIdempotent << QString("%1 on %2 track %3").arg(spec.name, stem).arg(ti+1);
                 }
             }
         }
     }
-    printf("reload: %d anchor command runs; in %d the reloaded anchor node is the live one bit for bit\n", runs, sameAnchor);
-    printf("reload: in %d the load builds an anchor node of its own from the saved values:\n", otherAnchor.size());
-    for(int i = 0; i < otherAnchor.size(); ++i) {
-        printf("  %s\n", otherAnchor[i].toUtf8().constData());
-    }
+    printf("reload: %d of %d anchor command runs give the same anchor node and exports live as after saving and reloading\n", same, runs);
+    printf("reload: running the command a second time with the same values changes the track in %d: %s\n", notIdempotent.size(),
+           notIdempotent.isEmpty() ? "none" : notIdempotent.join("; ").toUtf8().constData());
 }
 
 // ---- 3. the history ---------------------------------------------------------

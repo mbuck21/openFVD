@@ -594,6 +594,34 @@ void track::updateFromAnchor()
     updateTrack(0, 0);
 }
 
+// See track.h. The node track::track() makes, then the steps loadTrackHeader()
+// always made after reading the values, unchanged: on the fresh node of a
+// track being loaded this gives what a load always gave, bit for bit.
+void track::rebuildAnchor()
+{
+    float roll = anchorNode->fRoll;
+    float vel = anchorNode->fVel;
+    float normal = anchorNode->forceNormal;
+    float lateral = anchorNode->forceLateral;
+
+    *anchorNode = mnode(glm::vec3(0.f, 0.f, 0.f), glm::vec3(0, 0, -1), 0., 10.f, 1., 0.);
+    anchorNode->updateNorm();
+
+    anchorNode->fRoll = roll;
+    anchorNode->fVel = vel;
+    anchorNode->forceNormal = normal;
+    anchorNode->forceLateral = lateral;
+
+    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
+
+    anchorNode->changePitch(startPitch, false);
+    anchorNode->setRoll(anchorNode->fRoll);
+
+    updateAnchorGeometrics();
+
+    anchorNode->updateNorm();
+}
+
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
 {
     QList<int> exportPoints;
@@ -1015,14 +1043,9 @@ void track::loadTrackHeader(std::iostream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
-
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
+    // the anchor node from the values just read; the anchor commands build it
+    // with the same function
+    rebuildAnchor();
 }
 
 // The second part of loadTrack(): the number of sections, each section
@@ -1122,14 +1145,7 @@ QString track::legacyLoadTrack(std::iostream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
-
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
+    rebuildAnchor();
 
     string temp;
     int size = readInt(&file);

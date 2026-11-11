@@ -87,6 +87,16 @@ public:
     // it was made from until the project was saved and reopened.
     void updateFromAnchor();
 
+    // Builds the anchor node from the values a save writes for it (its fRoll,
+    // fVel, forceNormal and forceLateral, and startPitch and fHeart) exactly
+    // as a load does: a fresh level node, the energy, pitch, roll and the
+    // change rates from the forces. Used by loadTrackHeader() and
+    // legacyLoadTrack(), and by every edit of an anchor value, so the node
+    // after an edit is the one saving and reopening gives. Changes no saved
+    // value but fRoll, which setRoll() derives again. Does not compute the
+    // track; updateFromAnchor() does.
+    void rebuildAnchor();
+
     // The startPos (the anchor's place in the scene) that puts the heartline
     // point at the start of the track at holdX, holdY, holdZ (metres, as the
     // anchor's X, Y and Z boxes show it), for an anchor turned by yaw a,

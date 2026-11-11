@@ -50,7 +50,9 @@ public:
     void setNames();
     void writeNames();
 
-    void setupAnchorFrame();
+    // Shows the anchor's values from the model. keep: a box left as it is (the
+    // one being typed in; an anchor command leaves the model at what it shows).
+    void setupAnchorFrame(QWidget* keep = NULL);
     void setupStraightFrame();
     void setupCurvedFrame();
     void setupAdvFrame();
