@@ -66,6 +66,7 @@ SOURCES += main.cpp\
     ui/mytreewidget.cpp \
     ui/myqdoublespinbox.cpp \
     ui/mainwindow.cpp \
+    ui/ridesheet.cpp \
     ui/importui.cpp \
     ui/graphwidget.cpp \
     ui/graphhandler.cpp \
@@ -94,6 +95,7 @@ HEADERS  += ui/undohandler.h \
     ui/mytreewidget.h \
     ui/myqdoublespinbox.h \
     ui/mainwindow.h \
+    ui/ridesheet.h \
     ui/importui.h \
     ui/graphwidget.h \
     ui/graphhandler.h \

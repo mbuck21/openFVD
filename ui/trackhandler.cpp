@@ -80,9 +80,9 @@ int trackHandler::getID()
 
 void trackHandler::trackGeometryChanged(track* which, int fromNode)
 {
-    Q_UNUSED(which);
     if(mMesh != NULL)
         mMesh->buildMeshes(fromNode);
+    gloParent->rideSheetChanged(which);
 }
 
 void trackHandler::trackStatusMessage(const QString& text, int timeoutMs)
@@ -104,9 +104,9 @@ void trackHandler::trackSectionAdded(track* which, int index)
 
 void trackHandler::trackLoaded(track* which)
 {
-    Q_UNUSED(which);
     trackWidgetItem->clearSelection();
     trackWidgetItem->setNames();
+    gloParent->rideSheetChanged(which);
 }
 
 // Nothing restores a track state yet: the undo built on snapshots (the next

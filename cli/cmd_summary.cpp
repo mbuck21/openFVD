@@ -86,7 +86,7 @@ static QString sheetText(const rideSummary& r, bool withSections)
     }
     t += plain("Length (centre line)", f(r.length_m, 1) + " m");
     t += plain("Length (heartline)", f(r.heartLength_m, 1) + " m");
-    t += plain("Duration", f(r.duration_s, 1) + " s");
+    t += plain("Duration", f(r.duration_s, 2) + " s");
     t += valueLine("Highest point", r.highest, 1, "m");
     t += valueLine("Lowest point", r.lowest, 1, "m");
     t += plain("Height difference", f(r.heightRange_m, 1) + " m");

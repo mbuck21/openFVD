@@ -31,6 +31,7 @@
 #include "elementfile.h"
 #include "exportfuncs.h"
 #include "glviewwidget.h"
+#include "ridesheet.h"
 #include "optionsmenu.h"
 #include "lenassert.h"
 #include <QAction>
@@ -88,6 +89,9 @@ int batchRunner::run()
     }
     if(lArgs.at(0) == "--batch-import") {
         return runImport();
+    }
+    if(lArgs.at(0) == "--batch-ride-sheet") {
+        return runRideSheet();
     }
     qWarning("batch mode: unknown command %s", qPrintable(lArgs.at(0)));
     return 1;
@@ -199,6 +203,52 @@ int batchRunner::runExport()
     QString error;
     if(!writeProjectFiles(w, dir, stem, error)) {
         return finish(false, error);
+    }
+    return finish(true, QString());
+}
+
+// Loads a project, opens track 1 and writes what the ride sheet panel shows
+// as text to <outdir>/<stem>.ridesheet.txt (compared with `fvdcore summary`).
+int batchRunner::runRideSheet()
+{
+    if(lArgs.size() != 3) {
+        qWarning("usage: FVD.exe --batch-ride-sheet <project.fvd> <outdir>");
+        return 1;
+    }
+    QString projectFile = lArgs.at(1);
+    QString outDir = lArgs.at(2);
+
+    QString stem = QFileInfo(projectFile).fileName();
+    if(stem.endsWith(".fvd", Qt::CaseInsensitive)) {
+        stem.chop(4);
+    }
+    if(!QDir().mkpath(outDir)) {
+        qWarning("batch mode: cannot create %s", qPrintable(outDir));
+        return 1;
+    }
+    QDir dir(outDir);
+    sReportFile = dir.filePath(stem + ".batch.txt");
+
+    if(!QFileInfo(projectFile).isFile()) {
+        return finish(false, QString("project file not found: ") + projectFile);
+    }
+    MainWindow* w = createHiddenWindow();
+    if(!w) {
+        return finish(false, QString("could not set up OpenGL"));
+    }
+    QString loadResult = w->project->loadProject(projectFile);
+    if(loadResult.contains("Error")) {
+        return finish(false, QString("loading ") + projectFile + ": " + loadResult);
+    }
+    if(w->project->trackList.size() < 1) {
+        return finish(false, QString("the project has no track"));
+    }
+    w->openTab(w->project->trackList[0]);
+    w->mRideSheet->setTrack(w->curTrack());
+    w->mRideSheet->refreshNow();
+
+    if(!writeLines(dir.filePath(stem + ".ridesheet.txt"), w->mRideSheet->textLines())) {
+        return finish(false, QString("cannot write ") + stem + ".ridesheet.txt");
     }
     return finish(true, QString());
 }
