@@ -393,7 +393,7 @@ def main() -> int:
     parser.add_argument("--imports", action="store_true",
                         help="also import every input in samples/import/ and compare with the references there")
     parser.add_argument("--core", action="store_true",
-                        help="export with fvdcore (tests/coreonly, core/ alone) instead of FVD.exe --batch-export")
+                        help="export with fvdcore (cli/, core/ alone; build/dist/fvdcore.exe) instead of FVD.exe --batch-export")
     parser.add_argument("--core-exe", type=Path,
                         help="the fvdcore to test (default: where tools/run-tests.sh builds it)")
     args = parser.parse_args()

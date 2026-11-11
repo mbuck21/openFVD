@@ -60,7 +60,7 @@ struct compareRow
     double distance;        // m between the two end positions (world frame, centre line)
     double dHeading;        // degrees, b minus a, wrapped to -180..180
     double dPitch;          // degrees
-    double dRoll;           // degrees (bank), not wrapped
+    double dRoll;           // degrees (bank), b minus a, wrapped to -180..180
     double dSpeed;          // m/s
 };
 struct compareResult
@@ -71,5 +71,6 @@ struct compareResult
     double durationA, durationB; // s
 };
 compareResult compareTracks(track* a, track* b);
+double wrap180(double angle);   // an angle change in degrees as -180 < angle <= 180
 
 #endif

@@ -33,7 +33,7 @@
 #include <cmath>
 #include <cstdio>
 
-static double wrap180(double angle)
+double wrap180(double angle)
 {
     while(angle > 180.0) angle -= 360.0;
     while(angle <= -180.0) angle += 360.0;
@@ -49,7 +49,7 @@ static compareRow rowFor(const QString& label, mnode* a, const placement& pa, fl
     row.distance = glm::length(d);
     row.dHeading = wrap180((double)pb.heading(b->getDirection()) - (double)pa.heading(a->getDirection()));
     row.dPitch = (double)b->getPitch() - (double)a->getPitch();
-    row.dRoll = (double)b->fRoll - (double)a->fRoll;
+    row.dRoll = wrap180((double)b->fRoll - (double)a->fRoll);
     row.dSpeed = (double)b->fVel - (double)a->fVel;
     return row;
 }

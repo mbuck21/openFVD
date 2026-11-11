@@ -28,7 +28,8 @@ Fails, naming file and line, when a file in core/
 Also fails when lenassert.h, which core/ includes everywhere, does (c).
 
 The proof that core/ really builds without the windows is the program in
-tests/coreonly/ (tools/run-tests.sh builds it); this check is the quick guard
+cli/ (built into build/dist/ by the main build; tests/coreonly/ builds it
+as a test, tools/run-tests.sh); this check is the quick guard
 that names the offending line. Ends with PASS or FAIL; exit code 0 or 1.
 """
 

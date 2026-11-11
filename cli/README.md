@@ -36,7 +36,7 @@ Columns: `index` (node number), `time_s`, `section` (1-based), `dist_m` and `hea
 fvdcore compare <a.fvd> <b.fvd> [--track N] [--tsv]
 fvdcore compare before.fvd after.fvd
 ```
-How far project b moved from project a: for each section present in both (matched by position in the list) and for the track end, the distance between the two end positions (world frame, centre line) and the change in heading, pitch, bank and speed (b minus a; heading wrapped to -180..180), then the total length and duration. If the section counts differ it says so and compares the common ones. `--tsv` prints a tab-separated table; its last two rows (`total_length_m`, `total_duration_s`) carry b minus a in the `distance_m` column.
+How far project b moved from project a: for each section present in both (matched by position in the list) and for the track end, the distance between the two end positions (world frame, centre line) and the change in heading, pitch, bank and speed (b minus a; heading and bank wrapped to -180..180), then the total length and duration. If the section counts differ it says so and compares the common ones. `--tsv` prints a tab-separated table; its last two rows (`total_length_m`, `total_duration_s`) carry b minus a in the `distance_m` column.
 
 ```
 fvdcore selftest <repository folder>

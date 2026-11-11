@@ -119,6 +119,10 @@ static int runSelftest(const QStringList& args)
     }
     report(allOk, zero && rowCount >= 2, QString("compare of a project with itself: zero in all %1 rows").arg(rowCount));
 
+    // angle changes go the short way round: -179 to +179 degrees is 2, not 358
+    double turn = wrap180(179.0 - (-179.0));
+    report(allOk, turn > -2.0001 && turn < -1.9999, QString("a change from -179 to 179 degrees wraps to %1").arg(turn));
+
     // the dispatcher: an unknown command exits 1 (its usage text goes nowhere here)
     code = runCommand(QStringList() << "no-such-command", NULL);
     report(allOk, code == 1, QString("an unknown command exits 1 (exit code %1)").arg(code));
