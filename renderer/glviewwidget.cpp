@@ -68,6 +68,9 @@ glViewWidget::glViewWidget(QWidget *parent) : QGLWidget(parent) {
 	preDistortionFb = NULL;
 	floorOpacity = 0.8;
     initialized = 0;
+	curTrackShader = 0;
+	curMeasureId = QString();
+	showFindings = false;
 }
 
 glViewWidget::~glViewWidget()

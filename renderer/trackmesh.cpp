@@ -30,6 +30,7 @@ extern glViewWidget* glView;
 trackMesh::trackMesh(track* parent)
 {
     isInit = false;
+    mValuesFindings = false;
 
     if(!glView->legacyMode)
     {
@@ -2562,7 +2563,7 @@ void trackMesh::buildMeshes(int fromNode)
         }
     }
     createIndices();
-    updateMeasureValues();
+    updateMeasureValues(true);
     updateVertexArrays();
     return;
 }
@@ -3417,11 +3418,11 @@ void trackMesh::recolorTrack()
 
         crossties[i].selected = (trackData == gloParent->curTrack() && curSection == trackData->activeSection) ? (curSection->isInFunction(node, gloParent->selectedFunc) ? 2.f : 1.f) : 0.f;
     }
-    updateMeasureValues();
+    updateMeasureValues(false);
     updateVertexArrays();
 }
 
-void trackMesh::updateMeasureValues()
+void trackMesh::updateMeasureValues(bool force)
 {
     if(glView->legacyMode || trackData->lSections.size() == 0) return;
 
@@ -3429,7 +3430,16 @@ void trackMesh::updateMeasureValues()
     const measureDef* def = NULL;
     if(glView->curTrackShader == 6) def = measureRegistry::find(glView->curMeasureId);
     bool wantFindings = glView->showFindings;
-    if(def == NULL && !wantFindings) return;
+    if(def == NULL && !wantFindings)
+    {
+        mValuesMeasure = QString();     // the vertices hold no values (a rebuild appends zeros)
+        mValuesFindings = false;
+        return;
+    }
+    QString wantId = def ? def->id : QString();
+    if(!force && wantId == mValuesMeasure && wantFindings == mValuesFindings) return;   // up to date
+    mValuesMeasure = wantId;
+    mValuesFindings = wantFindings;
 
     QVector<float> vals;
     if(def != NULL) vals = measureRegistry::values(trackData, def->id);

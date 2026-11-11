@@ -90,7 +90,10 @@ public:
     // Rewrites the measure and finding values of the rails and cross ties from the
     // registries (core/measure.h, core/finding.h), only what the view asks for
     // (glView->curTrackShader == 6, glView->showFindings). Does not upload.
-    void updateMeasureValues(void);
+    // force = true after a rebuild (the geometry changed): always recompute. Otherwise
+    // (recolorTrack) it recomputes only if the chosen measure or the findings switch
+    // differs from what the vertices already hold, so a selection click costs nothing.
+    void updateMeasureValues(bool force);
 
     QVector<tracknode_t> rails;
     QList<int> nodeList;
@@ -117,6 +120,9 @@ public:
     track* trackData;
 
     int trackVertexSize, supportsSize, numRails, heartlineSize, railShadowSize;
+
+    QString mValuesMeasure;     // the measure the vertices' values were last computed for (empty: none)
+    bool mValuesFindings;       // whether the vertices' finding levels were last computed
 
     void init();
 private:
