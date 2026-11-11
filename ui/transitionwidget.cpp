@@ -376,7 +376,9 @@ void transitionWidget::on_quadraticBox_currentIndexChanged(int index)
         lenAssert(0 && "unhandled default case");
         break;
     }
+    inTrack->mHistory->endMergeRun();
     if(!setShapeParameter(inTrack, selectedFunc, value)) return;
+    inTrack->mHistory->endMergeRun();
 
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
@@ -412,7 +414,9 @@ void transitionWidget::on_quarticBox_currentIndexChanged(int index)
         ui->quarticSpin->setVisible(false);
         value = -10;
     }
+    inTrack->mHistory->endMergeRun();
     if(!setShapeParameter(inTrack, selectedFunc, value)) return;
+    inTrack->mHistory->endMergeRun();
 
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
@@ -462,7 +466,9 @@ void transitionWidget::on_quinticBox_currentIndexChanged(int index)
         value = fabs(selectedFunc->arg1) < 0.005 ? ui->quinticSpin->value() : fabs(selectedFunc->arg1);
         break;
     }
+    inTrack->mHistory->endMergeRun();
     if(!setShapeParameter(inTrack, selectedFunc, value)) return;
+    inTrack->mHistory->endMergeRun();
 
     if(index == 1 || index == 2) {
         phantomChanges = true;
