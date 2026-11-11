@@ -11,7 +11,7 @@ Code: `core/projecttext.h` and `core/projecttext.cpp`. The functions mirror the 
 | `saveProjectTextFile(fileName, texPath, tracks, client)` | `saveProjectFile()` | the same through a file |
 | `loadProjectTextFile(fileName, client)` | `loadProjectFile()` | the same through a file |
 
-They call the `projectFileClient` at the same points as the binary functions. One difference: the reader checks the **whole** text before it calls the client, so a refused text leaves the open project as it was. No window offers the text form yet; it is a function of the model for now.
+They call the `projectFileClient` at the same points as the binary functions. One difference: the reader checks the **whole** text before it calls the client, so a refused text leaves the open project as it was. The writer runs those same checks on the text it has just made and returns an error, not a text, when the reader would refuse it (`Error: the project cannot be written as text, because the text would not read back: ...`), so the program never writes a text it cannot read. No window offers the text form yet; it is a function of the model for now.
 
 ## Rules of the text
 
@@ -43,7 +43,7 @@ A text can hold values the windows never allow, and some of them would crash the
 
 | Value | Allowed | Why |
 |---|---|---|
-| Every number read as an input | finite, within a float | infinity and NaN were never inputs; a number too large for a float would become infinity |
+| Every number read as an input | finite, within a float | infinity and NaN were never inputs; a number too large for a float would become infinity. One exception: the `shapeParameter` of a shape that does not use it (below) |
 | Anchor `speed` | 0.025 to 500 m/s | the anchor speed box; `track::updateAnchorGeometrics()` divides by it, and a NoLimits CSV section spaces its nodes by it |
 | A section's `speed` when `speedMode` is `fixed` | 0.025 to 500 m/s | the speed boxes; a force section over distance held at 0 m/s never ends. With `physics` the stored value is not used and only has to be finite. |
 | `heartline` | -5 to 5 m | Track Properties |
@@ -53,7 +53,7 @@ A text can hold values the windows never allow, and some of them would crash the
 | A curve's `radius` | 0.3 to 500 m | the radius box (1 foot to 500 m); at zero or below the curve never reaches its angle |
 | A curve's `leadIn`, `leadOut` | 0 to 500 degrees | the lead-in and lead-out boxes |
 | A function's first `from` | 0 | every function starts at 0 |
-| A later transition's `from` | at most 4 last digits (4 steps of a float) from the `to` before it; may be left out | a transition starts where the one before ends (below) |
+| A later transition's `from` | at most 64 float steps (64 last digits) from the `to` before it; may be left out | a transition starts where the one before ends (below) |
 | Each transition's `to` | after where it starts (a length above 0) | a transition of no length divides by zero |
 | The end of a function (its last `to`) | time: 2000 s; distance and straight: 10000 m; curve: 5000 degrees | memory: a time-based section has 1000 nodes a second; 5000 degrees is the angle box's limit |
 | `center`, `tension` | -10 to 10 | the transition editor's boxes |
@@ -150,7 +150,7 @@ A function is a list of transitions, one after the other. The argument (`from`, 
 | `from` | number | where it starts: 0 for the first; for a later one the `to` before it, and it may be left out (below) |
 | `to` | number | where it ends |
 | `change` | number | how much the value changes over the transition, in the function's unit (not for `tozero`) |
-| `shapeParameter` | number | the shape's own setting (quadratic, quartic, quintic, plateau) |
+| `shapeParameter` | number | the shape's own setting (quadratic, quartic, quintic, plateau). The other shapes never read it and the program never sets it for them, so a new linear, cubic or sinusoidal transition keeps whatever the memory held, and the project file saves that. So for those shapes any value is kept, `"inf"` and `"nan"` included; for the four that use it, it must be finite, and a model holding a non-finite one is not written. A NaN is read back as the standard NaN, so in the rare case that the memory held another NaN the binary file can differ in those four bytes; nothing is computed from them. |
 | `center` | number | moves the middle of the transition (time-warp, "center") |
 | `tension` | number | steepens or flattens the transition (time-warp, "tension") |
 | `locked` | true/false | the transition stretches to the end of the section |
@@ -159,7 +159,9 @@ A function is a list of transitions, one after the other. The argument (`from`, 
 **A later transition's `from`** is written for every transition and read as it is. In a model the program loaded it is normally the `to` before it, but the last transition of a function can be one last digit away: the binary loader keeps it as the file had it. So it is a stored value, not a recalculated one. When editing by hand:
 
 - leave `from` out of a later transition and it starts at the `to` before it;
-- if it is given, it must lie within 4 last digits of the `to` before it (4 steps from one float to the next, about 0.000002 near 5). Further away is refused, for example `Error: track 1, section 3 (force), normalForce, transition 3: transition 3 starts at 5.00999832 but the one before ends at 4.99999857; make them equal or leave "from" out.` To move where a transition starts, change the `to` of the one before.
+- if it is given, it must lie within 64 float steps of the `to` before it (64 steps from one float to the next, about 0.00003 near 5). Further away is refused, for example `Error: track 1, section 3 (force), normalForce, transition 3: transition 3 starts at 5.0099988 but the one before ends at 4.99999857; make them equal or leave "from" out.` To move where a transition starts, change the `to` of the one before.
+
+The writer applies the same rule: a model whose gap is beyond it is not written (`Error: ...: it starts at X but the one before ends at Y, more than 64 float steps apart; the text could not be read back.`), so the program never writes a text it would refuse. The tolerance is far above what the program produces: `tests/projecttext` opens and saves every sample, and models built with awkward ends, 20 times in a row and the gap never passed 2 float steps, so 64 leaves a wide margin while a hand-typed start that is really wrong is still caught.
 
 A text written by the first version of this format has a later `from` under `recalculatedOnLoad`; it still reads, the value there is ignored and the transition starts at the `to` before it. The version number stayed at 1, since both shapes read.
 

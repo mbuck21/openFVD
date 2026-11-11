@@ -96,13 +96,9 @@ static const float LIMIT_CURVE_END = 5000.f;      // degrees, a curve's roll fun
 static const double LIMIT_NODES = 2000000.;       // nodes a section may need at a held speed
 static const double LIMIT_BEZIER_LENGTH = 20000.; // m, the length of a Bezier section's control polygon
 
-// How far a later transition's "from" may lie from the end of the one before,
-// in steps of the last digit of a float (docs/project-text-format.md).
-static const qint64 FROM_TOLERANCE_ULPS = 4;
+namespace projectText {
 
-// The number of floats between a and b (both finite): 0 when equal, 1 for
-// neighbours, across zero as well.
-static qint64 ulpDistance(float a, float b)
+qint64 floatSteps(float a, float b)
 {
     qint32 ia, ib;
     memcpy(&ia, &a, sizeof(float));
@@ -114,6 +110,29 @@ static qint64 ulpDistance(float a, float b)
     qint64 lb = ib < 0 ? lowest - ib : (qint64)ib;
     return la > lb ? la - lb : lb - la;
 }
+
+// A binary load keeps the last transition's start as the file has it while
+// the end before is worked out again; measured, they stay within a few steps
+// (tests/projecttext, the open-and-save cycles). The tolerance is far above
+// that, so no model the program makes can be written but not read back.
+bool fromWithinTolerance(float from, float endBefore)
+{
+    return std::isfinite(from) && std::isfinite(endBefore) && floatSteps(from, endBefore) <= FROM_TOLERANCE_STEPS;
+}
+
+bool shapeUsesParameter(int shape)
+{
+    return shape == quadratic || shape == quartic || shape == quintic || shape == plateau;
+}
+
+bool shapeParameterAccepted(int shape, float value)
+{
+    return !shapeUsesParameter(shape) || std::isfinite(value);
+}
+
+}
+
+using projectText::fromWithinTolerance;
 
 static int indexOfName(const QString& name, const char* const* names, int count)
 {
@@ -245,7 +264,20 @@ bool textWriter::writeFunction(func* f, const QString& where, QJsonArray* out)
         QJsonObject recalc;
         o["shape"] = QString(SHAPE_NAMES[shape]);
         // every piece's start is stored: a later one normally equals the end
-        // of the one before, but a loaded model can hold it a last digit away
+        // of the one before, but a loaded model can hold it a last digit away.
+        // A model the reader would refuse is not written.
+        if(i > 0 && !fromWithinTolerance(sub->minArgument, f->funcList[i-1]->maxArgument)) {
+            error = QString("Error: %1: it starts at %2 but the one before ends at %3, more than %4 float "
+                            "steps apart; the text could not be read back.").arg(here)
+                    .arg(sub->minArgument, 0, 'g', 9).arg(f->funcList[i-1]->maxArgument, 0, 'g', 9)
+                    .arg(projectText::FROM_TOLERANCE_STEPS);
+            return false;
+        }
+        if(!projectText::shapeParameterAccepted(shape, sub->arg1)) {
+            error = QString("Error: %1: its shape parameter is %2, which a %3 transition cannot use; "
+                            "the text could not be read back.").arg(here).arg(sub->arg1).arg(SHAPE_NAMES[shape]);
+            return false;
+        }
         o["from"] = floatToJson(sub->minArgument);
         o["to"] = floatToJson(sub->maxArgument);
         if(sub->degree == tozero) {
@@ -477,6 +509,8 @@ QJsonObject textWriter::writeTrack(track* t, int trackNo)
 
 } // namespace
 
+static QString checkProjectText(const QByteArray& text);
+
 QString writeProjectText(QByteArray& out, const QString& texPath, const QList<track*>& tracks, projectFileClient* client)
 {
     out.clear();
@@ -496,8 +530,17 @@ QString writeProjectText(QByteArray& out, const QString& texPath, const QList<tr
     root["groundTexture"] = texPath;
     root["tracks"] = trackArray;
 
-    out = QJsonDocument(root).toJson(QJsonDocument::Indented);
-    if(!out.endsWith('\n')) out.append('\n');
+    QByteArray text = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if(!text.endsWith('\n')) text.append('\n');
+
+    // Never hand out a text the reader would refuse: run its checks (step 1
+    // of reading, no model is built) on the text just made.
+    QString refused = checkProjectText(text);
+    if(!refused.isEmpty()) {
+        return QString("Error: the project cannot be written as text, because the text would not read back: ")
+                + refused.mid(refused.startsWith("Error: ") ? 7 : 0);
+    }
+    out = text;
     return QString("Project Saved!");
 }
 
@@ -631,6 +674,16 @@ public:
         } else if(!std::isfinite(f)) {
             wrongType(key, "a finite number (not infinity or NaN, and within the range of a float)");
         }
+        return f;
+    }
+
+    // A number that the model stores but never computes with: infinity and
+    // NaN are kept.
+    float getAnyFloat(const char* key)
+    {
+        QJsonValue v = value(key);
+        float f = 0.f;
+        if(ok() && !floatFromJson(v, &f)) wrongType(key, "a number");
         return f;
     }
 
@@ -886,7 +939,7 @@ void textReader::readFunction(objectReader& parent, const char* key, float maxEn
             t.from = before;
             if(r.has("from")) {
                 t.from = r.getFloat("from");
-                if(r.ok() && ulpDistance(t.from, before) > FROM_TOLERANCE_ULPS) {
+                if(r.ok() && !fromWithinTolerance(t.from, before)) {
                     r.fail(QString("transition %1 starts at %2 but the one before ends at %3; "
                                    "make them equal or leave \"from\" out")
                            .arg(i+1).arg(t.from, 0, 'g', 9).arg(before, 0, 'g', 9));
@@ -904,7 +957,13 @@ void textReader::readFunction(objectReader& parent, const char* key, float maxEn
                    .arg(t.to).arg(maxEnd).arg(unit));
         }
         t.change = (t.shape == tozero) ? 0.f : r.getFloat("change");
-        t.shapeParameter = r.getFloat("shapeParameter");
+        // finite where the shape reads it; elsewhere kept as it is, infinity
+        // and NaN included (projectText::shapeParameterAccepted())
+        if(projectText::shapeUsesParameter(t.shape)) {
+            t.shapeParameter = r.getFloat("shapeParameter");
+        } else {
+            t.shapeParameter = r.getAnyFloat("shapeParameter");
+        }
         // the transition editor's boxes
         t.center = r.getFloatIn("center", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
         t.tension = r.getFloatIn("tension", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
@@ -1208,6 +1267,21 @@ bool textReader::readProject(const QJsonObject& root, projectData* out)
 }
 
 } // namespace
+
+// The reader's checks alone (step 1): the error it would give, or an empty
+// text when it would accept the text.
+static QString checkProjectText(const QByteArray& text)
+{
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(text, &parseError);
+    if(doc.isNull() || !doc.isObject()) {
+        return QString("Error: the text is not one valid JSON object (%1).").arg(parseError.errorString());
+    }
+    textReader reader;
+    projectData data;
+    if(!reader.readProject(doc.object(), &data)) return reader.error;
+    return QString();
+}
 
 // ---------------------------------------------------------------------------
 // Reading, step 2: the plain data into the model, as a binary load does it

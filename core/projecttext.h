@@ -67,6 +67,24 @@ QJsonValue floatToJson(float f);
 // strings above.
 bool floatFromJson(const QJsonValue& v, float* f);
 
+// The number of floats between a and b (both finite): 0 when equal, 1 for
+// neighbours, across zero as well.
+qint64 floatSteps(float a, float b);
+
+// How far a later transition's start may lie from the end of the one before,
+// in float steps. The one rule both directions use: the writer refuses a model
+// beyond it and the reader a text (docs/project-text-format.md, "A transition").
+const qint64 FROM_TOLERANCE_STEPS = 64;
+bool fromWithinTolerance(float from, float endBefore);
+
+// Whether a transition's shape reads its shape parameter (subfunc::arg1):
+// quadratic, quartic, quintic and plateau do. The others never set it either,
+// so a new linear, cubic or sinusoidal piece keeps whatever the memory held,
+// and the project file saves that. One rule both directions use: where the
+// shape reads it, it must be finite; where it does not, any value is kept.
+bool shapeUsesParameter(int shape);
+bool shapeParameterAccepted(int shape, float value);
+
 }
 
 #endif // PROJECTTEXT_H
