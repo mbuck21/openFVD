@@ -10,6 +10,12 @@
 INCLUDEPATH += $$PWD
 
 SOURCES += \
+    $$PWD/command.cpp \
+    $$PWD/commands_anchor.cpp \
+    $$PWD/commands_section.cpp \
+    $$PWD/commands_smoothing.cpp \
+    $$PWD/commands_track.cpp \
+    $$PWD/commands_transition.cpp \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
     $$PWD/finding.cpp \
@@ -31,10 +37,12 @@ SOURCES += \
     $$PWD/smoothhandler.cpp \
     $$PWD/subfunction.cpp \
     $$PWD/track.cpp \
+    $$PWD/trackhistory.cpp \
     $$PWD/trackstate.cpp \
     $$PWD/traintype.cpp
 
 HEADERS += \
+    $$PWD/command.h \
     $$PWD/elementfile.h \
     $$PWD/exportfuncs.h \
     $$PWD/finding.h \
@@ -56,6 +64,7 @@ HEADERS += \
     $$PWD/smoothhandler.h \
     $$PWD/subfunction.h \
     $$PWD/track.h \
+    $$PWD/trackhistory.h \
     $$PWD/tracklistener.h \
     $$PWD/trackstate.h \
     $$PWD/traintype.h
