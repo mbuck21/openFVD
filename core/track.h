@@ -88,6 +88,15 @@ public:
     QString saveTrack(std::iostream& file);
     QString loadTrack(std::iostream& file);
     QString legacyLoadTrack(std::iostream& file);
+
+    // The pieces of saveTrack() and loadTrack(), shared with trackState
+    // (trackstate.h): saveTrack() is header, each section's saveSection(),
+    // smoothing; loadTrack() is header, sections (with the smoothing entries),
+    // then the "EOT" tag and a full update.
+    void saveTrackHeader(std::iostream& file);
+    void saveTrackSmoothing(std::iostream& file);
+    void loadTrackHeader(std::iostream& file);
+    QString loadTrackSections(std::iostream& file);
     mnode* getPoint(int index);
     int getIndexFromDist(float dist);
     int getNumPoints(section* until = NULL);

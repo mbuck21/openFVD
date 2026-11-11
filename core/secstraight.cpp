@@ -137,7 +137,7 @@ void secstraight::saveSection(std::iostream& file)
     file << "STR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -179,7 +179,7 @@ void secstraight::saveSection(std::stringstream& file)
     file << "STR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));

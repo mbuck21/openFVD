@@ -30,6 +30,7 @@ SOURCES += \
     $$PWD/smoothhandler.cpp \
     $$PWD/subfunction.cpp \
     $$PWD/track.cpp \
+    $$PWD/trackstate.cpp \
     $$PWD/traintype.cpp
 
 HEADERS += \
@@ -54,4 +55,5 @@ HEADERS += \
     $$PWD/subfunction.h \
     $$PWD/track.h \
     $$PWD/tracklistener.h \
+    $$PWD/trackstate.h \
     $$PWD/traintype.h

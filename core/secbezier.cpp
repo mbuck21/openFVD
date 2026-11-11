@@ -281,7 +281,7 @@ int secbezier::updateSection(int node)
 void secbezier::saveSection(std::iostream& file)
 {
     file << "BEZ";
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -360,7 +360,7 @@ void secbezier::legacyLoadSection(std::iostream& file)
 void secbezier::saveSection(std::stringstream& file)
 {
     file << "BEZ";
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));

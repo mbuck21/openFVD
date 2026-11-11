@@ -344,7 +344,7 @@ void secforced::saveSection(std::iostream& file)
     file << "FRC";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -398,7 +398,7 @@ void secforced::saveSection(std::stringstream& file)
     file << "FRC";
     writeNulls(&file, 1);
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
