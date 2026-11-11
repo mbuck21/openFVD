@@ -148,6 +148,16 @@ void glViewWidget::drawSky()
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
+void glViewWidget::refreshTrackColours()
+{
+	QList<trackHandler*> trackList = gloParent->getTrackList();
+	for(int i = 0; i < trackList.size(); ++i)
+	{
+		if(trackList[i]->mMesh->isInit) trackList[i]->mMesh->recolorTrack();
+	}
+	hasChanged = true;
+}
+
 void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 {
 	myShader* shader;
@@ -177,6 +187,7 @@ void glViewWidget::drawTrack(trackHandler *_track, bool toNormalMap)
 	shader->useUniform("anchorBase", &anchorBase);
 	shader->useUniform("eyePos", &cameraPos);
 	shader->useUniform("colorMode", (GLuint)curTrackShader);
+	shader->useUniform("showFindings", (GLuint)(showFindings ? 1 : 0));
 
 	shader->useUniform("metalTex", metalTexture->getId());
 	shader->useUniform("skyTex", skyTexture->getId());
@@ -760,6 +771,7 @@ void glViewWidget::initializeGL()
 	cameraMov = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 	cameraBoost = 1.0f;
 	curTrackShader = 0;
+	showFindings = false;
 	fov = gloParent->mOptions->fov;
 	shadowMode = gloParent->mOptions->shadowQuality;
 
@@ -1228,6 +1240,8 @@ void glViewWidget::initShaders()
 	trackShader->useAttribute(6, "aselected");
 	trackShader->useAttribute(7, "aNormal");
 	trackShader->useAttribute(8, "aUv");
+	trackShader->useAttribute(9, "aMeasure");
+	trackShader->useAttribute(10, "aFinding");
 	trackShader->linkProgram();
 
 	simpleShadowFb = new myFramebuffer(viewPortWidth, viewPortHeight, GL_RED, GL_RED);

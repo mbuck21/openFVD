@@ -20,6 +20,9 @@
 #include "mainwindow.h"
 #include "optionsmenu.h"
 #include "mnode.h"
+#include "measure.h"
+#include "finding.h"
+#include <cmath>
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
@@ -105,6 +108,8 @@ void trackMesh::appendTrackNode(QVector<tracknode_t> &list, float _u, float _v)
     temp.flexion = fabs(curNode->fFlexion());
 
     temp.selected = (trackData == gloParent->curTrack() && curSection == trackData->activeSection) ? (curSection->isInFunction(j, gloParent->selectedFunc) ? 2.f : 1.f) : 0.f;
+    temp.measure = 0;
+    temp.finding = 0;
 
     list.append(temp);
 }
@@ -129,6 +134,8 @@ void trackMesh::appendSupportNode(QVector<tracknode_t> &list, float _u, float _v
     temp.xForce = 0;
     temp.flexion = 0;
     temp.selected = 0;
+    temp.measure = 0;
+    temp.finding = 0;
 
     list.append(temp);
 }
@@ -2555,6 +2562,7 @@ void trackMesh::buildMeshes(int fromNode)
         }
     }
     createIndices();
+    updateMeasureValues();
     updateVertexArrays();
     return;
 }
@@ -3409,7 +3417,62 @@ void trackMesh::recolorTrack()
 
         crossties[i].selected = (trackData == gloParent->curTrack() && curSection == trackData->activeSection) ? (curSection->isInFunction(node, gloParent->selectedFunc) ? 2.f : 1.f) : 0.f;
     }
+    updateMeasureValues();
     updateVertexArrays();
+}
+
+void trackMesh::updateMeasureValues()
+{
+    if(glView->legacyMode || trackData->lSections.size() == 0) return;
+
+    // what the view asks for; with neither, nothing is computed
+    const measureDef* def = NULL;
+    if(glView->curTrackShader == 6) def = measureRegistry::find(glView->curMeasureId);
+    bool wantFindings = glView->showFindings;
+    if(def == NULL && !wantFindings) return;
+
+    QVector<float> vals;
+    if(def != NULL) vals = measureRegistry::values(trackData, def->id);
+
+    QVector<unsigned char> levels;
+    if(wantFindings)
+    {
+        QList<finding> found = checkRegistry::runAll(trackData);
+        for(int f = 0; f < found.size(); ++f)
+        {
+            int from = found[f].fromNode < 0 ? 0 : found[f].fromNode;
+            int to = found[f].toNode;
+            if(to < from) continue;
+            if(levels.size() <= to) levels.resize(to+1);   // new entries are zero
+            unsigned char level = (unsigned char)(found[f].severity + 1);
+            for(int n = from; n <= to; ++n)
+                if(levels[n] < level) levels[n] = level;
+        }
+    }
+
+    float lo = def ? def->displayMin : 0.f;
+    float hi = def ? def->displayMax : 1.f;
+    float range = hi - lo;
+
+    for(int pass = 0; pass < 2; ++pass)
+    {
+        QVector<tracknode_t>& list = (pass == 0) ? rails : crossties;
+        for(int i = 0; i < list.size(); ++i)
+        {
+            int n = list[i].node;
+
+            float m = 0.f;
+            if(def != NULL && n >= 0 && n < vals.size())
+            {
+                float v = vals[n];
+                if(!std::isfinite(v)) m = -1.f;
+                else if(range > 0.f) m = qBound(0.f, (v-lo)/range, 1.f);
+            }
+            list[i].measure = m;
+
+            list[i].finding = (n >= 0 && n < levels.size()) ? (float)levels[n] : 0.f;
+        }
+    }
 }
 
 void trackMesh::updateVertexArrays()
@@ -3420,15 +3483,17 @@ void trackMesh::updateVertexArrays()
 
     glBindBuffer(GL_ARRAY_BUFFER, TrackBuffer[0]);  // Spine
     glBufferData(GL_ARRAY_BUFFER, rails.size()*sizeof(tracknode_t), rails.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), 0);
-    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(3*sizeof(float)));
-    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(6*sizeof(float)));
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(8*sizeof(float)));
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(9*sizeof(float)));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(10*sizeof(float)));
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(11*sizeof(float)));
-    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(12*sizeof(float)));
-    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), 0);
+    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(6*sizeof(float)));
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(8*sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(9*sizeof(float)));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(10*sizeof(float)));
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(11*sizeof(float)));
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(12*sizeof(float)));
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(15*sizeof(float)));
+    glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(16*sizeof(float)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
@@ -3438,6 +3503,8 @@ void trackMesh::updateVertexArrays()
     glEnableVertexAttribArray(6);
     glEnableVertexAttribArray(7);
     glEnableVertexAttribArray(8);
+    glEnableVertexAttribArray(9);
+    glEnableVertexAttribArray(10);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, TrackIndices[0]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, pipeIndices.size()*sizeof(int), pipeIndices.data(), GL_STATIC_DRAW);
@@ -3447,15 +3514,17 @@ void trackMesh::updateVertexArrays()
 
     glBindBuffer(GL_ARRAY_BUFFER, TrackBuffer[3]);  // Crossties
     glBufferData(GL_ARRAY_BUFFER, crossties.size()*sizeof(tracknode_t), crossties.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), 0);
-    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(3*sizeof(float)));
-    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(6*sizeof(float)));
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(8*sizeof(float)));
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(9*sizeof(float)));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(10*sizeof(float)));
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(11*sizeof(float)));
-    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(12*sizeof(float)));
-    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), 0);
+    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(6*sizeof(float)));
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(8*sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(9*sizeof(float)));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(10*sizeof(float)));
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(11*sizeof(float)));
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(12*sizeof(float)));
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(15*sizeof(float)));
+    glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(16*sizeof(float)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
@@ -3465,21 +3534,25 @@ void trackMesh::updateVertexArrays()
     glEnableVertexAttribArray(6);
     glEnableVertexAttribArray(7);
     glEnableVertexAttribArray(8);
+    glEnableVertexAttribArray(9);
+    glEnableVertexAttribArray(10);
 
 
     glBindVertexArray(TrackObject[4]);
 
     glBindBuffer(GL_ARRAY_BUFFER, TrackBuffer[6]);  // Supports
     glBufferData(GL_ARRAY_BUFFER, rendersupports.size()*sizeof(tracknode_t), rendersupports.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), 0);
-    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(3*sizeof(float)));
-    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(6*sizeof(float)));
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(8*sizeof(float)));
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(9*sizeof(float)));
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(10*sizeof(float)));
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(11*sizeof(float)));
-    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(12*sizeof(float)));
-    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 15*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), 0);
+    glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(6*sizeof(float)));
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(8*sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(9*sizeof(float)));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(10*sizeof(float)));
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(11*sizeof(float)));
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(12*sizeof(float)));
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(13*sizeof(float)));
+    glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(15*sizeof(float)));
+    glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, 17*sizeof(float), (void*)(16*sizeof(float)));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
@@ -3489,6 +3562,8 @@ void trackMesh::updateVertexArrays()
     glEnableVertexAttribArray(6);
     glEnableVertexAttribArray(7);
     glEnableVertexAttribArray(8);
+    glEnableVertexAttribArray(9);
+    glEnableVertexAttribArray(10);
 
 
     glBindVertexArray(HeartObject[0]);

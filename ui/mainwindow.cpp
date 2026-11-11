@@ -35,6 +35,7 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include "objectexporter.h"
+#include "measure.h"
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -88,6 +89,8 @@ MainWindow::MainWindow(QWidget *parent) :
     }
     if(glView->legacyMode) {
         delete ui->menuView;
+    } else {
+        buildMeasureMenu();
     }
 
     phantomChanges = false;
@@ -448,6 +451,67 @@ void MainWindow::useShader(int shader)
         ui->actionUseShader5->setChecked(true);
         break;
     }
+    // the old modes and "by measure" exclude each other
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(false);
+    }
+}
+
+// The "Colour by measure" submenu and "Show findings" in the Visualize menu, made
+// from the registry so a new measure shows up without a change here.
+void MainWindow::buildMeasureMenu()
+{
+    ui->menuView->addSeparator();
+    QMenu* sub = ui->menuView->addMenu(tr("Colour by measure"));
+    const QVector<measureDef>& defs = measureRegistry::all();
+    for(int i = 0; i < defs.size(); ++i) {
+        QString text = defs[i].name;
+        if(!defs[i].unit.isEmpty()) text += " (" + defs[i].unit + ")";
+        QAction* a = sub->addAction(text);
+        a->setObjectName("actionMeasure_" + defs[i].id);
+        a->setCheckable(true);
+        a->setStatusTip(defs[i].description);
+        a->setData(defs[i].id);
+        connect(a, SIGNAL(triggered()), this, SLOT(measureChosen()));
+        mMeasureActions.append(a);
+    }
+    mShowFindingsAction = ui->menuView->addAction(tr("Show findings"));
+    mShowFindingsAction->setObjectName("actionShowFindings");
+    mShowFindingsAction->setCheckable(true);
+    mShowFindingsAction->setStatusTip(tr("Tint the stretches of track where a check finds a problem"));
+    connect(mShowFindingsAction, SIGNAL(toggled(bool)), this, SLOT(findingsToggled(bool)));
+}
+
+void MainWindow::measureChosen()
+{
+    QAction* chosen = qobject_cast<QAction*>(sender());
+    if(chosen == NULL) return;
+    const measureDef* def = measureRegistry::find(chosen->data().toString());
+    if(def == NULL) return;
+
+    ui->actionUseShader0->setChecked(false);
+    ui->actionUseShader1->setChecked(false);
+    ui->actionUseShader2->setChecked(false);
+    ui->actionUseShader3->setChecked(false);
+    ui->actionUseShader4->setChecked(false);
+    ui->actionUseShader5->setChecked(false);
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(mMeasureActions[i] == chosen);
+    }
+
+    glView->curMeasureId = def->id;
+    glView->curTrackShader = 6;
+    glView->refreshTrackColours();
+
+    // the legend: what the ramp from blue to red stands for
+    showMessage(tr("%1: blue = %2, red = %3 %4 (magenta: not a number)")
+                .arg(def->name).arg(def->displayMin).arg(def->displayMax).arg(def->unit));
+}
+
+void MainWindow::findingsToggled(bool on)
+{
+    glView->showFindings = on;
+    glView->refreshTrackColours();
 }
 
 void MainWindow::showCurInfoPanel()

@@ -33,6 +33,8 @@ typedef struct tracknode_s{
     float flexion;
     float selected;
     int node;
+    float measure;      // chosen measure, 0..1 (-1: not a number); filled by updateMeasureValues()
+    float finding;      // finding level at the node: 0 none, 1 information, 2 warning, 3 problem
 } tracknode_t;
 
 typedef struct meshnode_s{
@@ -85,6 +87,10 @@ public:
     void appendMeshNode(QVector<meshnode_t> &list);
 
     void recolorTrack(void);
+    // Rewrites the measure and finding values of the rails and cross ties from the
+    // registries (core/measure.h, core/finding.h), only what the view asks for
+    // (glView->curTrackShader == 6, glView->showFindings). Does not upload.
+    void updateMeasureValues(void);
 
     QVector<tracknode_t> rails;
     QList<int> nodeList;
