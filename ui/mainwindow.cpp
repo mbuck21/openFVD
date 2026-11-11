@@ -48,6 +48,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     gloParent = this;
     project = NULL;
+    mRideSheet = NULL;      // the options (created next) may tell the ride sheet before it exists
 
     // load options
     mOptions = new optionsMenu(this);
@@ -559,8 +560,16 @@ void MainWindow::rideSheetSelectionChanged()
 
 void MainWindow::rideSheetChanged(track* t)
 {
-    if(mRideSheet != NULL && t != NULL && t == ridePanelTrack()) {
-        mRideSheet->setTrack(t);
+    if(mRideSheet != NULL) {
+        mRideSheet->trackChanged(t);    // marks the sheet out of date if t is the track it shows
+    }
+}
+
+// The unit setting changed: nothing pushes that, so the options dialog calls this.
+void MainWindow::rideSheetUnitsChanged()
+{
+    if(mRideSheet != NULL) {
+        mRideSheet->setTrack(ridePanelTrack());
     }
 }
 

@@ -30,9 +30,11 @@
 // project's open tracks.
 //
 // Refreshing. The track announces a change once per recompute, which during a
-// drag is every frame. trackChanged() therefore only marks the panel out of
-// date and (re)starts a 150 ms single-shot timer; the sheet is computed when
-// the timer fires, and only if the panel is visible.
+// drag is every frame (MainWindow::rideSheetChanged() hands the notice to
+// trackChanged()). trackChanged() therefore only marks the panel out of date
+// and (re)starts a 150 ms single-shot timer; the sheet is computed when the
+// timer fires, and only if the panel is visible. setTrack() (tab or selection
+// changed, units changed) takes the same path.
 
 #include <QWidget>
 #include <QTimer>

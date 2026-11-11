@@ -112,6 +112,7 @@ public:
 
     // the ride sheet panel (ui/ridesheet.*): a track announced a change
     void rideSheetChanged(track* t);
+    void rideSheetUnitsChanged();
     rideSheet* mRideSheet;
 
     void keyPressed(QEvent *event);
