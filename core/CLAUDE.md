@@ -1,6 +1,6 @@
 # core/ (the model)
 
-The track model and its physics: tracks, sections, nodes, transition functions, the project file, the NoLimits export files, the importers, roll smoothing and the train catalogue. It runs with no window and no OpenGL; the console program in `tests/coreonly/` builds from this folder alone (`docs/testing.md`).
+The track model and its physics: tracks, sections, nodes, transition functions, the project file, the NoLimits export files, the importers, roll smoothing and the train catalogue. It runs with no window and no OpenGL; the console program `fvdcore` (`cli/`, built into `build/dist/` by the main build) builds from this folder alone (`docs/testing.md`).
 
 Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the data model and flows.
 
@@ -8,7 +8,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the data model 
 
 - **Allowed:** the C++ library, glm (through `lenassert.h`), QtCore (`QString`, `QList`, `QVector`, `QElapsedTimer`, the JSON classes) and the value type `QColor`.
 - **Not allowed:** any header from `ui/` or `renderer/`, any QtWidgets header, the globals `gloParent` and `glView`, `options.cfg`.
-- **Enforced by:** `tools/check-core.py` (fails on any of the above) and by the core-only build (`tests/coreonly/`, `docs/testing.md`). Run the check before every commit that touches this folder.
+- **Enforced by:** `tools/check-core.py` (fails on any of the above) and by the core-only build (`tests/coreonly/`, the test that builds `cli/` from `core/` alone; `docs/testing.md`). Run the check before every commit that touches this folder.
 - **How core reaches the windows:** only through the interfaces below. The windows call core; core calls back through an interface the window implements.
 
 ## Interfaces that cross the boundary

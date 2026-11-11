@@ -19,7 +19,8 @@
 # Build FVD++ on Windows with the MSYS2 UCRT64 toolchain (docs/building.md).
 # Run from the MSYS2 UCRT64 shell, or through tools\build-windows.cmd.
 # Extra arguments go to qmake, for example: CONFIG+=with3ds
-# Result: build/release/FVD.exe, and a copy that runs on its own in build/dist/.
+# Result: build/release/FVD.exe and build/cli/release/fvdcore.exe, and copies of
+# both that run on their own in build/dist/.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,6 +41,15 @@ cd "$repo/build"
 qmake-qt5 ../fvd.pro CONFIG+=release "$@"
 mingw32-make -j"$(nproc)"
 
+# The command-line program (cli/), built from core/ and cli/ alone.
+mkdir -p "$repo/build/cli"
+( cd "$repo/build/cli" && qmake-qt5 ../../cli/fvdcore.pro CONFIG+=release && mingw32-make -j"$(nproc)" )
+cli_exe="$(find "$repo/build/cli" -name fvdcore.exe | head -n 1)"
+if [ -z "$cli_exe" ]; then
+    echo "The build produced no fvdcore.exe." >&2
+    exit 1
+fi
+
 # A folder that runs without MSYS2 on the PATH: the program, the Qt plugins
 # and every DLL they load from the MSYS2 tree.
 dist="$repo/build/dist"
@@ -53,10 +63,13 @@ copy_deps() {
         [ -e "$dist/$(basename "$dll")" ] || cp "$dll" "$dist/"
     done
 }
+cp "$cli_exe" "$dist/fvdcore.exe"
 copy_deps "$dist/FVD.exe"
+copy_deps "$dist/fvdcore.exe"
 for plugin in "$dist"/*/*.dll; do
     copy_deps "$plugin"
 done
 
 echo "Built:           $repo/build/release/FVD.exe"
-echo "Standalone copy: $repo/build/dist/FVD.exe"
+echo "Built:           $repo/build/cli/release/fvdcore.exe"
+echo "Standalone copy: $repo/build/dist/FVD.exe and $repo/build/dist/fvdcore.exe"

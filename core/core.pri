@@ -12,11 +12,14 @@ INCLUDEPATH += $$PWD
 SOURCES += \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
+    $$PWD/finding.cpp \
     $$PWD/function.cpp \
     $$PWD/fvdmath.cpp \
+    $$PWD/measure.cpp \
     $$PWD/mnode.cpp \
     $$PWD/nolimitsimporter.cpp \
     $$PWD/projectfile.cpp \
+    $$PWD/projecttext.cpp \
     $$PWD/secbezier.cpp \
     $$PWD/seccurved.cpp \
     $$PWD/secforced.cpp \
@@ -33,11 +36,14 @@ SOURCES += \
 HEADERS += \
     $$PWD/elementfile.h \
     $$PWD/exportfuncs.h \
+    $$PWD/finding.h \
     $$PWD/function.h \
     $$PWD/fvdmath.h \
+    $$PWD/measure.h \
     $$PWD/mnode.h \
     $$PWD/nolimitsimporter.h \
     $$PWD/projectfile.h \
+    $$PWD/projecttext.h \
     $$PWD/secbezier.h \
     $$PWD/seccurved.h \
     $$PWD/secforced.h \
