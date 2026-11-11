@@ -180,9 +180,15 @@ private slots:
 
     void on_actionExport_triggered();
 
+    void measureChosen();
+    void findingsToggled(bool on);
+
 private:
     Ui::MainWindow *ui;
     void useShader(int shader);
+    void buildMeasureMenu();
+    QList<QAction*> mMeasureActions;
+    QAction* mShowFindingsAction;
     bool areYouSure();
 
     bool phantomChanges;

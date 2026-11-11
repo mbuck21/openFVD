@@ -79,7 +79,10 @@ public:
     // batch mode (ui/batchrunner.cpp): set up OpenGL without showing the window
     void initializeWithoutShowing();
 
-    int curTrackShader;
+    int curTrackShader;             // 0 nothing, 1 to 5 the fixed ramps, 6 by measure (curMeasureId)
+    QString curMeasureId;           // the measure mode 6 colours by (core/measure.h)
+    bool showFindings;              // tint the stretches that have findings (core/finding.h)
+    void refreshTrackColours();     // recolour every track's mesh after a change of the above
     bool povMode;
     mnode* povNode;
     bool paintMode;
