@@ -70,6 +70,7 @@ class conversionPanel;
 class graphWidget;
 class trackHandler;
 class objectExporter;
+class rideSheet;
 
 namespace Ui {
 class MainWindow;
@@ -108,6 +109,10 @@ public:
     void loadProject(QString fileName);
 
     void updateProjectWidget();
+
+    // the ride sheet panel (ui/ridesheet.*): a track announced a change
+    void rideSheetChanged(track* t);
+    rideSheet* mRideSheet;
 
     void keyPressed(QEvent *event);
     void keyReleased(QEvent *event);
@@ -182,6 +187,8 @@ private slots:
 
     void measureChosen();
     void findingsToggled(bool on);
+    void rideSheetToggled(bool on);
+    void rideSheetSelectionChanged();
 
 private:
     Ui::MainWindow *ui;
@@ -189,6 +196,8 @@ private:
     void buildMeasureMenu();
     QList<QAction*> mMeasureActions;
     QAction* mShowFindingsAction;
+    QAction* mRideSheetAction;
+    track* ridePanelTrack();
     bool areYouSure();
 
     bool phantomChanges;

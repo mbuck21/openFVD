@@ -36,6 +36,8 @@
 #include <QCloseEvent>
 #include "objectexporter.h"
 #include "measure.h"
+#include "ridesheet.h"
+#include <QTreeWidget>
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -67,6 +69,12 @@ MainWindow::MainWindow(QWidget *parent) :
     glView->setFocusPolicy(Qt::StrongFocus);
     ui->splitter->addWidget(glView);
 
+    // the ride sheet: a third pane at the right of the 3D view
+    mRideSheetAction = NULL;
+    mRideSheet = new rideSheet(ui->splitter);
+    ui->splitter->addWidget(mRideSheet);
+    ui->splitter->setStretchFactor(ui->splitter->indexOf(mRideSheet), 0);
+
     // set up all sub widgets etc
     project = ui->projectTab;
     currentFileName.clear();
@@ -91,6 +99,18 @@ MainWindow::MainWindow(QWidget *parent) :
         delete ui->menuView;
     } else {
         buildMeasureMenu();
+        ui->menuView->addSeparator();
+        mRideSheetAction = ui->menuView->addAction(tr("Ride sheet"));
+        mRideSheetAction->setObjectName("actionRideSheet");
+        mRideSheetAction->setCheckable(true);
+        mRideSheetAction->setChecked(true);
+        mRideSheetAction->setStatusTip(tr("Show the key numbers of the ride beside the 3D view"));
+        connect(mRideSheetAction, SIGNAL(toggled(bool)), this, SLOT(rideSheetToggled(bool)));
+    }
+    connect(ui->tabChooser, SIGNAL(currentChanged(int)), this, SLOT(rideSheetSelectionChanged()));
+    QTreeWidget* trackListWidget = ui->projectTab->findChild<QTreeWidget*>("trackListWidget");
+    if(trackListWidget != NULL) {
+        connect(trackListWidget, SIGNAL(itemSelectionChanged()), this, SLOT(rideSheetSelectionChanged()));
     }
 
     phantomChanges = false;
@@ -512,6 +532,36 @@ void MainWindow::findingsToggled(bool on)
 {
     glView->showFindings = on;
     glView->refreshTrackColours();
+}
+
+void MainWindow::rideSheetToggled(bool on)
+{
+    mRideSheet->setVisible(on);
+}
+
+// The track the ride sheet shows: the current tab's track, or on the project
+// tab the track selected in the list.
+track* MainWindow::ridePanelTrack()
+{
+    if(ui->tabChooser->currentIndex() == 0) {
+        if(ui->projectTab->selTrack) {
+            return ui->projectTab->selTrack->trackData;
+        }
+        return NULL;
+    }
+    return curTrack();
+}
+
+void MainWindow::rideSheetSelectionChanged()
+{
+    mRideSheet->setTrack(ridePanelTrack());
+}
+
+void MainWindow::rideSheetChanged(track* t)
+{
+    if(mRideSheet != NULL && t != NULL && t == ridePanelTrack()) {
+        mRideSheet->setTrack(t);
+    }
 }
 
 void MainWindow::showCurInfoPanel()
