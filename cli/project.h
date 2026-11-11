@@ -22,6 +22,7 @@
 
 #include "../core/track.h"
 #include "../core/projectfile.h"
+#include "../core/ridesummary.h"
 
 #include <QList>
 #include <QMap>
@@ -62,20 +63,8 @@ bool loadProject(const QString& file, coreProject& project, QString& error, QStr
 // error text when the project has no such track.
 track* trackByNumber(coreProject& project, int number, QString& error);
 
-// Where a track's nodes are in the world, copied from MainWindow::updateInfoPanel
-// (ui/mainwindow.cpp): translate(startPos) * rotateY(startYaw - 90 degrees).
-// With world false everything passes through unchanged (the anchor frame).
-struct placement
-{
-    placement(const track* t, bool world);
-    glm::vec3 point(const glm::vec3& p) const;      // a position
-    glm::vec3 direction(const glm::vec3& d) const;  // a direction (no shift)
-    float heading(float rawHeading) const;          // getDirection() + startYaw
-
-    bool bWorld;
-    glm::mat4 base;
-    float fYaw;
-};
+// `placement` (where a track's nodes are in the world) lives in
+// core/ridesummary.h, shared with the ride sheet.
 
 // Sorts args into plain words (positional), option flags that take no value
 // (flags) and options that take one (values). Returns false and sets error on

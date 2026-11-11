@@ -21,6 +21,8 @@
 #include "track.h"
 #include "smoothhandler.h"
 #include "exportfuncs.h"
+#include "function.h"
+#include "subfunction.h"
 
 #include <QSet>
 #include <cstring>
@@ -87,6 +89,62 @@ QByteArray shareFromList(const QByteArray& fresh, const QList<QByteArray>* old, 
     if(i < old->size() && old->at(i) == fresh) return old->at(i);
     if(shift != 0 && i+shift >= 0 && i+shift < old->size() && old->at(i+shift) == fresh) return old->at(i+shift);
     return fresh;
+}
+
+// The transition functions a section saves, in the order its saveSection()
+// writes them; they are the last bytes of the section. A Bezier section has
+// none; a NoLimits CSV section has a roll function but does not save it.
+QList<func*> savedFunctions(section* sec)
+{
+    QList<func*> funcs;
+    if(sec->type == straight || sec->type == curved) {
+        funcs << sec->rollFunc;
+    } else if(sec->type == forced || sec->type == geometric) {
+        funcs << sec->rollFunc << sec->normForce << sec->latForce;
+    }
+    return funcs;
+}
+
+// Writes every saved field of every transition piece of sec as it is in the
+// section's saved bytes, read straight into the pieces with no arithmetic.
+//
+// Why a restore does not trust the load path for this: func::loadFunction()
+// appends each further piece with appendSubFunction(), whose closing loop
+// recomputes the end of every piece after the first as
+// (prev->maxArgument + cur->maxArgument) - cur->minArgument. In single
+// precision that is not always cur->maxArgument, even when cur->minArgument
+// equals prev->maxArgument. Example: a piece from 4.9999986 (0x409FFFFD) to
+// 5.999999 (0x40BFFFFE) comes out ending at 5.9999995 (0x40BFFFFF), one last
+// digit up, and the piece after it (read afterwards, as saved) still starts
+// at 5.999999. A file load keeps doing exactly that (the comparison with the
+// 2016 binary depends on it); a restore must give back the model as it was.
+void putTransitionsBack(section* sec, const QByteArray& bytes)
+{
+    QList<func*> funcs = savedFunctions(sec);
+    if(funcs.isEmpty()) return;
+
+    // how many bytes the functions take (their size does not depend on the values)
+    int size = 0;
+    for(int f = 0; f < funcs.size(); ++f) {
+        byteStream out;
+        funcs[f]->saveFunction(out.stream());
+        size += out.bytes().size();
+    }
+    lenAssert(size <= bytes.size());
+    if(size > bytes.size()) return;
+
+    byteStream in(bytes.right(size));
+    std::iostream& file = in.stream();
+    for(int f = 0; f < funcs.size(); ++f) {
+        func* fn = funcs[f];
+        std::string tag = readString(&file, 4);
+        int count = readInt(&file);
+        lenAssert(tag == "FUNC" && count == fn->funcList.size());
+        if(tag != "FUNC" || count != fn->funcList.size()) return;
+        for(int p = 0; p < count; ++p) {
+            fn->funcList[p]->loadSubFunc(file);   // the std::iostream overload: reads only
+        }
+    }
 }
 
 // Silences a track's listener while it lives (the windows are not told about
@@ -216,8 +274,22 @@ trackState captureTrackState(track* t, const trackState* previous)
 // (smoothHandler::loadSmooth() ends in update(), which takes an entry's name
 // and node range from the track; readProject() switches bAutoSmooth on and
 // applies the smoothing again). A restore reads the saved bytes with the same
-// code a load uses, then puts the live values and the smoothing entries'
-// saved fields back as they were captured.
+// code a load uses, then puts the live values, the transition pieces and the
+// smoothing entries' saved fields back as they were captured.
+//
+// What the recompute (updateTrack(0, 0)) then does to the saved fields:
+// - a piece's start value (and a "to zero" piece's change) is set again from
+//   the section's start node and the piece before, as every recompute does;
+// - a straight's length, a curve's angle and a force or geometric section's
+//   iTime are set again from the last piece's end, which is as captured;
+// - a locked piece is stretched (subfunc::getValue() calls changeLength()) to
+//   min + (section end - min), from values that are as captured, so to what
+//   the last recompute before the capture gave; pieces after a locked one go
+//   through the same sum as above, but every recompute runs it at each node,
+//   so a captured state is already where it settles;
+// - nothing calls setMaxArgument(); the curve's constructor and the force
+//   section's changeLength(1, 0) run before the load overwrites the pieces.
+// So a state captured after a recompute comes back with the same saved bytes.
 void restoreTrackState(track* t, const trackState& state)
 {
     lenAssert(!state.isNull());
@@ -279,6 +351,9 @@ void restoreTrackState(track* t, const trackState& state)
             } else if(sec->type == nolimitscsv) {
                 sec->sName = state.unsavedNames[i];
             }
+            // The transition pieces exactly as captured: the load above can
+            // move a piece's end by one last digit (putTransitionsBack()).
+            putTransitionsBack(sec, state.sections[i]);
         }
 
         if(!t->lSections.isEmpty()) {

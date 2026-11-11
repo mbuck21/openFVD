@@ -35,6 +35,9 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include "objectexporter.h"
+#include "measure.h"
+#include "ridesheet.h"
+#include <QTreeWidget>
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -45,6 +48,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     gloParent = this;
     project = NULL;
+    mRideSheet = NULL;      // the options (created next) may tell the ride sheet before it exists
 
     // load options
     mOptions = new optionsMenu(this);
@@ -65,6 +69,12 @@ MainWindow::MainWindow(QWidget *parent) :
     glView->setMouseTracking(true);
     glView->setFocusPolicy(Qt::StrongFocus);
     ui->splitter->addWidget(glView);
+
+    // the ride sheet: a third pane at the right of the 3D view
+    mRideSheetAction = NULL;
+    mRideSheet = new rideSheet(ui->splitter);
+    ui->splitter->addWidget(mRideSheet);
+    ui->splitter->setStretchFactor(ui->splitter->indexOf(mRideSheet), 0);
 
     // set up all sub widgets etc
     project = ui->projectTab;
@@ -88,6 +98,20 @@ MainWindow::MainWindow(QWidget *parent) :
     }
     if(glView->legacyMode) {
         delete ui->menuView;
+    } else {
+        buildMeasureMenu();
+        ui->menuView->addSeparator();
+        mRideSheetAction = ui->menuView->addAction(tr("Ride sheet"));
+        mRideSheetAction->setObjectName("actionRideSheet");
+        mRideSheetAction->setCheckable(true);
+        mRideSheetAction->setChecked(true);
+        mRideSheetAction->setStatusTip(tr("Show the key numbers of the ride beside the 3D view"));
+        connect(mRideSheetAction, SIGNAL(toggled(bool)), this, SLOT(rideSheetToggled(bool)));
+    }
+    connect(ui->tabChooser, SIGNAL(currentChanged(int)), this, SLOT(rideSheetSelectionChanged()));
+    QTreeWidget* trackListWidget = ui->projectTab->findChild<QTreeWidget*>("trackListWidget");
+    if(trackListWidget != NULL) {
+        connect(trackListWidget, SIGNAL(itemSelectionChanged()), this, SLOT(rideSheetSelectionChanged()));
     }
 
     phantomChanges = false;
@@ -456,6 +480,105 @@ void MainWindow::useShader(int shader)
         ui->actionUseShader4->setChecked(false);
         ui->actionUseShader5->setChecked(true);
         break;
+    }
+    // the old modes and "by measure" exclude each other
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(false);
+    }
+}
+
+// The "Colour by measure" submenu and "Show findings" in the Visualize menu, made
+// from the registry so a new measure shows up without a change here.
+void MainWindow::buildMeasureMenu()
+{
+    ui->menuView->addSeparator();
+    QMenu* sub = ui->menuView->addMenu(tr("Colour by measure"));
+    const QVector<measureDef>& defs = measureRegistry::all();
+    for(int i = 0; i < defs.size(); ++i) {
+        QString text = defs[i].name;
+        if(!defs[i].unit.isEmpty()) text += " (" + defs[i].unit + ")";
+        QAction* a = sub->addAction(text);
+        a->setObjectName("actionMeasure_" + defs[i].id);
+        a->setCheckable(true);
+        a->setStatusTip(defs[i].description);
+        a->setData(defs[i].id);
+        connect(a, SIGNAL(triggered()), this, SLOT(measureChosen()));
+        mMeasureActions.append(a);
+    }
+    mShowFindingsAction = ui->menuView->addAction(tr("Show findings"));
+    mShowFindingsAction->setObjectName("actionShowFindings");
+    mShowFindingsAction->setCheckable(true);
+    mShowFindingsAction->setStatusTip(tr("Tint the stretches of track where a check finds a problem"));
+    connect(mShowFindingsAction, SIGNAL(toggled(bool)), this, SLOT(findingsToggled(bool)));
+}
+
+void MainWindow::measureChosen()
+{
+    QAction* chosen = qobject_cast<QAction*>(sender());
+    if(chosen == NULL) return;
+    const measureDef* def = measureRegistry::find(chosen->data().toString());
+    if(def == NULL) return;
+
+    ui->actionUseShader0->setChecked(false);
+    ui->actionUseShader1->setChecked(false);
+    ui->actionUseShader2->setChecked(false);
+    ui->actionUseShader3->setChecked(false);
+    ui->actionUseShader4->setChecked(false);
+    ui->actionUseShader5->setChecked(false);
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(mMeasureActions[i] == chosen);
+    }
+
+    glView->curMeasureId = def->id;
+    glView->curTrackShader = 6;
+    glView->refreshTrackColours();
+
+    // the legend: what the ramp from blue to red stands for
+    showMessage(tr("%1: blue = %2, red = %3 %4 (magenta: not a number)")
+                .arg(def->name).arg(def->displayMin).arg(def->displayMax).arg(def->unit));
+}
+
+void MainWindow::findingsToggled(bool on)
+{
+    glView->showFindings = on;
+    glView->refreshTrackColours();
+}
+
+void MainWindow::rideSheetToggled(bool on)
+{
+    mRideSheet->setVisible(on);
+}
+
+// The track the ride sheet shows: the current tab's track, or on the project
+// tab the track selected in the list.
+track* MainWindow::ridePanelTrack()
+{
+    if(ui->tabChooser->currentIndex() == 0) {
+        if(ui->projectTab->selTrack) {
+            return ui->projectTab->selTrack->trackData;
+        }
+        return NULL;
+    }
+    return curTrack();
+}
+
+void MainWindow::rideSheetSelectionChanged()
+{
+    mRideSheet->setTrack(ridePanelTrack());
+}
+
+void MainWindow::rideSheetChanged(track* t)
+{
+    if(mRideSheet != NULL) {
+        mRideSheet->trackChanged(t);    // marks the sheet out of date if t is the track it shows
+    }
+}
+
+// The unit setting changed: nothing pushes that, so the options dialog calls this.
+void MainWindow::rideSheetUnitsChanged()
+{
+    if(mRideSheet != NULL) {
+        mRideSheet->setTrack(ridePanelTrack());
     }
 }
 

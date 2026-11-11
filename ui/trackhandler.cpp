@@ -91,9 +91,9 @@ int trackHandler::getID()
 
 void trackHandler::trackGeometryChanged(track* which, int fromNode)
 {
-    Q_UNUSED(which);
     if(mMesh != NULL)
         mMesh->buildMeshes(fromNode);
+    gloParent->rideSheetChanged(which);
 }
 
 void trackHandler::trackStatusMessage(const QString& text, int timeoutMs)
@@ -115,9 +115,9 @@ void trackHandler::trackSectionAdded(track* which, int index)
 
 void trackHandler::trackLoaded(track* which)
 {
-    Q_UNUSED(which);
     trackWidgetItem->clearSelection();
     trackWidgetItem->setNames();
+    gloParent->rideSheetChanged(which);
 }
 
 // A restore (core/trackstate.h) deletes every section, transition and

@@ -24,6 +24,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 - **`exportUi`** (`exportui.*`): the export dialog; calls `core/elementfile.*`.
 - **`TrackProperties`**, **`optionsMenu`**, **`importUi`**, **`conversionPanel`**, **`objectExporter`**: the other dialogs.
 - **`undoAction`, `undoHandler`** (`undoaction.*`, `undohandler.*`): a track's undo list; window code until Stage 2 (`docs/decisions/0009-undo-stays-window-code-until-the-command-list.md`).
+- **`rideSheet`** (`ridesheet.*`): the ride sheet panel, the third pane of `MainWindow`'s splitter (Visualize > Ride sheet shows and hides it). It shows the numbers of `core/ridesummary` for the current track and holds only a `track*`, never a pointer into its sections or nodes. It refreshes 150 ms after the last notice from `trackHandler` (`MainWindow::rideSheetChanged()`), and when the tab, the selected track or the unit option changes. No ride maths belongs in it.
 - **`batchRunner`** (`batchrunner.*`) and **`batchDriver`** (`batchscenarios.*`): the `--batch-...` commands (`docs/testing.md`).
 
 ## Where a change lands
@@ -38,6 +39,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 | Import | `projectwidget.*` (`importNLTrack()` and the other import entries), `importui.*`; the reading is `core/nolimitsimporter.*` |
 | Dialog for options | `optionsmenu.*` and `.ui`; saved in `options.cfg` |
 | A new notice from the model | `core/tracklistener.h`, then the implementation in `trackhandler.*` |
+| New number on the ride sheet | `core/ridesummary.*` first, then a row in `ridesheet.*` (`addRow()`, `refreshNow()`) |
 | New batch scenario | `batchscenarios.*`, called from `batchrunner.*` |
 
 ## Traps

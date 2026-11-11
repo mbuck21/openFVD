@@ -21,7 +21,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` (the "Render" flow)
 
 | Change | Open |
 |---|---|
-| How a track looks (colouring by speed, force and so on) | `shaders/track.frag`; uniforms in `glViewWidget::drawTrack()`; per-vertex values in `trackMesh::appendTrackNode()`; the switch in `MainWindow::useShader()` and the Visualize menu in `ui/mainwindow.ui` |
+| How a track looks (colouring by speed, force and so on) | `shaders/track.vert` (the ramps; `track.frag` only lights the colour); uniforms in `glViewWidget::drawTrack()`; per-vertex values in `trackMesh::appendTrackNode()` and, for "by measure" and findings, `trackMesh::updateMeasureValues()`; the switch in `MainWindow::useShader()`, `buildMeasureMenu()` and the Visualize menu in `ui/mainwindow.ui` |
 | Rail cross-section | `enum trackStyle` (`core/track.h`) and the pipe options in `trackMesh::buildMeshes()` |
 | Camera, controls | `glViewWidget::moveCamera()`, `keyPressEvent()`, `mousePressEvent()` |
 | Sky, floor, shadows | the `draw...` functions in `glviewwidget.cpp` and the matching pair in `shaders/` |

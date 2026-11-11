@@ -27,9 +27,11 @@
 // state before; names with "é" survive; a listener sees the two notices and
 // nothing between them. The point-list import is checked for its state only
 // (it leaves values unset). Prints the time of one capture and one restore
-// of the largest baseline project.
+// of the largest baseline project. A restore is exact to the last bit on
+// transitions whose ends a file load moves by one last digit (built through
+// the model on a baseline force section).
 //
-//   trackstate <repository folder>
+//   trackstate <repository folder> [<folder of further .fvd projects>]
 
 #include "../../core/track.h"
 #include "../../core/trackstate.h"
@@ -37,6 +39,7 @@
 #include "../../core/elementfile.h"
 #include "../../core/nolimitsimporter.h"
 #include "../../core/smoothhandler.h"
+#include "../../core/exportfuncs.h"
 #include "../../lenassert.h"
 
 #include <QCoreApplication>
@@ -708,6 +711,223 @@ static void checkSharingAcrossAppend(const QString& repo)
     check(b.bytesNotSharedWith(a) < b.byteSize(), QString("four-sections: the new state costs %1 of its %2 bytes").arg(b.bytesNotSharedWith(a)).arg(b.byteSize()));
 }
 
+// ---- a restore is exact to the last bit -----------------------------------
+//
+// A file load appends each further transition piece with
+// func::appendSubFunction(), which recomputes the end of every piece after the
+// first as (prev end + this end) - this start. In single precision that is
+// not always this end: from 4.9999986 (0x409FFFFD) to 5.999999 (0x40BFFFFE)
+// it gives 5.9999995 (0x40BFFFFF). A file load keeps doing that; a restore
+// must give the model back as it was. These cases are built through the
+// model, so they do not depend on a project that happens to hit it.
+
+static float fromBits(quint32 b) { float f; memcpy(&f, &b, sizeof(f)); return f; }
+static quint32 bitsOf(float f) { quint32 b; memcpy(&b, &f, sizeof(b)); return b; }
+
+// What appendSubFunction() makes of a piece from a to b: (a + b) - a, in
+// single precision (volatile, so the compiler neither folds nor widens it).
+static float endAfterAppend(float a, float b)
+{
+    volatile float sum = a + b;
+    volatile float end = sum - a;
+    return end;
+}
+
+// Gives fn the pieces (0, ends[0]), (ends[0], ends[1]), ...: pieces are added
+// or removed as the transition panel does, then each start and end is set
+// directly, so they are exactly the floats given.
+static void setPieces(func* fn, const QList<float>& ends)
+{
+    while(fn->funcList.size() < ends.size()) fn->appendSubFunction(1.f, fn->funcList.size()-1);
+    while(fn->funcList.size() > ends.size()) fn->removeSubFunction(fn->funcList.size()-1);
+    float start = 0.f;
+    for(int p = 0; p < ends.size(); ++p) {
+        fn->funcList[p]->minArgument = start;
+        fn->funcList[p]->maxArgument = ends[p];
+        start = ends[p];
+    }
+}
+
+static QString hexOf(float f) { return QString("%1 (0x%2)").arg(f, 0, 'g', 9).arg(bitsOf(f), 8, 16, QChar('0')); }
+
+// The pieces of fn match ends bit for bit, each starting where the one before ends.
+static bool piecesAre(func* fn, const QList<float>& ends, QString* got)
+{
+    bool ok = fn->funcList.size() == ends.size();
+    QStringList out;
+    float start = 0.f;
+    for(int p = 0; p < fn->funcList.size(); ++p) {
+        subfunc* s = fn->funcList[p];
+        if(p < ends.size() && (bitsOf(s->maxArgument) != bitsOf(ends[p]) || bitsOf(s->minArgument) != bitsOf(start))) ok = false;
+        out << QString("%1..%2").arg(hexOf(s->minArgument)).arg(hexOf(s->maxArgument));
+        if(p < ends.size()) start = ends[p];
+    }
+    *got = out.join(", ");
+    return ok;
+}
+
+// One case on the force section s of t: the ends on all three functions of
+// the section (the normal force's pieces with changes, so they shape the
+// track), recomputed; then capture, restore, capture; a file load of the
+// same bytes (which must still move the awkward end, as it always did); an
+// edit, restoring A and then B. awkward is the index of the piece whose end a
+// load moves; lockLast locks the last normal-force piece (stretched to the
+// section's end on every recompute).
+static void checkExactCase(track* t, int s, const QList<float>& ends, int awkward, bool lockLast, const QString& label)
+{
+    section* sec = t->lSections[s];
+    QList<func*> funcs;
+    funcs << sec->rollFunc << sec->normForce << sec->latForce;
+    for(int f = 0; f < funcs.size(); ++f) {
+        while(funcs[f]->lockedFunc() != -1) funcs[f]->unlock(funcs[f]->lockedFunc());
+        setPieces(funcs[f], ends);
+    }
+    for(int p = 0; p < sec->normForce->funcList.size(); ++p) {
+        sec->normForce->funcList[p]->symArg = (p % 2 == 0) ? 0.1f : -0.1f;
+    }
+    if(lockLast) sec->normForce->lock(sec->normForce->funcList.size()-1);
+    t->updateTrack(0, 0);
+
+    QList<float> normEnds = ends;
+    if(lockLast) normEnds.last() = sec->normForce->funcList.last()->maxArgument;   // as the recompute stretched it
+
+    trackState a = captureTrackState(t);
+    QString got;
+    check(piecesAre(sec->rollFunc, ends, &got) && piecesAre(sec->normForce, normEnds, &got),
+          label + ": the model holds the ends as set (" + got + ")");
+    t->updateTrack(0, 0);
+    check(captureTrackState(t) == a, label + ": one more full recompute changes nothing in the state");
+
+    restoreTrackState(t, a);
+    trackState r = captureTrackState(t);
+    sec = t->lSections[s];
+    bool ok = piecesAre(sec->rollFunc, ends, &got) && piecesAre(sec->normForce, normEnds, &got) && piecesAre(sec->latForce, ends, &got);
+    check(ok, label + ": restored, every piece's start and end as captured, bit for bit (" + got + ")");
+    check(r == a && r.savedBytes() == a.savedBytes() && fileSavedBytes(t) == a.savedBytes(),
+          label + ": capture, restore, capture: equal states and equal saved bytes (" + stateDiff(a, r) + ")");
+
+    // A file load of the same bytes still moves the end as it always did.
+    {
+        testProject p;
+        track* l = p.projectNewTrack();
+        QByteArray bytes = a.savedBytes();
+        std::stringbuf buf(std::string(bytes.constData(), bytes.size()), ios::in | ios::binary);
+        std::iostream io(&buf);
+        std::string tag = readString(&io, 3);
+        l->loadTrack(io);
+
+        // func::loadFunction() step by step: each further piece is appended
+        // (the loop over every piece after the first), then read as saved.
+        QList<float> lo, hi;
+        lo << 0.f;
+        hi << ends[0];
+        for(int i = 1; i < ends.size(); ++i) {
+            lo << hi[i-1];
+            hi << hi[i-1] + 1.f;
+            for(int k = 1; k <= i; ++k) {
+                volatile float sum = hi[k-1] + hi[k];
+                volatile float end = sum - lo[k];
+                lo[k] = hi[k-1];
+                hi[k] = end;
+            }
+            lo[i] = ends[i-1];
+            hi[i] = ends[i];
+        }
+        func* fn = l->lSections[s]->rollFunc;
+        bool asBefore = tag == "TRC" && fn->funcList.size() == ends.size();
+        bool moved = false;
+        for(int k = 0; asBefore && k < ends.size(); ++k) {
+            if(bitsOf(fn->funcList[k]->maxArgument) != bitsOf(hi[k]) || bitsOf(fn->funcList[k]->minArgument) != bitsOf(lo[k])) asBefore = false;
+            if(bitsOf(hi[k]) != bitsOf(ends[k])) moved = true;
+        }
+        float loaded = asBefore ? fn->funcList[awkward]->maxArgument : 0.f;
+        check(asBefore && moved,
+              label + ": a file load of those bytes still moves the ends as the original program does (piece "
+              + QString::number(awkward+1) + " ends at " + hexOf(loaded) + ", saved " + hexOf(ends[awkward]) + ")");
+    }
+
+    // an edit (the first normal-force piece's change), then A and B
+    subfunc* f = sec->normForce->funcList[0];
+    f->symArg = f->symArg + 0.05f;
+    f->parent->translateValues(f);
+    t->updateTrack(sec, (int)(f->minArgument*F_HZ-1.5f));
+    t->updateTrack(0, 0);
+    trackState b = captureTrackState(t, &a);
+    check(b != a, label + ": the edit changes the state");
+    restoreTrackState(t, a);
+    trackState ra = captureTrackState(t);
+    check(ra == a && ra.savedBytes() == a.savedBytes(), label + ": after an edit, restoring A gives A (" + stateDiff(a, ra) + ")");
+    restoreTrackState(t, b);
+    trackState rb = captureTrackState(t);
+    check(rb == b && rb.savedBytes() == b.savedBytes(), label + ": then restoring B gives B (" + stateDiff(b, rb) + ")");
+    restoreTrackState(t, a);
+    check(captureTrackState(t) == a, label + ": and A again");
+}
+
+// Pairs (a, b), a < b, with (a + b) - a != b in single precision; a
+// deterministic search, so the same pairs every run.
+static QList<QPair<float, float> > findAwkwardPairs(int wanted)
+{
+    QList<QPair<float, float> > pairs;
+    quint32 seed = 12345u;
+    const quint32 lo = bitsOf(1.f), hi = bitsOf(6.f);
+    for(int tries = 0; tries < 100000 && pairs.size() < wanted; ++tries) {
+        seed = seed*1664525u + 1013904223u;
+        float a = fromBits(lo + seed % (hi - lo));
+        seed = seed*1664525u + 1013904223u;
+        float d = 0.25f + (seed >> 8)*(3.f/16777216.f);
+        float b = a + d;
+        if(b > a && bitsOf(endAfterAppend(a, b)) != bitsOf(b)) pairs.append(qMakePair(a, b));
+    }
+    return pairs;
+}
+
+static void checkExactRestore(const QStringList& projects)
+{
+    // the example: 4.9999986 to 5.999999 comes out of a load as 5.9999995
+    const float a = fromBits(0x409FFFFDu), b = fromBits(0x40BFFFFEu);
+    check(bitsOf(endAfterAppend(a, b)) == 0x40BFFFFFu && bitsOf(endAfterAppend(a, endAfterAppend(a, b))) == 0x40BFFFFFu,
+          "single precision: (a + b) - a from " + hexOf(a) + " to " + hexOf(b) + " is " + hexOf(endAfterAppend(a, b)) + ", and stays there on a second pass");
+
+    // the first track of the repository's projects with a force section and no roll smoothing
+    for(int i = 0; i < projects.size(); ++i) {
+        testProject project;
+        loadProjectFile(projects[i], &project);
+        for(int j = 0; j < project.tracks.size(); ++j) {
+            track* t = project.tracks[j];
+            if(t->smoothingActive()) continue;
+            int s = -1;
+            for(int k = 0; k < t->lSections.size() && s < 0; ++k) {
+                if(t->lSections[k]->type == forced) s = k;
+            }
+            if(s < 0) continue;
+
+            // The force section is made the last one: with these made-up
+            // transitions a section after it can start from a node where its
+            // own start values are not numbers (a geometric section's pitch
+            // change, which the model reports and copes with).
+            while(t->lSections.size() > s+1) t->removeSection(t->lSections.size()-1);
+            QString where = QString("%1 track %2 section %3 (made the last)").arg(QFileInfo(projects[i]).fileName()).arg(j+1).arg(s+1);
+            QList<float> ends;
+            ends << 1.5f << a << b << 7.0f;
+            checkExactCase(t, s, ends, 2, false, "exact restore, " + where + ", ends 1.5, 4.9999986, 5.999999, 7");
+            ends.last() = 6.5f;
+            checkExactCase(t, s, ends, 2, true, "exact restore, " + where + ", last normal-force piece locked");
+
+            QList<QPair<float, float> > pairs = findAwkwardPairs(4);
+            check(pairs.size() == 4, QString("search: found %1 more pairs with (a + b) - a != b").arg(pairs.size()));
+            for(int k = 0; k < pairs.size(); ++k) {
+                QList<float> e;
+                e << pairs[k].first*0.5f << pairs[k].first << pairs[k].second << pairs[k].second + 1.f << pairs[k].second + 2.f;
+                checkExactCase(t, s, e, 2, false, QString("exact restore, %1, found pair %2: %3 to %4").arg(where).arg(k+1)
+                               .arg(hexOf(pairs[k].first)).arg(hexOf(pairs[k].second)));
+            }
+            return;
+        }
+    }
+    check(false, "exact restore: a baseline track with a force section and no roll smoothing");
+}
+
 static void timeLargest(const QStringList& projects)
 {
     QString largest;
@@ -750,7 +970,7 @@ int main(int argc, char *argv[])
     setvbuf(stdout, NULL, _IONBF, 0);   // a line reaches the log even if a later check never returns
 
     if(argc < 2) {
-        fprintf(stderr, "usage: trackstate <repository folder>\n");
+        fprintf(stderr, "usage: trackstate <repository folder> [<folder of further .fvd projects>]\n");
         return 1;
     }
     QString repo = QString::fromLocal8Bit(argv[1]);
@@ -787,7 +1007,19 @@ int main(int argc, char *argv[])
     checkStaleFirstNode(repo);
     checkAccents(repo);
     checkSharingAcrossAppend(repo);
+    checkExactRestore(projects);
     timeLargest(projects);
+
+    // optional: a folder of further projects, each run through the same
+    // capture and restore battery as the baseline projects
+    if(argc >= 3) {
+        QDir extra(QString::fromLocal8Bit(argv[2]));
+        QStringList extraNames = extra.entryList(QStringList() << "*.fvd", QDir::Files, QDir::Name);
+        check(extra.exists() && !extraNames.isEmpty(), QString("%1 projects found in %2").arg(extraNames.size()).arg(extra.path()));
+        for(int i = 0; i < extraNames.size(); ++i) {
+            checkProject(extra.filePath(extraNames[i]));
+        }
+    }
 
     printf("%d checks, %d failed\n", checkCount, failCount);
     printf("%s\n", allOk ? "PASS" : "FAIL");
