@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. **Stage 1 is finished** (2026-11-10, integration branch `claude/stage-1`, pull request #17; summary below). Stage 2 is next and not started. It says what has to come before what, and what can run side by side.
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's feature list in `docs/feature-requests.md`. **Stage 1 is finished and merged into `master`** (2026-11-10, pull request #17; summary below). Stage 2 is next and not started; it waits for the owner's word. It says what has to come before what, and what can run side by side.
 
 Rewrite a stage's section when its plan changes; move a finished stage to a one-line summary at the top. Each stage runs on its own integration branch (decision record 0004).
 

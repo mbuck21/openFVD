@@ -4,11 +4,11 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-10, written by the lead session at the end of Stage 1, on the integration branch `claude/stage-1` (pull request #17 into `master`).
+2026-11-10, written by the lead session at the end of Stage 1. Stage 1 was merged into `master` that evening at the owner's word (pull request #17, merge commit 365892c).
 
 ## Focus
 
-- **Stage 1 of the roadmap is finished on its branch and waits for the owner to merge it.** It delivers: a safety net that runs in one command, the model separated from the windows, the research behind the planned features, a train catalogue with a picker for the heartline, and a rebuilt program that matches the 2016 release exactly on every project tested, the owner's own included.
+- **Stage 1 of the roadmap is finished and in `master`.** It delivers: a safety net that runs in one command, the model separated from the windows, the research behind the planned features, a train catalogue with a picker for the heartline, and a rebuilt program that matches the 2016 release exactly on every project tested, the owner's own included.
 - **Stage 2 is next and not started:** the command-line front end on the window-less core (F2), the project as text (F3), the analysis framework (A1), the command list that replaces undo (T1), and the experiments for parametric elements on the real core (E1). `docs/roadmap.md` has the order.
 
 ## Milestone now
@@ -32,7 +32,8 @@ Open issues:
 
 ## Waiting on the owner
 
-- **Merge pull request #17,** or tell a session to. Before or after, at his convenience: try the "Train type" list in Track Properties (File, Load a project; select the track; Properties).
+- **The word to start Stage 2,** and which of its pieces first if he has a preference (`docs/roadmap.md`, Stage 2).
+- **Try the "Train type" list** in Track Properties (File, Load a project; select the track; Properties), at his convenience.
 - **Read the questions at the end of `docs/research/r5-fvd-workflow.md` and `docs/research/r6-parametric-elements.md`.** They decide what the main-goal work of Stages 3 and 4 is: the ranking of the directions (pinned points with a slack piece, the goal-seeking solver, and the others), whether re-solving happens on a button or live, which numbers define the first parametric element, and whether a file with elements must still open in the 2016 program.
 - **A larger finished layout,** if he finds one, as a test track. `TheDays.fvd` is in use, kept out of the repository in `samples/private/`.
 - **Later, when the force check is built (Stage 3):** whether to buy ASTM F2291 (about US$121) and transcribe twelve uncertain numbers himself; the standard's seller prohibits giving it to an AI (`docs/research/r3-force-limits.md`).
@@ -40,7 +41,7 @@ Open issues:
 
 ## Verified
 
-- 2026-11-10, on `claude/stage-1` built from an empty `build` folder with MSYS2 UCRT64 (GCC 16.2, Qt 5.15.19, glm 1.0.3):
+- 2026-11-10, on the last commit of `claude/stage-1` (fdff428; `master` after the merge is file for file the same), built from an empty `build` folder with MSYS2 UCRT64 (GCC 16.2, Qt 5.15.19, glm 1.0.3):
   - `run-baseline.py --undo-check --fixtures --imports --extra samples/private`: 54 comparisons MATCH with no tolerance, UNDO OK on eight projects, PASS. The owner's project matches the 2016 binary's three exports and re-saved project exactly.
   - `run-baseline.py --core --extra samples/private`: 39 comparisons MATCH, PASS. `fvdcore` loads only Qt5Core and Qt5Gui.
   - `tools\run-tests.cmd`: `check-core` and three tests, PASS.
