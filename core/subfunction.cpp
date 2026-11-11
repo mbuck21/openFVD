@@ -57,6 +57,7 @@ subfunc::subfunc(float min, float max, float start, float diff, func* getparent)
     centerArg = 0.f;
     tensionArg = 0.f;
     symArg = diff;
+    arg1 = 0.f;     // a cubic transition does not set it, and it is saved (issue 31)
 
     startValue = start;
     parent = getparent;

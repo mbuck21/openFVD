@@ -1111,34 +1111,12 @@ const eFunctype FORCE_ORDER[] = { funcNormal, funcRoll, funcLateral };
 const eFunctype GEO_ORDER[] = { funcYaw, funcPitch, funcRoll };
 
 // Edits left out of the default list because the undo and redo round trip
-// fails on the code as it was when this list was written (2026-11-10), found by
-// running every edit on its own on every baseline project (--edits n). Some fail
-// only under a condition; there the edit still runs on the other projects.
-// --all-edits puts them back, to check a fix. Fix the program, not this list.
+// fails. Empty since undo restores snapshots of the track (Stage 2, T1-U3):
+// every edit is checked. A later piece removes the list and
+// editIsKnownBroken(). Fix the program, not this list.
 enum brokenWhen { ALWAYS, SMOOTHED_TRACK, DISTANCE_SECTION, ROLLED_ANCHOR };
 struct knownBroken { int edit; eActionType type; brokenWhen when; secType section; const char* reason; };
 const knownBroken KNOWN_BROKEN[] = {
-    { 4, changeAnchorPitchChange, ALWAYS, anchor, "undo of the anchor's pitch change rate recomputes the anchor's normal and lateral force from the rate "
-                         "(trackWidget::on_pitchChangeBox_valueChanged) instead of restoring them; the saved forces differ in the last digits" },
-    { 5, changeAnchorYawChange, ALWAYS, anchor, "undo of the anchor's yaw change rate: as for the pitch change rate (on_yawChangeBox_valueChanged)" },
-    { 9, changeAnchorRoll, ROLLED_ANCHOR, anchor, "undo of the anchor roll applies the old roll as a difference to the current one (mnode::setRoll); "
-                                "with a rolled anchor the restored roll differs in the last digits" },
-    { 29, onLengthSpin, ALWAYS, anchor, "undo of a transition length on the first force section does not restore the track "
-                          "(gen-normal-shapes: exports differ; gen-smooth-whole: exports differ)" },
-    { 41, onTensionSpin, ALWAYS, anchor, "undo of a tension change restores undoHandler::oldTensionSpinValue, which nothing sets from the selected "
-                          "transition (transitionWidget::changeSubfunc sets the other four); the restored tension is whatever was "
-                          "left there (seen: minus infinity)" },
-    { 42, appendSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo of appending a transition leaves the track different" },
-    { 43, appendSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo of prepending a transition leaves the track different" },
-    { 44, removeSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo and redo of removing a transition leave the track different" },
-    { 45, appendSubFunction, ALWAYS, anchor, "a new normal-force transition starts as cubic with its shape argument (subfunc::arg1) never set; "
-                          "redo creates it again with another leftover value, so the saved file differs" },
-    { 46, appendSubFunction, ALWAYS, anchor, "prepend on normal force: the same unset shape argument as edit 45" },
-    { 49, changeSegmentArgument, DISTANCE_SECTION, forced, "undo of switching a force section from distance to time does not restore the saved project" },
-    { 52, changeSegmentArgument, DISTANCE_SECTION, geometric, "undo of switching a geometric section from distance to time does not restore the saved project" },
-    { 56, removeSegment, ALWAYS, anchor, "undo of deleting a section recreates its smoothing entry without the name the smoothing dialog gave it "
-                          "(smoothHandler::saveSmooth writes the list row's text), so the saved file is shorter; "
-                          "the section's own smoothing settings are lost too" },
     { -1, onLengthSpin, ALWAYS, anchor, NULL }
 };
 

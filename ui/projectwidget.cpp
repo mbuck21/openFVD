@@ -197,6 +197,7 @@ void projectWidget::importNLTrackFile(QString fileName)
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     importer->importAsNlTrack();
     delete importer;
+    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importNoLimitsCSV()
@@ -229,6 +230,7 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
     newTrack->trackWidgetItem->addSection(nolimitscsv);
 
     dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importPointList()
@@ -259,6 +261,7 @@ void projectWidget::importPointListFile(QString fileName)
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     importer->importAsTxt();
     delete importer;
+    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
 
 void projectWidget::appendTracks(QList<trackHandler *> &_list)
@@ -310,14 +313,6 @@ void projectWidget::on_trackListWidget_itemSelectionChanged()
 
         selTrack = trackList[index];
 
-        phantomChanges = true;
-
-        selTrack->mUndoHandler->oldTrackFriction = selTrack->trackData->fFriction;
-        selTrack->mUndoHandler->oldTrackResistance = selTrack->trackData->fResistance;
-        selTrack->mUndoHandler->oldTrackHeartline = selTrack->trackData->fHeart;
-
-        phantomChanges = false;
-
         ui->editButton->setEnabled(true);
         ui->propertyButton->setEnabled(true);
         ui->deleteButton->setEnabled(true);
@@ -334,6 +329,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
     case 1:
         trackList[index]->trackData->name = item->text(1);
         if(trackList[index]->trackWidgetItem) gloParent->renameTab(trackList[index]);
+        trackList[index]->mUndoHandler->takeOutsideChange();
         return;
     case 2:
         if(item->checkState(2) == Qt::Checked) {
@@ -341,6 +337,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
         } else {
             trackList[index]->trackData->drawTrack = false;
         }
+        trackList[index]->mUndoHandler->takeOutsideChange();
         return;
     default:
         lenAssert(0 && "unexpected default case");
@@ -538,4 +535,9 @@ void projectWidget::keyPressEvent(QKeyEvent* event) {
 void projectWidget::on_propertyButton_released()
 {
     properties->openForTrack(selTrack);
+}
+
+void projectWidget::trackReset(trackHandler* which)
+{
+    properties->trackReset(which);
 }

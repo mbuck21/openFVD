@@ -21,6 +21,7 @@
 #include "fstream"
 #include "exportfuncs.h"
 #include "trackhandler.h"
+#include "undohandler.h"
 #include "mainwindow.h"
 #include "lenassert.h"
 #include "optionsmenu.h"
@@ -112,6 +113,7 @@ void importUi::on_buttonBox_accepted()
             } else {
                 trackList[i]->trackData->loadTrack(fin);
             }
+            trackList[i]->mUndoHandler->clearActions();   // the loaded track is the start of its undo list
             ui->treeWidget->takeTopLevelItem(0);
         }
     }

@@ -21,6 +21,7 @@
 #include "smoothhandler.h"
 #include "mainwindow.h"
 #include "trackwidget.h"
+#include "undohandler.h"
 #include "lenassert.h"
 
 smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
@@ -71,6 +72,7 @@ smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
     customChar = 'a';
 
     phantomChanges = false;
+    bShowingFields = false;
 }
 
 smoothUi::~smoothUi()
@@ -86,6 +88,14 @@ smoothUi::~smoothUi()
 void smoothUi::on_buttonBox_accepted()
 {
     m_track->applyRollSmooth();
+    outsideChange();
+}
+
+// The dialog's edits are not undo steps: the undo list takes the track as it
+// is now (undoHandler::takeOutsideChange()).
+void smoothUi::outsideChange()
+{
+    m_trackwidget->inTrack->mUndoHandler->takeOutsideChange();
 }
 
 void smoothUi::updateUi()
@@ -123,6 +133,9 @@ QTreeWidgetItem* smoothUi::rowFor(smoothHandler* _handler)
 // Writes the entry's values into its row, for the columns in fields.
 void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fields)
 {
+    // the rows' itemChanged() then comes from the model, not from a person
+    bool oldShowing = bShowingFields;
+    bShowingFields = true;
     if(fields & smoothHandler::fieldLabel) row->setText(0, _handler->sLabel);
     if(fields & smoothHandler::fieldName) row->setText(1, _handler->sName);
     if(fields & smoothHandler::fieldFrom) row->setText(2, QString::number(_handler->getFrom()/1000.).append("s"));
@@ -130,6 +143,7 @@ void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fie
     if(fields & smoothHandler::fieldLength) row->setText(4, QString::number(_handler->getLength()/1000.).append("s"));
     if(fields & smoothHandler::fieldIterations) row->setText(5, QString::number(_handler->getIterations()));
     if(fields & smoothHandler::fieldActive) row->setCheckState(6, _handler->active ? Qt::Checked : Qt::Unchecked);
+    bShowingFields = oldShowing;
 }
 
 void smoothUi::smoothHandlerChanged(smoothHandler* which, int fields)
@@ -149,17 +163,20 @@ void smoothUi::on_smoothUnitTree_itemSelectionChanged()
     bool oldP = phantomChanges;
     phantomChanges = true;
 
-    if(ui->smoothUnitTree->selectedItems().size() == 0) {
+    int i = m_track->smoothList.size();
+    if(ui->smoothUnitTree->selectedItems().size() != 0) {
+        QTreeWidgetItem* selected = ui->smoothUnitTree->selectedItems().at(0);
+        for(i = 0; i < m_track->smoothList.size(); ++i) {
+            if(rowFor(m_track->smoothList[i]) == selected) break;
+        }
+    }
+    if(i >= m_track->smoothList.size()) {   // nothing selected, or a row whose entry is gone
+        curHandler = NULL;
         ui->optsFrame->hide();
         ui->regionFrame->hide();
         ui->removeButton->setEnabled(false);
+        phantomChanges = oldP;
         return;
-    }
-
-    QTreeWidgetItem* selected = ui->smoothUnitTree->selectedItems().at(0);
-    int i;
-    for(i = 0; i < m_track->smoothList.size(); ++i) {
-        if(rowFor(m_track->smoothList[i]) == selected) break;
     }
     curHandler = m_track->smoothList[i];
     if(m_track->smoothList[i]->sec != NULL) {
@@ -183,25 +200,27 @@ void smoothUi::on_smoothUnitTree_itemSelectionChanged()
 
 void smoothUi::on_lengthBox_valueChanged(double arg1)
 {
-    if(phantomChanges) return;
+    if(phantomChanges || curHandler == NULL) return;
     phantomChanges = true;
     curHandler->setLength((int)(arg1*1000.+0.5));
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_iterBox_valueChanged(int arg1)
 {
-    if(phantomChanges) return;
+    if(phantomChanges || curHandler == NULL) return;
     phantomChanges = true;
     curHandler->setIterations(arg1);
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_fromBox_valueChanged(double arg1)
 {
-    if(phantomChanges) return;
+    if(phantomChanges || curHandler == NULL) return;
     const int max = m_track->getNumPoints();
     const int min = 0;
     int setTo = (int)(arg1*1000.+0.5);
@@ -218,11 +237,12 @@ void smoothUi::on_fromBox_valueChanged(double arg1)
     curHandler->setFrom((int)(arg1*1000.+0.5));
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_toBox_valueChanged(double arg1)
 {
-    if(phantomChanges) return;
+    if(phantomChanges || curHandler == NULL) return;
     int setTo = (int)(arg1*1000.+0.5);
     const int max = m_track->getNumPoints();
     const int min = 0;
@@ -239,6 +259,7 @@ void smoothUi::on_toBox_valueChanged(double arg1)
     curHandler->setTo(setTo);
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
@@ -252,6 +273,7 @@ void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
                 break;
             }
         }
+        if(!bShowingFields) outsideChange();
     }
 
     if(phantomChanges) return;
@@ -267,12 +289,16 @@ void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
 
     generateWarnings();
     phantomChanges = false;
+    // not while the model writes into the rows (an update of the track, in
+    // the middle of an edit that records its own step)
+    if(!bShowingFields) outsideChange();
 }
 
 void smoothUi::on_newButton_released()
 {
     m_track->smoothList.append(new smoothHandler(m_track, -2, &customChar, 400, 1, 0, 1000));
     updateUi();
+    outsideChange();
 }
 
 void smoothUi::on_removeButton_released()
@@ -281,8 +307,28 @@ void smoothUi::on_removeButton_released()
     for(i = 0; i < m_track->smoothList.size(); ++i) {
         if(m_track->smoothList[i] == curHandler) break;
     }
-    delete curHandler;
-    m_track->smoothList.removeAt(i);
+    if(i >= m_track->smoothList.size()) return;
+    // out of the list first: deleting the entry deletes its row, and the
+    // selection that moves on must not find the entry in the list
+    smoothHandler* entry = m_track->smoothList.takeAt(i);
+    curHandler = NULL;
+    delete entry;
+    outsideChange();
+}
+
+// Before the track's model is replaced (trackHandler::trackAboutToReset()): no
+// entry selected. The rows go as their entries are deleted
+// (smoothHandlerDeleted()); showRows() makes the new ones.
+void smoothUi::dropSelection()
+{
+    bool oldP = phantomChanges;
+    phantomChanges = true;
+    ui->smoothUnitTree->clearSelection();
+    phantomChanges = oldP;
+    curHandler = NULL;
+    ui->optsFrame->hide();
+    ui->regionFrame->hide();
+    ui->removeButton->setEnabled(false);
 }
 
 void smoothUi::generateWarnings()

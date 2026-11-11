@@ -77,6 +77,10 @@ int secgeometric::updateSection(int node)
 		float diff = lNodes[0].getPitchChange(); // - normForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -86,6 +90,10 @@ int secgeometric::updateSection(int node)
 		diff = lNodes[0].getYawChange(); // - latForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -118,6 +126,11 @@ int secgeometric::updateSection(int node)
     for(i = node; i < numNodes; i++) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -252,6 +265,10 @@ int secgeometric::updateDistanceSection(int node)
 		float diff = lNodes[0].getPitchChange()/lNodes[0].fVel; // - normForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -261,6 +278,10 @@ int secgeometric::updateDistanceSection(int node)
 		diff = lNodes[0].getYawChange()/lNodes[0].fVel; // - latForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -281,6 +302,11 @@ int secgeometric::updateDistanceSection(int node)
     while(length < end) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];

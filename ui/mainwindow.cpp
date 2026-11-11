@@ -205,6 +205,15 @@ QList<trackHandler*> MainWindow::getTrackList()
     return ui->projectTab->trackList;
 }
 
+// The export dialog, if it is open, takes the tracks and sections there are
+// now (a section range it shows may have gone with an undo).
+void MainWindow::updateBoxes()
+{
+    if(exportScreen->isVisible()) {
+        exportScreen->updateBoxes();
+    }
+}
+
 void MainWindow::on_actionExportAs_triggered()
 {
     exportScreen->updateBoxes();
@@ -727,6 +736,11 @@ QString MainWindow::getCurrentFileName() {
 
 void MainWindow::openTab(trackHandler* _track)
 {
+    // A track opened with nothing to undo starts its undo list from what it
+    // is now, whatever reached it without a step.
+    if(_track->mUndoHandler->lActions.isEmpty()) {
+        _track->mUndoHandler->clearActions();
+    }
     this->setUpdatesEnabled(false);
     _track->trackWidgetItem->on_sectionListWidget_itemSelectionChanged();
     if(_track->tabId == -1) {

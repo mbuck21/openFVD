@@ -327,7 +327,7 @@ void restoreTrackState(track* t, const trackState& state)
         t->loadTrackHeader(file);
         putNode(t->anchorNode, state.anchorNode);
 
-        QString error = t->loadTrackSections(file);
+        QString error = t->loadTrackSections(file, false);   // updateTrack(0, 0) below computes them
         lenAssert(error.isEmpty());
         tag = readString(&file, 3);
         lenAssert(tag == "EOT");

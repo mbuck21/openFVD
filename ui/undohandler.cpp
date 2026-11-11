@@ -17,19 +17,19 @@
 */
 
 #include "undohandler.h"
+#include "trackhandler.h"
 #include "mainwindow.h"
+#include "track.h"
 
 extern MainWindow* gloParent;
 
-undoHandler::undoHandler()
-{
-}
-
-undoHandler::undoHandler(int _stackSize)
+undoHandler::undoHandler(track* _track, int _stackSize)
 {
     busy = false;
     maxStackSize = _stackSize;
     stackIndex = -1;
+    mTrack = _track;
+    baseState = captureTrackState(mTrack);
 }
 
 undoHandler::~undoHandler()
@@ -40,279 +40,64 @@ undoHandler::~undoHandler()
     }
 }
 
-void undoHandler::doUndo()
+const trackState& undoHandler::stateNow() const
 {
-    if(stackIndex == -1) return;
+    if(stackIndex >= 0 && stackIndex < lActions.size()) return lActions[stackIndex]->after;
+    return baseState;
+}
 
+const trackState& undoHandler::stateBefore(int index) const
+{
+    if(index+1 < lActions.size()) return lActions[index+1]->after;
+    return baseState;
+}
+
+void undoHandler::putBack(undoAction* step, const trackState& state, bool undone)
+{
     gloParent->setUpdatesEnabled(false);
     busy = true;
-    lActions[stackIndex]->doUndo();
+    // the panel selects the step's section and transition again once the
+    // track is rebuilt (trackHandler::trackReset())
+    step->hTrack->selectAfterReset(step, undone);
+    restoreTrackState(mTrack, state);
+    step->hTrack->selectAfterReset(NULL, false);
     busy = false;
     gloParent->setUpdatesEnabled(true);
+}
 
-    if(++stackIndex > lActions.size()) stackIndex = -1;
+// The bounds are checked here, not only by the menu entries (issue 31).
+void undoHandler::doUndo()
+{
+    if(stackIndex < 0 || stackIndex >= lActions.size()) return;
+
+    trackState before = stateBefore(stackIndex);
+    putBack(lActions[stackIndex], before, true);
+    ++stackIndex;
 }
 
 void undoHandler::doRedo()
 {
-    if(stackIndex == 0) return;
+    if(stackIndex <= 0 || stackIndex > lActions.size()) return;
 
-    gloParent->setUpdatesEnabled(false);
-    busy = true;
-    lActions[--stackIndex]->doRedo();
-    busy = false;
-    gloParent->setUpdatesEnabled(true);
+    --stackIndex;
+    trackState after = lActions[stackIndex]->after;
+    putBack(lActions[stackIndex], after, false);
 }
 
 void undoHandler::addAction(undoAction* _action)
 {
-    switch(_action->type)
+    if(busy)
     {
-    case onLengthSpin:
-        if(_action->toValue.toDouble() == oldLengthSpinValue)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldLengthSpinValue;
-        oldLengthSpinValue = _action->toValue.toDouble();
-        break;
-    case onChangeSpin:
-        if(_action->toValue.toDouble() == oldChangeSpinValue)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldChangeSpinValue;
-        oldChangeSpinValue = _action->toValue.toDouble();
-        break;
-    case onArg1:
-        if(_action->toValue.toDouble() == oldArg1Value)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldArg1Value;
-        oldArg1Value = _action->toValue.toDouble();
-        break;
-    case onCenterSpin:
-        if(_action->toValue.toDouble() == oldCenterSpinValue)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldCenterSpinValue;
-        oldCenterSpinValue = _action->toValue.toDouble();
-        break;
-    case onTensionSpin:
-        if(_action->toValue.toDouble() == oldTensionSpinValue)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldTensionSpinValue;
-        oldTensionSpinValue = _action->toValue.toDouble();
-        break;
-    case onTransitionBox:
-        if(_action->toValue.toInt() == oldTransitionBoxValue)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldTransitionBoxValue;
-        oldTransitionBoxValue = _action->toValue.toInt();
-        break;
-    case changeSegmentLength:
-        if(_action->toValue.toDouble() == oldSegmentLength)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldSegmentLength;
-        oldSegmentLength = _action->toValue.toDouble();
-        break;
-    case changeCurveDirection:
-        if(_action->toValue.toDouble() == oldCurveDirection)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldCurveDirection;
-        oldCurveDirection = _action->toValue.toDouble();
-        break;
-    case changeCurveLeadIn:
-        if(_action->toValue.toDouble() == oldCurveLeadIn)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldCurveLeadIn;
-        oldCurveLeadIn = _action->toValue.toDouble();
-        break;
-    case changeCurveLeadOut:
-        if(_action->toValue.toDouble() == oldCurveLeadOut)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldCurveLeadOut;
-        oldCurveLeadOut = _action->toValue.toDouble();
-        break;
-    case changeCurveRadius:
-        if(_action->toValue.toDouble() == oldCurveRadius)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldCurveRadius;
-        oldCurveRadius = _action->toValue.toDouble();
-        break;
-    case changeSpeedState:
-        if(_action->toValue.toBool() == oldSpeedState)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldSpeedState;
-        oldSpeedState = _action->toValue.toBool();
-        break;
-    case changeSegmentSpeed:
-        if(_action->toValue.toDouble() == oldSegmentSpeed)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldSegmentSpeed;
-        oldSegmentSpeed = _action->toValue.toDouble();
-        break;
-    case changeAnchorPosX:
-        if(_action->toValue.toDouble() == oldAnchorPosX)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorPosX;
-        oldAnchorPosX = _action->toValue.toDouble();
-        break;
-    case changeAnchorPosY:
-        if(_action->toValue.toDouble() == oldAnchorPosY)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorPosY;
-        oldAnchorPosY = _action->toValue.toDouble();
-        break;
-    case changeAnchorPosZ:
-        if(_action->toValue.toDouble() == oldAnchorPosZ)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorPosZ;
-        oldAnchorPosZ = _action->toValue.toDouble();
-        break;
-    case changeAnchorRoll:
-        if(_action->toValue.toDouble() == oldAnchorRoll)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorRoll;
-        oldAnchorRoll = _action->toValue.toDouble();
-        break;
-    case changeAnchorYaw:
-        if(_action->toValue.toDouble() == oldAnchorYaw)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorYaw;
-        oldAnchorYaw = _action->toValue.toDouble();
-        break;
-    case changeAnchorPitch:
-        if(_action->toValue.toDouble() == oldAnchorPitch)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorPitch;
-        oldAnchorPitch = _action->toValue.toDouble();
-        break;
-    case changeAnchorNormal:
-        if(_action->toValue.toDouble() == oldAnchorNormal)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorNormal;
-        oldAnchorNormal = _action->toValue.toDouble();
-        break;
-    case changeAnchorLateral:
-        if(_action->toValue.toDouble() == oldAnchorLateral)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorLateral;
-        oldAnchorLateral = _action->toValue.toDouble();
-        break;
-    case changeAnchorPitchChange:
-        if(_action->toValue.toDouble() == oldAnchorPitchChange)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorPitchChange;
-        oldAnchorPitchChange = _action->toValue.toDouble();
-        break;
-    case changeAnchorYawChange:
-        if(_action->toValue.toDouble() == oldAnchorYawChange)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorYawChange;
-        oldAnchorYawChange = _action->toValue.toDouble();
-        break;
-    case changeAnchorSpeed:
-        if(_action->toValue.toDouble() == oldAnchorSpeed)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldAnchorSpeed;
-        oldAnchorSpeed = _action->toValue.toDouble();
-        break;
-    case changeTrackHeartline:
-        if(_action->toValue.toDouble() == oldTrackHeartline)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldTrackHeartline;
-        oldTrackHeartline = _action->toValue.toDouble();
-        break;
-    case changeTrackFriction:
-        if(_action->toValue.toDouble() == oldTrackFriction)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldTrackFriction;
-        oldTrackFriction = _action->toValue.toDouble();
-        break;
-    case changeTrackResistance:
-        if(_action->toValue.toDouble() == oldTrackResistance)
-        {
-            delete _action;
-            return;
-        }
-        _action->fromValue = oldTrackResistance;
-        oldTrackResistance = _action->toValue.toDouble();
-        break;
-    default:
-        break;
+        delete _action;
+        return;
+    }
+
+    trackState before = stateNow();
+    _action->after = captureTrackState(mTrack, &before);
+    if(_action->after == before)
+    {
+        delete _action;
+        return;
     }
 
     while(stackIndex > 0)
@@ -325,11 +110,35 @@ void undoHandler::addAction(undoAction* _action)
     lActions.prepend(_action);
     if(lActions.size() > maxStackSize)
     {
-        delete lActions[lActions.size()-1];
-        lActions.removeLast();
+        undoAction* oldest = lActions.takeLast();
+        baseState = oldest->after;
+        delete oldest;
     }
 
     stackIndex = 0;
+}
+
+void undoHandler::takeOutsideChange()
+{
+    if(busy) return;   // a restore in progress is not an edit
+
+    trackState now = captureTrackState(mTrack, &stateNow());
+    if(now == stateNow()) return;
+
+    // an edit after an undo ends Redo, as a recorded step does (addAction())
+    while(stackIndex > 0)
+    {
+        delete lActions[0];
+        lActions.removeFirst();
+        stackIndex--;
+    }
+    if(lActions.isEmpty()) {
+        stackIndex = -1;
+        baseState = now;
+    } else {
+        lActions[0]->after = now;
+    }
+    gloParent->setUndoButtons();
 }
 
 void undoHandler::clearActions()
@@ -340,4 +149,5 @@ void undoHandler::clearActions()
         lActions.removeFirst();
     }
     stackIndex = -1;
+    baseState = captureTrackState(mTrack);
 }

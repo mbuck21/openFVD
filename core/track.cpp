@@ -421,7 +421,18 @@ void track::updateTrack(int index, int iNode)
         lSections.at(i)->updateSection(0);
     }
 
-    if(useSmoothing && bAutoSmooth && smoothingActive()) applyRollSmooth(nodeAt);
+    if(useSmoothing && bAutoSmooth && smoothingActive())
+    {
+        // The node ranges taken above are those of the nodes before this
+        // update (they say where the old smoothing must come off). The new
+        // smoothing goes on over the ranges of the nodes just computed, as a
+        // load does; otherwise it would depend on the previous edit.
+        for(int i = 0; i < smoothList.size(); ++i)
+        {
+            if(smoothList[i]->active) smoothList[i]->update();
+        }
+        applyRollSmooth(nodeAt);
+    }
 
     unsigned int count = getNumPoints() - nodeAt;
     unsigned int count2 = getNumPoints() - iNode - getNumPoints(lSections[index]);
@@ -1005,7 +1016,7 @@ void track::loadTrackHeader(std::iostream& file)
 // (appended, read and computed), then the smoothing entries; it stops before
 // the "EOT" tag. Returns an error text, or an empty string when all was read.
 // Shared with restoreTrackState() (trackstate.cpp).
-QString track::loadTrackSections(std::iostream& file)
+QString track::loadTrackSections(std::iostream& file, bool compute)
 {
     string temp;
     int size = readInt(&file);
@@ -1017,42 +1028,42 @@ QString track::loadTrackSections(std::iostream& file)
             appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "CUR")
         {
             appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "GEO")
         {
             appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "FRC")
         {
             appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "BEZ")
         {
             appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "CSV")
         {
             appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else
         {

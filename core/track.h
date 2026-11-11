@@ -96,7 +96,9 @@ public:
     void saveTrackHeader(std::iostream& file);
     void saveTrackSmoothing(std::iostream& file);
     void loadTrackHeader(std::iostream& file);
-    QString loadTrackSections(std::iostream& file);
+    // compute false: the sections are read but not computed (a restore computes
+    // the whole track once afterwards, core/trackstate.cpp)
+    QString loadTrackSections(std::iostream& file, bool compute = true);
     mnode* getPoint(int index);
     int getIndexFromDist(float dist);
     int getNumPoints(section* until = NULL);

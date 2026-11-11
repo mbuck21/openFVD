@@ -20,9 +20,7 @@
 */
 
 #include "function.h"
-#include <QVariant>
-
-#include <sstream>
+#include "trackstate.h"
 
 class MainWindow;
 class trackHandler;
@@ -69,36 +67,40 @@ enum eActionType
     deleteTrack
 };
 
-// One recorded edit of a track: its type (eActionType), the old and new value and the
-// section and transition it concerns. doUndo() and doRedo() re-apply the value through
-// the windows. Made by the window code that makes the edit; owned by the track's
-// undoHandler. Window code until the command list of Stage 2 (docs/decisions/0009).
-// Known to be wrong for eight kinds of edit (issue 31).
+// One recorded edit of a track: its type (eActionType, for the reports), what to
+// select again after undo or redo (the section and, for a transition edit, the
+// function and transition), and the state of the track after the edit
+// (core/trackstate.h). The state before it is the state after the step before,
+// or the undo list's base state; undo and redo put those states back. Made by
+// the window code that makes the edit, once the edit is finished; owned by the
+// track's undoHandler. docs/decisions/0011-undo-by-snapshot-commands-on-top.md.
 class undoAction
 {
 public:
-    undoAction();
     undoAction(trackHandler* _track, eActionType _type);
     ~undoAction();
 
-    void doUndo();
-    void doRedo();
+    // After the track was put back to the state before this step (undone) or
+    // after it: selects its section and transition again in the panel. False
+    // for an edit of the anchor or the whole track, which selects nothing.
+    bool reselect(bool undone);
 
     trackHandler* hTrack;
 
     eActionType type;
 
-    QVariant fromValue;
-    QVariant toValue;
-
-    std::stringstream* info;
-
+    // Other actions recorded with this one as the same step (the anchor
+    // position that follows a roll, pitch, yaw or heartline change); for the
+    // reports only.
     undoAction* nextAction;
 
     track* inTrack;
-    int sectionNumber;
+    int sectionNumber;      // -1: an edit of the anchor or the whole track
+    bool hasFunction;       // a transition edit: inFunction and subfuncNumber are set
     eFunctype inFunction;
     int subfuncNumber;
+
+    trackState after;       // the track once the edit was made
 };
 
 #endif // UNDOACTION_H

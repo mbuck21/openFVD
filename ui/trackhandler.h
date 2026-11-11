@@ -27,6 +27,7 @@ class trackWidget;
 class graphWidget;
 class undoHandler;
 class trackMesh;
+class undoAction;
 
 // One track's window side. Creates and owns the track (trackData), its panel, graph
 // pane, list row, mesh and undo list. Made by projectWidget (and importUi). Implements
@@ -48,6 +49,15 @@ public:
     void trackAboutToReset(track* which);
     void trackReset(track* which);
 
+    // What trackReset() selects in the panel: the section and transition of
+    // this undo step (undone or redone), or with NULL what was selected before.
+    void selectAfterReset(undoAction* step, bool undone);
+
+    // Selects section sec in the panel (-1: the anchor, -2: nothing; clamped
+    // to the sections there are) and, when funcType is not -1, its transition
+    // sub of that function (clamped).
+    void selectInPanel(int sec, int funcType, int sub);
+
 
     track* trackData;
     QTreeWidgetItem* listItem;
@@ -61,6 +71,14 @@ public:
 private:
 
     int id;
+
+    // the selection to bring back after a reset (see selectAfterReset())
+    undoAction* resetStep;
+    bool resetUndone;
+    int resetSection;
+    int resetFunc;
+    int resetSubfunc;
+    int resetArgument;      // the argument (time, distance) of the section shown before, or -1
     //mnode* curNode;
     //section* curSection;
     //int j;

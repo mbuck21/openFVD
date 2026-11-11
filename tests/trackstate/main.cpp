@@ -285,6 +285,23 @@ static bool editTransitionLength(track* t)
     return true;
 }
 
+// transitionWidget::on_lengthSpin_valueChanged() on the normal force of the
+// first force section with several transitions: the ones after it move, and
+// a restore must keep their arguments to the last digit (a file load does not)
+static bool editForceTransitionLength(track* t)
+{
+    for(int i = 0; i < t->lSections.size(); ++i) {
+        section* s = t->lSections[i];
+        if(s->type != forced || s->normForce->funcList.size() < 3 || s->normForce->funcList[0]->locked) continue;
+        t->activeSection = s;
+        subfunc* f = s->normForce->funcList[0];
+        s->normForce->changeLength(f->maxArgument - f->minArgument + 0.2f, 0);
+        t->updateTrack(t->activeSection, (int)(f->minArgument*F_HZ-1.5f));
+        return true;
+    }
+    return false;
+}
+
 // trackWidget::on_straightLengthBox_valueChanged()
 static bool editStraightLength(track* t)
 {
@@ -412,28 +429,16 @@ static void checkRestore(track* t, const reference& r, const QString& label)
     expected.smoothing = r.captured.smoothing;
     observed expectedSeen = r.seenFull;
     expectedSeen.saved = r.seen.saved;
+    // Smoothed tracks too: a full recompute takes the smoothing ranges from
+    // the nodes it has just computed and starts every node it rewrites as a
+    // copy of the one before, so it gives what a fresh computation gives.
     bool match = got == expectedSeen && state == expected;
-    if(match || !r.smoothed) {
-        check(match,
-              label + (exact ? QString(": state and exports come back exactly")
-                             : QString(": state and exports equal those of one more full recompute (which here changes ")
-                               + stateDiff(r.captured, r.full) + "; " + observedDiff(r.seen, r.seenFull) + ")")
-              + (match ? QString() : QString(" [got: ") + stateDiff(expected, state) + "; " + observedDiff(expectedSeen, got) + "; " + nodeDiff(t, r) + "]"));
-        return;
-    }
-
-    // Roll smoothing leaves values in the nodes (fSmoothSpeed, smoothNormal,
-    // smoothLateral, and the roll they put on) that the sections' updates do
-    // not write, so the running program's next recompute starts from nodes
-    // with a history. A restore starts from freshly computed nodes, as a load
-    // does. On a smoothed track the two can part in the last digits after a
-    // partial recompute; the restore is then the clean full recompute, the
-    // same every time. Decision record 0011 accepts this.
-    printf("note: %s: on this smoothed track the restore differs from the running program's next full recompute (%s; first difference in the nodes: %s)\n",
-           label.toUtf8().constData(), observedDiff(expectedSeen, got).toUtf8().constData(), nodeDiff(t, r).section(" | ", 0, 0).toUtf8().constData());
-    restoreTrackState(t, r.captured);
-    check(observe(t) == got && captureTrackState(t) == state,
-          label + ": smoothed track, restored again: the same state and exports, byte for byte");
+    check(match,
+          label + (exact ? QString(": state and exports come back exactly")
+                         : QString(": state and exports equal those of one more full recompute (which here changes ")
+                           + stateDiff(r.captured, r.full) + "; " + observedDiff(r.seen, r.seenFull) + ")")
+          + (r.smoothed ? QString(" (smoothed track)") : QString())
+          + (match ? QString() : QString(" [got: ") + stateDiff(expected, state) + "; " + observedDiff(expectedSeen, got) + "; " + nodeDiff(t, r) + "]"));
 }
 
 static void checkRoundTrip(track* t, const QString& what)
@@ -450,6 +455,7 @@ static void checkEdits(track* t, const QString& what)
     edit edits[] = {
         { "transition change", editTransitionChange },
         { "transition length", editTransitionLength },
+        { "force transition length", editForceTransitionLength },
         { "straight length", editStraightLength },
         { "append section", editAppendSection },
         { "remove section", editRemoveSection },

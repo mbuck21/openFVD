@@ -22,14 +22,26 @@
 #include "mainwindow.h"
 #include "trackmesh.h"
 #include "trackwidget.h"
+#include "transitionwidget.h"
+#include "undoaction.h"
+#include "smoothui.h"
+#include "projectwidget.h"
+#include "glviewwidget.h"
 #include <QTreeWidgetItem>
 
 extern MainWindow* gloParent;
+extern glViewWidget* glView;
 
 trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
 {
     id = _id;
     mMesh = NULL;
+    resetStep = NULL;
+    resetUndone = false;
+    resetSection = -2;
+    resetFunc = -1;
+    resetSubfunc = 0;
+    resetArgument = -1;
     this->trackData = new track(glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
     trackData->mListener = this;
     trackData->name = _name;
@@ -53,7 +65,7 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
     trackData->display.colors[2] = QColor(51, 255, 51);
 
 
-    mUndoHandler = new undoHandler(_maxUndoChanges);
+    mUndoHandler = new undoHandler(trackData, _maxUndoChanges);
     mMesh = new trackMesh(trackData);
 }
 
@@ -109,15 +121,144 @@ void trackHandler::trackLoaded(track* which)
     gloParent->rideSheetChanged(which);
 }
 
-// Nothing restores a track state yet: the undo built on snapshots (the next
-// piece of Stage 2) fills these in, dropping the panel's pointers into the
-// track here and rebuilding the panel, graphs and mesh in trackReset().
+// A restore (core/trackstate.h) deletes every section, transition and
+// smoothing entry of the track and makes new ones. Everything in the windows
+// that points into the track lets go here, before the old model is deleted,
+// and is rebuilt in trackReset(). Undo and redo come through here; so will
+// anything else that replaces the model under the windows.
 void trackHandler::trackAboutToReset(track* which)
 {
     Q_UNUSED(which);
+
+    // what to select again, when no undo step says
+    resetSection = -2;
+    resetFunc = -1;
+    resetSubfunc = 0;
+    resetArgument = -1;
+    // the unit the plot's horizontal axis is in (time or distance)
+    if(trackData->activeSection != NULL) resetArgument = (int)trackData->activeSection->bArgument;
+    sectionHandler* sel = trackWidgetItem->selSection;
+    if(sel != NULL) {
+        resetSection = sel->sectionData ? trackData->getSectionNumber(sel->sectionData) : -1;
+    }
+    subfunc* selFunc = graphWidgetItem->selFunc;
+    if(selFunc != NULL && trackData->activeSection != NULL && selFunc->parent->secParent == trackData->activeSection) {
+        resetFunc = selFunc->parent->type;
+        resetSubfunc = selFunc->parent->getSubfuncNumber(selFunc);
+    }
+
+    // the 3D view's highlight: MainWindow::selectedFunc may point into this
+    // track (trackMesh reads it)
+    subfunc* global = gloParent->selectedFunc;
+    bool globalHere = false;
+    for(int i = 0; global != NULL && i < trackData->lSections.size(); ++i) {
+        if(global->parent->secParent == trackData->lSections[i]) globalHere = true;
+    }
+
+    // the panel: no selection (selSection, activeSection, the graphs'
+    // and the transition editor's subfunc), then no section rows
+    trackWidgetItem->dropSections();
+    graphWidgetItem->transitionHandler->changeSubfunc(NULL);
+    graphWidgetItem->selFunc = NULL;
+    gloParent->selectedFunc = globalHere ? NULL : global;
+
+    // the smoothing dialog: its rows go with their entries
+    if(trackWidgetItem->smoothScreen) {
+        trackWidgetItem->smoothScreen->dropSelection();
+    }
+
+    // the ride view: its node is put back in trackReset()
+    if(glView != NULL && glView->povNode != NULL && gloParent->curTrack() == trackData) {
+        glView->povNode = trackData->anchorNode;
+    }
 }
 
 void trackHandler::trackReset(track* which)
 {
-    Q_UNUSED(which);
+
+    // the restore leaves the last section active; the panel selects below
+    trackData->activeSection = NULL;
+
+    trackWidgetItem->showSections();
+    graphWidgetItem->redrawGraphs();   // the plots drop their pointers to the old transitions
+
+    if(trackWidgetItem->smoothScreen) {
+        trackWidgetItem->smoothScreen->showRows();
+    }
+
+    listItem->setText(1, trackData->name);
+    if(tabId >= 0) gloParent->renameTab(this);
+
+    if(resetStep == NULL || !resetStep->reselect(resetUndone)) {
+        selectInPanel(resetSection, resetFunc, resetSubfunc);
+    }
+    // The panel's selection slot converts the plot's horizontal range between
+    // seconds and metres when the argument changes, judged from the section
+    // selected before; that was dropped above, so the conversion is done here.
+    if(trackData->activeSection != NULL && resetArgument >= 0
+            && (int)trackData->activeSection->bArgument != resetArgument) {
+        graphWidgetItem->redrawGraphs(true);
+    }
+    // after the selection, which the mesh shows (the selected section and transition)
+    if(mMesh != NULL) mMesh->buildMeshes(0);
+
+    if(glView != NULL && gloParent->curTrack() == trackData) {
+        // the rider stays at the track's end when the track got shorter
+        // (moveCamera() would send a position past the end to the start)
+        if(glView->povPos > trackData->getNumPoints()) glView->povPos = trackData->getNumPoints();
+        if(glView->povMode) glView->povNode = trackData->getPoint(glView->povPos);
+    }
+
+    // the dialogs that show values of the track
+    gloParent->updateBoxes();
+    if(gloParent->project != NULL) {
+        gloParent->project->trackReset(this);
+    }
+
+    gloParent->updateInfoPanel();
+    gloParent->setUndoButtons();
+    gloParent->rideSheetChanged(which);
+}
+
+void trackHandler::selectAfterReset(undoAction* step, bool undone)
+{
+    resetStep = step;
+    resetUndone = undone;
+}
+
+void trackHandler::selectInPanel(int sec, int funcType, int sub)
+{
+    if(sec < -1) {
+        graphWidgetItem->redrawGraphs();
+        return;
+    }
+    if(sec >= trackData->lSections.size()) sec = trackData->lSections.size()-1;
+    trackWidgetItem->setSelection(sec);   // -1: the anchor
+
+    // the section first: transitionWidget::changeSubfunc() reads activeSection
+    section* selected = trackData->activeSection;
+    if(funcType < 0 || selected == NULL) return;
+
+    func* parentFunc = NULL;
+    switch(funcType) {
+    case funcRoll:
+        parentFunc = selected->rollFunc;
+        break;
+    case funcNormal:
+    case funcPitch:
+        parentFunc = selected->normForce;
+        break;
+    case funcLateral:
+    case funcYaw:
+        parentFunc = selected->latForce;
+        break;
+    default:
+        break;
+    }
+    if(parentFunc == NULL || parentFunc->funcList.isEmpty()) return;
+    if(sub >= parentFunc->funcList.size()) sub = parentFunc->funcList.size()-1;
+    if(sub < 0) sub = 0;
+
+    graphWidgetItem->changeSelection(parentFunc->funcList[sub]);
+    graphWidgetItem->selectionChanged();
 }

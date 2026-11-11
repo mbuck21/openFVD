@@ -10,6 +10,6 @@ state: track 1 undo list: 0 actions, position -1, newest first: none
 state: track 1 graph: x from 0 to 5, transition length step 1
 state: track 2 (unnamed Track): 1 sections, 13214 nodes, active section 0
 state: track 2 section list: 2 rows, 2 entries, selected entry 1: [0||Anchor|flags 61] [1|unnamed|Bezier|flags 63|selected]
-state: track 2 undo list: 1 actions, position 0, newest first: appendSegment
+state: track 2 undo list: 0 actions, position -1, newest first: none
 state: track 2 graph: x from 0 to 5, transition length step 1
 OK
