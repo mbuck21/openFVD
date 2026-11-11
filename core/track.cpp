@@ -23,6 +23,7 @@
 #include <QVector>
 #include <limits>
 #include <cmath>
+#include <cstring>
 
 #define RELTHRESH 0.98f
 
@@ -585,6 +586,80 @@ void track::updateAnchorGeometrics()
     anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/anchorNode->fVel*1.8/F_PI;
 }
 
+// See track.h. A load makes the first section from the anchor node after the
+// anchor is set up (newSection() copies *anchorNode); the sections only ever
+// read that copy (updateNorm() aside, which gives the same bits again), so
+// copying the anchor now gives the first section the start a reload gives it.
+void track::updateFromAnchor()
+{
+    if(!lSections.isEmpty())
+    {
+        lSections[0]->lNodes[0] = *anchorNode;
+    }
+    updateTrack(0, 0);
+}
+
+// See track.h. The node track::track() makes, then the steps loadTrackHeader()
+// always made after reading the values, unchanged: on the fresh node of a
+// track being loaded this gives what a load always gave, bit for bit.
+void track::rebuildAnchor()
+{
+    float roll = anchorNode->fRoll;
+    float vel = anchorNode->fVel;
+    float normal = anchorNode->forceNormal;
+    float lateral = anchorNode->forceLateral;
+
+    *anchorNode = mnode(glm::vec3(0.f, 0.f, 0.f), glm::vec3(0, 0, -1), 0., 10.f, 1., 0.);
+    anchorNode->updateNorm();
+
+    anchorNode->fRoll = roll;
+    anchorNode->fVel = vel;
+    anchorNode->forceNormal = normal;
+    anchorNode->forceLateral = lateral;
+
+    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
+
+    anchorNode->changePitch(startPitch, false);
+    anchorNode->setRoll(anchorNode->fRoll);
+
+    updateAnchorGeometrics();
+
+    anchorNode->updateNorm();
+}
+
+// See track.h.
+int track::settleAnchor(int maxPasses)
+{
+    int pass = 1;
+    for(; pass <= maxPasses; ++pass)
+    {
+        float roll = anchorNode->fRoll;
+        rebuildAnchor();
+        if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+    }
+
+    // Some rolls alternate between two neighbouring floats (-89.25 gives
+    // -89.2500076, which gives -89.25 again), so neither is kept. Then the
+    // nearest float roll a rebuild keeps is taken, within 256 floats either side
+    // of the last one (256 floats are 0.00012 degrees at a roll of 5 degrees).
+    const float last = anchorNode->fRoll;
+    for(int k = 1; k <= 256; ++k)
+    {
+        for(int side = 0; side < 2; ++side, ++pass)
+        {
+            float roll = last;
+            for(int i = 0; i < k; ++i)
+            {
+                roll = nextafterf(roll, side == 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+            }
+            anchorNode->fRoll = roll;
+            rebuildAnchor();
+            if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+        }
+    }
+    return -1;
+}
+
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
 {
     QList<int> exportPoints;
@@ -1006,14 +1081,9 @@ void track::loadTrackHeader(std::iostream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
-
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
+    // the anchor node from the values just read; the anchor commands build it
+    // with the same function
+    rebuildAnchor();
 }
 
 // The second part of loadTrack(): the number of sections, each section
@@ -1113,14 +1183,7 @@ QString track::legacyLoadTrack(std::iostream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
-
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
+    rebuildAnchor();
 
     string temp;
     int size = readInt(&file);
