@@ -121,11 +121,24 @@ void undoHandler::addAction(undoAction* _action)
 void undoHandler::takeOutsideChange()
 {
     if(busy) return;   // a restore in progress is not an edit
-    if(stackIndex >= 0 && stackIndex < lActions.size()) {
-        lActions[stackIndex]->after = captureTrackState(mTrack, &lActions[stackIndex]->after);
-    } else {
-        baseState = captureTrackState(mTrack, &baseState);
+
+    trackState now = captureTrackState(mTrack, &stateNow());
+    if(now == stateNow()) return;
+
+    // an edit after an undo ends Redo, as a recorded step does (addAction())
+    while(stackIndex > 0)
+    {
+        delete lActions[0];
+        lActions.removeFirst();
+        stackIndex--;
     }
+    if(lActions.isEmpty()) {
+        stackIndex = -1;
+        baseState = now;
+    } else {
+        lActions[0]->after = now;
+    }
+    gloParent->setUndoButtons();
 }
 
 void undoHandler::clearActions()

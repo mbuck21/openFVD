@@ -25,7 +25,7 @@ There is no unit-test suite. FVD++ is a GUI program whose model code calls into 
 py -3 tools/run-baseline.py
 ```
 
-For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 180 seconds is stopped and counts as failed (the undo check, which computes the whole track for every undo and redo, takes up to about 50 seconds on one project). Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
+For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 60 seconds (180 for the undo check, which computes the whole track for every undo and redo and takes up to about 50 seconds on one project) is stopped and counts as failed. Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
 
 Options:
 

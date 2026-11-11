@@ -41,6 +41,7 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
     resetSection = -2;
     resetFunc = -1;
     resetSubfunc = 0;
+    resetArgument = -1;
     this->trackData = new track(glm::vec3(0.f, 5.f, 0.f), 0, 1.1);
     trackData->mListener = this;
     trackData->name = _name;
@@ -133,6 +134,9 @@ void trackHandler::trackAboutToReset(track* which)
     resetSection = -2;
     resetFunc = -1;
     resetSubfunc = 0;
+    resetArgument = -1;
+    // the unit the plot's horizontal axis is in (time or distance)
+    if(trackData->activeSection != NULL) resetArgument = (int)trackData->activeSection->bArgument;
     sectionHandler* sel = trackWidgetItem->selSection;
     if(sel != NULL) {
         resetSection = sel->sectionData ? trackData->getSectionNumber(sel->sectionData) : -1;
@@ -188,11 +192,21 @@ void trackHandler::trackReset(track* which)
     if(resetStep == NULL || !resetStep->reselect(resetUndone)) {
         selectInPanel(resetSection, resetFunc, resetSubfunc);
     }
+    // The panel's selection slot converts the plot's horizontal range between
+    // seconds and metres when the argument changes, judged from the section
+    // selected before; that was dropped above, so the conversion is done here.
+    if(trackData->activeSection != NULL && resetArgument >= 0
+            && (int)trackData->activeSection->bArgument != resetArgument) {
+        graphWidgetItem->redrawGraphs(true);
+    }
     // after the selection, which the mesh shows (the selected section and transition)
     if(mMesh != NULL) mMesh->buildMeshes(0);
 
-    if(glView != NULL && glView->povMode && gloParent->curTrack() == trackData) {
-        glView->povNode = trackData->getPoint(glView->povPos);
+    if(glView != NULL && gloParent->curTrack() == trackData) {
+        // the rider stays at the track's end when the track got shorter
+        // (moveCamera() would send a position past the end to the start)
+        if(glView->povPos > trackData->getNumPoints()) glView->povPos = trackData->getNumPoints();
+        if(glView->povMode) glView->povNode = trackData->getPoint(glView->povPos);
     }
 
     // the dialogs that show values of the track

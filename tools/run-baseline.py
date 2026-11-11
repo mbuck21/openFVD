@@ -89,10 +89,11 @@ UNSTABLE_IMPORTS = {
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
 CORE_DEPLOYED = ROOT / "build" / "dist" / "fvdcore.exe"  # tools/build-windows.sh puts fvdcore beside FVD.exe
 CORE_DIR = ROOT / "build" / "tests" / "coreonly"  # where tools/run-tests.sh builds it (the older place)
-# Per run of the program. The undo check computes the whole track for every
-# undo and redo (about 115 of them); on gen-geometric-distance, whose scripted
-# edits leave long sections without a valid speed, one run takes about 50 s.
-TIME_LIMIT_S = 180
+TIME_LIMIT_S = 60
+# The undo check computes the whole track for every undo and redo (about 115
+# of them); on gen-geometric-distance, whose scripted edits leave long sections
+# without a valid speed, one run takes about 50 s.
+UNDO_TIME_LIMIT_S = 180
 FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
 
@@ -229,10 +230,10 @@ def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
         return all_ok
 
 
-def run_batch(exe: Path, args: list, work: Path):
+def run_batch(exe: Path, args: list, work: Path, limit: int = TIME_LIMIT_S):
     """Runs FVD.exe with batch arguments in work. Returns the exit code, or None after the time limit."""
     try:
-        proc = subprocess.run([str(exe)] + args, cwd=work, timeout=TIME_LIMIT_S,
+        proc = subprocess.run([str(exe)] + args, cwd=work, timeout=limit,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return proc.returncode
     except subprocess.TimeoutExpired:
@@ -250,13 +251,13 @@ def undo_check(exe: Path, project: Path, keep: Optional[Path]) -> bool:
     with tempfile.TemporaryDirectory(prefix="fvd-undo-") as tmp:
         work = Path(tmp)
         out = work / "out"
-        code = run_batch(exe, ["--batch-undo-check", str(project), str(out)], work)
+        code = run_batch(exe, ["--batch-undo-check", str(project), str(out)], work, UNDO_TIME_LIMIT_S)
         report = out / f"{stem}.undo.batch.txt"
         if keep is not None and report.is_file():
             keep.mkdir(parents=True, exist_ok=True)
             shutil.copy2(report, keep / report.name)
         if code is None:
-            print(f"UNDO FAIL {project.name}: no result after {TIME_LIMIT_S} s, the program was stopped")
+            print(f"UNDO FAIL {project.name}: no result after {UNDO_TIME_LIMIT_S} s, the program was stopped")
             return False
         if file_hash(project) != before:
             print(f"UNDO FAIL {project.name}: the undo check changed the project file")

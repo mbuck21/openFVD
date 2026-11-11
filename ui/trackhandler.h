@@ -78,6 +78,7 @@ private:
     int resetSection;
     int resetFunc;
     int resetSubfunc;
+    int resetArgument;      // the argument (time, distance) of the section shown before, or -1
     //mnode* curNode;
     //section* curSection;
     //int j;

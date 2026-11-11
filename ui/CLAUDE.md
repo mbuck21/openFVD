@@ -23,7 +23,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 - **`smoothUi`** (`smoothui.*`): the smoothing dialog; owns the list rows.
 - **`exportUi`** (`exportui.*`): the export dialog; calls `core/elementfile.*`.
 - **`TrackProperties`**, **`optionsMenu`**, **`importUi`**, **`conversionPanel`**, **`objectExporter`**: the other dialogs.
-- **`undoAction`, `undoHandler`** (`undoaction.*`, `undohandler.*`): a track's undo list; window code until Stage 2 (`docs/decisions/0009-undo-stays-window-code-until-the-command-list.md`).
+- **`undoAction`, `undoHandler`** (`undoaction.*`, `undohandler.*`): a track's undo list. Each step holds the track's state after the edit; undo and redo restore a state (`core/trackstate.h`, `docs/decisions/0011-undo-by-snapshot-commands-on-top.md`). The core history (`core/trackhistory.*`) replaces them in a later piece.
 - **`rideSheet`** (`ridesheet.*`): the ride sheet panel, the third pane of `MainWindow`'s splitter (Visualize > Ride sheet shows and hides it). It shows the numbers of `core/ridesummary` for the current track and holds only a `track*`, never a pointer into its sections or nodes. It refreshes 150 ms after the last notice from `trackHandler` (`MainWindow::rideSheetChanged()`), and when the tab, the selected track or the unit option changes. No ride maths belongs in it.
 - **`batchRunner`** (`batchrunner.*`) and **`batchDriver`** (`batchscenarios.*`): the `--batch-...` commands (`docs/testing.md`).
 
@@ -32,7 +32,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 | Change | Open |
 |---|---|
 | New field or box on a panel | the `.ui` form, the `on_<object>_<signal>()` slot in its `.cpp`, and the undo parts below |
-| Undoable value | `eActionType` in `undoaction.h`, an "old value" field in `undohandler.h`, a case in `undoAction::doUndo()` |
+| Undoable value | the slot changes the model, then records one step at its end: `undoHandler::addAction(new undoAction(handler, type))`; an `eActionType` only names it in the reports |
 | New section type in the panel | `trackwidget.*` (add and append slots, section frame), `trackwidget.ui`; the model side is in `core/CLAUDE.md` |
 | Transition editor | `transitionwidget.*` and `.ui`; `graphwidget.*` for dragging on the plot |
 | Export dialog | `exportui.*` and `.ui`; the file framing is in `core/elementfile.*` |
@@ -47,8 +47,9 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 - **Slots connect by name.** `on_<objectName>_<signal>()` is wired to the widget with that object name in the `.ui` form. Renaming a widget silently disconnects its slot.
 - **The batch scenarios find widgets by those same object names** (`findChild` in `batchscenarios.cpp`). Renaming a widget breaks the scripted projects and the undo check as well. They drive only what a person uses, and they must keep passing unchanged.
 - **`phantomChanges`.** Code that sets a box from the model sets `phantomChanges` first, so the box's own slot does not treat it as an edit by the user. A new slot that changes the model starts with `if(phantomChanges) return;`.
-- **Every editable value goes through `undoAction`.** Forget it and the edit cannot be undone.
-- **Undo is known to be wrong for eight kinds of edit** (issue 31). `KNOWN_BROKEN` in `batchscenarios.cpp` lists them; the table is in `docs/testing.md`. They are fixed in Stage 2 (T1), not here. Do not "fix" one inside `undoAction`.
+- **Every edit records one undo step, after the model work is finished** (`undoHandler::addAction`). An edit that is not a step calls `undoHandler::takeOutsideChange()`, or a later undo takes it back.
+- **No pointer into a track survives an undo.** A restore deletes every section, transition and smoothing entry; `trackHandler::trackAboutToReset()` drops what the windows hold and `trackReset()` rebuilds it. A new holder of such a pointer must be added to both.
+- **Undo is exact for every kind of edit**, and the undo check runs with nothing left out (`KNOWN_BROKEN` in `batchscenarios.cpp` is empty).
 - **A `trackHandler` builds its `trackMesh` in its constructor**, and a mesh makes OpenGL buffers unless `glView->legacyMode` is set. Make handlers only once the GL context exists (`renderer/CLAUDE.md`).
 - **Never edit `qcustomplot.cpp` or `qcustomplot.h`.** Vendored library (root rule 3).
 - **A window that would be shown in batch mode** is marked "do not show on screen" first. A batch command fails if a window reached the screen (`docs/testing.md`).

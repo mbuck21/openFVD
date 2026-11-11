@@ -32,7 +32,7 @@ Read this file first in every session. Then `docs/README.md` for what to read fo
 - Maths is glm with `GLM_FORCE_RADIANS`; angles are degrees in the UI and the node fields (`fRoll`, `getPitch()`), converted with `TO_RAD`/`TO_DEG` from `lenassert.h`. Everything is `float`. Time steps are `1/F_HZ` seconds (`core/mnode.h`).
 - Checks are `lenAssert(cond)` (an `assert` in debug, a `qCritical` in release). Logging is `qDebug`/`qWarning`, which land in `fvd.log` next to the working directory.
 - Indentation is four spaces, with tabs in some files; keep each file's own style and do not reformat files you did not otherwise change.
-- Every editable value goes through `undoAction` (`ui/undoaction.h`): a new spin box means a new `eActionType`, an "old value" field on `undoHandler`, and a case in `undoAction::doUndo()`.
+- Every edit of a track is an undo step: the slot changes the model, then, at its end, records one `undoAction` with `undoHandler::addAction()` (`ui/undohandler.h`). Undo and redo put back a snapshot of the whole track (`core/trackstate.h`), so a new model value must be saved, kept in `trackState`, or derived. An edit that is not a step yet (renaming, colours, the smoothing dialog) calls `undoHandler::takeOutsideChange()`.
 - Binary file I/O uses the helpers in `core/exportfuncs.cpp`, never raw `fwrite` of a struct in new code.
 
 ## Build and run

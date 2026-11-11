@@ -53,7 +53,8 @@ public:
     // the state the list is at (the newest step's after-state, or the base
     // state when nothing is left to undo), so the next step's before-state
     // includes the change and undoing that step keeps it. Undoing an older
-    // step still takes it back.
+    // step still takes it back. Like a recorded edit, a change made after an
+    // undo ends Redo.
     void takeOutsideChange();
 
     QList<undoAction*> lActions;
