@@ -23,6 +23,8 @@
 #include "mainwindow.h"
 #include "lenassert.h"
 #include "trackwidget.h"
+#include "trackhandler.h"
+#include "command.h"
 
 extern MainWindow* gloParent;
 
@@ -252,18 +254,39 @@ void transitionWidget::changeSubfunc(subfunc *_newSubfunc)
     phantomChanges = false;
 }
 
+// Every edit below is a named command (core/commands_transition.cpp): the
+// slot works out the value in model units, runs the command, which changes the
+// model, recomputes the track and records the undo step, and then refreshes the
+// panels. The target is the selected transition, by numbers.
+static commandTarget targetOf(trackHandler* inTrack, subfunc* sub)
+{
+    func* f = sub->parent;
+    return commandTarget::forTransition(inTrack->getID()-1, inTrack->trackData->lSections.indexOf(f->secParent),
+                                        f->type, f->getSubfuncNumber(sub));
+}
+
+static bool runTransitionCommand(trackHandler* inTrack, const char* name, const commandTarget& target, const commandArgs& args)
+{
+    QString error;
+    if(commandRegistry::run(inTrack->mHistory, name, target, args, &error)) return true;
+    qWarning("Transition command %s failed: %s", name, qPrintable(error));
+    return false;
+}
+
 void transitionWidget::on_lengthSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    int index = selectedFunc->parent->getSubfuncNumber(selectedFunc);
+    trackHandler* inTrack = mParent->selTrack;
 
     const bool need_length_factor = (selectedFunc->parent->secParent->bArgument == DISTANCE && (selectedFunc->parent->secParent->type == forced || selectedFunc->parent->secParent->type == geometric)) || selectedFunc->parent->secParent->type == straight;
 
+    commandArgs args;
     if(need_length_factor) {
-        selectedFunc->parent->changeLength(arg1/gloParent->mOptions->getLengthFactor(), index);
+        args.insert("length", arg1/gloParent->mOptions->getLengthFactor());
     } else {
-        selectedFunc->parent->changeLength(arg1, index);
+        args.insert("length", arg1);
     }
+    if(!runTransitionCommand(inTrack, "transition.setLength", targetOf(inTrack, selectedFunc), args)) return;
 
     float diff = selectedFunc->maxArgument - mParent->selTrack->trackData->activeSection->getMaxArgument();
 
@@ -277,9 +300,6 @@ void transitionWidget::on_lengthSpin_valueChanged(double arg1)
         ui->errLabel->hide();
     }
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
 
     if(inTrack->trackData->activeSection->type == straight) {
@@ -289,38 +309,24 @@ void transitionWidget::on_lengthSpin_valueChanged(double arg1)
     }
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, onLengthSpin);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_transitionBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
     trackHandler* inTrack = mParent->selTrack;
-    undoAction* temp1 = NULL;
-    if(!inTrack->mUndoHandler->busy) {
-        temp1 = new undoAction(inTrack, onArg1);
+
+    static const char* shapes[] = { "linear", "quadratic", "cubic", "quartic", "quintic", "sinusoidal", "plateau" };
+    if(index < 0 || index >= (int)(sizeof(shapes)/sizeof(shapes[0]))) {
+        qWarning("Bad transition shape index %d", index);
+        return;
     }
+    commandArgs args;
+    args.insert("shape", QString(shapes[index]));
+    if(!runTransitionCommand(inTrack, "transition.setShape", targetOf(inTrack, selectedFunc), args)) return;
 
-    selectedFunc->changeDegree((eDegree)index);
-    selectedFunc->parent->translateValues(selectedFunc);
-
-
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, onTransitionBox);
-        temp->nextAction = temp1;
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 
     changeSubfunc(selectedFunc); // to make sure the frames are up to date (after undo settings because that would fuck them up)
 }
@@ -328,62 +334,59 @@ void transitionWidget::on_transitionBox_currentIndexChanged(int index)
 void transitionWidget::on_changeSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    if(selectedFunc->parent->secParent->bArgument == DISTANCE && selectedFunc->parent->type != funcLateral && selectedFunc->parent->type != funcNormal) {
-        selectedFunc->symArg = arg1*gloParent->mOptions->getLengthFactor();
-    } else {
-        selectedFunc->symArg = arg1;
-    }
-    selectedFunc->parent->translateValues(selectedFunc);
-
     trackHandler* inTrack = mParent->selTrack;
 
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
+    commandArgs args;
+    if(selectedFunc->parent->secParent->bArgument == DISTANCE && selectedFunc->parent->type != funcLateral && selectedFunc->parent->type != funcNormal) {
+        args.insert("change", arg1*gloParent->mOptions->getLengthFactor());
+    } else {
+        args.insert("change", arg1);
+    }
+    if(!runTransitionCommand(inTrack, "transition.setChange", targetOf(inTrack, selectedFunc), args)) return;
+
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
+}
 
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, onChangeSpin);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
+// Runs transition.setShapeParameter for the five boxes below, then refreshes.
+// parameter is the value the box's slot worked out for the model's arg1.
+static bool setShapeParameter(trackHandler* inTrack, subfunc* sub, double parameter)
+{
+    commandArgs args;
+    args.insert("parameter", parameter);
+    return runTransitionCommand(inTrack, "transition.setShapeParameter", targetOf(inTrack, sub), args);
 }
 
 void transitionWidget::on_quadraticBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
+    trackHandler* inTrack = mParent->selTrack;
+    double value = selectedFunc->arg1;
     switch(index) {
     case 0:
-        selectedFunc->arg1 = 1.f;
+        value = 1.f;
         break;
     case 1:
-        selectedFunc->arg1 = -1.f;
+        value = -1.f;
         break;
     case 2:
-        selectedFunc->arg1 = 0.f;
+        value = 0.f;
         break;
     default:
         lenAssert(0 && "unhandled default case");
         break;
     }
-    selectedFunc->parent->translateValues(selectedFunc);
+    if(!setShapeParameter(inTrack, selectedFunc, value)) return;
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onArg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_quarticBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
+    trackHandler* inTrack = mParent->selTrack;
+    double value = selectedFunc->arg1;
     if(index > 0)
     {
         ui->quarticSpin->setVisible(true);
@@ -392,178 +395,133 @@ void transitionWidget::on_quarticBox_currentIndexChanged(int index)
             switch(index)
             {
             case 1:
-                selectedFunc->arg1 = 0.5f - 0.5f/(1+5*ui->quarticSpin->value());
+                value = 0.5f - 0.5f/(1+5*ui->quarticSpin->value());
                 break;
             case 2:
-                selectedFunc->arg1 = 0.5f + 0.5f/(1+5*ui->quarticSpin->value());
+                value = 0.5f + 0.5f/(1+5*ui->quarticSpin->value());
                 break;
             }
         }
         else
         {
-            selectedFunc->arg1 = 1-selectedFunc->arg1;
+            value = 1-selectedFunc->arg1;
         }
     }
     else
     {
         ui->quarticSpin->setVisible(false);
-        selectedFunc->arg1 = -10;
+        value = -10;
     }
-    selectedFunc->parent->translateValues(selectedFunc);
+    if(!setShapeParameter(inTrack, selectedFunc, value)) return;
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onArg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_quarticSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
+    trackHandler* inTrack = mParent->selTrack;
+    double value;
     int key = ui->quarticBox->currentIndex();
     switch (key)
     {
     case 1:
-        selectedFunc->arg1 = 0.5f - 0.5f/(1+5*arg1);
+        value = 0.5f - 0.5f/(1+5*arg1);
         break;
     case 2:
-        selectedFunc->arg1 = 0.5f + 0.5f/(1+5*arg1);
+        value = 0.5f + 0.5f/(1+5*arg1);
         break;
     default:
         qWarning("Bad Quartic Spin Change");
         return;
     }
-    selectedFunc->parent->translateValues(selectedFunc);
+    if(!setShapeParameter(inTrack, selectedFunc, value)) return;
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onArg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_quinticBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
+    trackHandler* inTrack = mParent->selTrack;
+    double value = selectedFunc->arg1;
     switch(index)
     {
     case 0:
         ui->quinticSpin->setVisible(false);
-        selectedFunc->arg1 = 0.f;
+        value = 0.f;
         break;
     case 1:
         ui->quinticSpin->setVisible(true);
-        selectedFunc->arg1 = fabs(selectedFunc->arg1) < 0.005 ? -ui->quinticSpin->value() : -fabs(selectedFunc->arg1);
-        phantomChanges = true;
-        ui->quinticSpin->setValue(fabs(selectedFunc->arg1));
-        phantomChanges = false;
+        value = fabs(selectedFunc->arg1) < 0.005 ? -ui->quinticSpin->value() : -fabs(selectedFunc->arg1);
         break;
     case 2:
         ui->quinticSpin->setVisible(true);
-        selectedFunc->arg1 = fabs(selectedFunc->arg1) < 0.005 ? ui->quinticSpin->value() : fabs(selectedFunc->arg1);
+        value = fabs(selectedFunc->arg1) < 0.005 ? ui->quinticSpin->value() : fabs(selectedFunc->arg1);
+        break;
+    }
+    if(!setShapeParameter(inTrack, selectedFunc, value)) return;
+
+    if(index == 1 || index == 2) {
         phantomChanges = true;
         ui->quinticSpin->setValue(fabs(selectedFunc->arg1));
         phantomChanges = false;
-        break;
     }
-    selectedFunc->parent->translateValues(selectedFunc);
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onArg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_quinticSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
+    trackHandler* inTrack = mParent->selTrack;
+    double value;
     int key = ui->quinticBox->currentIndex();
     switch (key)
     {
     case 1:
-        selectedFunc->arg1 = -arg1;
+        value = -arg1;
         break;
     case 2:
-        selectedFunc->arg1 = arg1;
+        value = arg1;
         break;
     default:
         qWarning("Bad Quintic Spin Call");
         return;
     }
+    if(!setShapeParameter(inTrack, selectedFunc, value)) return;
 
-    trackHandler* inTrack = mParent->selTrack;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onArg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_centerSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    selectedFunc->centerArg = arg1;
-
     trackHandler* inTrack = mParent->selTrack;
 
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
+    commandArgs args;
+    args.insert("center", arg1);
+    if(!runTransitionCommand(inTrack, "transition.setCenter", targetOf(inTrack, selectedFunc), args)) return;
+
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onCenterSpin);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_tensionSpin_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    selectedFunc->tensionArg = arg1;
-
     trackHandler* inTrack = mParent->selTrack;
 
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
+    commandArgs args;
+    args.insert("tension", arg1);
+    if(!runTransitionCommand(inTrack, "transition.setTension", targetOf(inTrack, selectedFunc), args)) return;
+
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, onTensionSpin);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 subfunc* transitionWidget::getSelectedFunc()
@@ -574,12 +532,15 @@ subfunc* transitionWidget::getSelectedFunc()
 void transitionWidget::on_appendButton_released()
 {
     trackHandler* inTrack = mParent->selTrack;
-    int atIndex = selectedFunc->parent->getSubfuncNumber(selectedFunc);
+    func* parentFunc = selectedFunc->parent;
+    int atIndex = parentFunc->getSubfuncNumber(selectedFunc);
 
-    selectedFunc->parent->appendSubFunction(1, atIndex);
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->maxArgument*F_HZ-1.5f));
+    commandArgs args;
+    args.insert("where", QString("after"));
+    if(!runTransitionCommand(inTrack, "transition.add", targetOf(inTrack, selectedFunc), args)) return;
+
     ui->removeButton->setEnabled(true);
-    mParent->changeSelection(selectedFunc->parent->funcList[atIndex+1]);
+    mParent->changeSelection(parentFunc->funcList[atIndex+1]);
     mParent->redrawGraphs();
 
 
@@ -593,24 +554,20 @@ void transitionWidget::on_appendButton_released()
     }
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, appendSubFunction);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_prependButton_released()
 {
     trackHandler* inTrack = mParent->selTrack;
-    int atIndex = selectedFunc->parent->getSubfuncNumber(selectedFunc)-1;
+    func* parentFunc = selectedFunc->parent;
+    int atIndex = parentFunc->getSubfuncNumber(selectedFunc)-1;
 
-    selectedFunc->parent->appendSubFunction(1, atIndex);
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->parent->funcList[atIndex+1]->minArgument*F_HZ-1.5f));
+    commandArgs args;
+    args.insert("where", QString("before"));
+    if(!runTransitionCommand(inTrack, "transition.add", targetOf(inTrack, selectedFunc), args)) return;
+
     ui->removeButton->setEnabled(true);
-    mParent->changeSelection(selectedFunc->parent->funcList[atIndex+1]);
+    mParent->changeSelection(parentFunc->funcList[atIndex+1]);
     mParent->redrawGraphs();
 
     if(mParent->selTrack->trackData->activeSection->type == straight)
@@ -623,13 +580,6 @@ void transitionWidget::on_prependButton_released()
     }
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, appendSubFunction);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::on_removeButton_released()
@@ -638,16 +588,10 @@ void transitionWidget::on_removeButton_released()
     func* parentFunc = selectedFunc->parent;
     int pos = parentFunc->getSubfuncNumber(selectedFunc);
 
-    // made now, for the number of the transition it removes; recorded once the
-    // track is recomputed
-    undoAction* temp = NULL;
-    if(!inTrack->mUndoHandler->busy)
-    {
-        temp = new undoAction(inTrack, removeSubFunction);
-    }
+    // the command removes the transition, so selectedFunc is gone afterwards
+    if(!runTransitionCommand(inTrack, "transition.delete", targetOf(inTrack, selectedFunc), commandArgs())) return;
 
-    parentFunc->removeSubFunction(pos);
-    if(pos == selectedFunc->parent->funcList.size())
+    if(pos == parentFunc->funcList.size())
     {
         mParent->selFunc = parentFunc->funcList[pos-1];
         this->changeSubfunc(parentFunc->funcList[pos-1]);
@@ -657,7 +601,6 @@ void transitionWidget::on_removeButton_released()
         mParent->selFunc = parentFunc->funcList[pos];
         this->changeSubfunc(parentFunc->funcList[pos]);
     }
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
 
     if(inTrack->trackData->activeSection->type == straight)
@@ -670,12 +613,6 @@ void transitionWidget::on_removeButton_released()
     }
 
     gloParent->updateInfoPanel();
-
-    if(temp)
-    {
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void transitionWidget::adjustLengthSteps(secType _type, bool _argument)
@@ -708,21 +645,19 @@ void transitionWidget::adjustLengthSteps(secType _type, bool _argument)
 void transitionWidget::on_lockCheck_stateChanged(int arg1)
 {
     if(phantomChanges) return;
-    undoAction* temp1 = NULL;
     trackHandler* inTrack = mParent->selTrack;
 
-    int id = selectedFunc->parent->getSubfuncNumber(selectedFunc);
-    if(arg1)
-    {
-        if(!inTrack->mUndoHandler->busy)
-        {
-            temp1 = new undoAction(inTrack, onLengthSpin);
-        }
-        selectedFunc->parent->lock(id);
-    }
-    else
-    {
-        selectedFunc->parent->unlock(id);
+    // the command locks or unlocks, refreshes the length of a locked
+    // transition and recomputes the track
+    commandArgs args;
+    args.insert("locked", arg1 != 0);
+    if(!runTransitionCommand(inTrack, "transition.setLocked", targetOf(inTrack, selectedFunc), args)) {
+        // the box shows what the model does not have: put it back
+        bool oldPhantom = phantomChanges;
+        phantomChanges = true;
+        ui->lockCheck->setChecked(selectedFunc->locked);
+        phantomChanges = oldPhantom;
+        return;
     }
 
     bool oldP = phantomChanges;
@@ -730,30 +665,15 @@ void transitionWidget::on_lockCheck_stateChanged(int arg1)
     if(ui->lockCheck->isChecked())
     {
         ui->lengthSpin->setEnabled(false);
-        selectedFunc->getValue(-1.f);
         ui->lengthSpin->setValue(selectedFunc->maxArgument-selectedFunc->minArgument);
     }
     else
     {
         ui->lengthSpin->setEnabled(true);
-        selectedFunc->getValue(-1.f);
         ui->lengthSpin->setValue(selectedFunc->maxArgument-selectedFunc->minArgument);
     }
     phantomChanges = oldP;
 
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, (int)(selectedFunc->minArgument*F_HZ-1.5f));
     mParent->redrawGraphs();
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy)
-    {
-        undoAction* temp = new undoAction(inTrack, changeFunctionStatus);
-        if(temp1)
-        {
-            temp->nextAction = temp1;
-        }
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
