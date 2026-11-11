@@ -108,3 +108,16 @@ void trackHandler::trackLoaded(track* which)
     trackWidgetItem->clearSelection();
     trackWidgetItem->setNames();
 }
+
+// Nothing restores a track state yet: the undo built on snapshots (the next
+// piece of Stage 2) fills these in, dropping the panel's pointers into the
+// track here and rebuilding the panel, graphs and mesh in trackReset().
+void trackHandler::trackAboutToReset(track* which)
+{
+    Q_UNUSED(which);
+}
+
+void trackHandler::trackReset(track* which)
+{
+    Q_UNUSED(which);
+}

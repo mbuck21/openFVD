@@ -198,7 +198,7 @@ void seccurved::saveSection(std::iostream& file)
     file << "CUR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -255,7 +255,7 @@ void seccurved::saveSection(std::stringstream& file)
     file << "CUR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
