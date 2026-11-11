@@ -20,6 +20,7 @@ Either one runs qmake and make in `build/` and then collects a copy that runs on
 
 - `build/release/FVD.exe` is the program. It needs `C:\msys64\ucrt64\bin` on the `PATH` to find Qt.
 - `build/dist/FVD.exe` is the same program with every DLL it needs beside it (about 75 MB). Double-click this one.
+- `build/dist/fvdcore.exe` is the command-line program (`cli/`, built from `core/` alone with QtCore and QtGui; `cli/README.md` lists its commands). The script builds it from `cli/fvdcore.pro` into `build/cli/` and copies it beside `FVD.exe`; the DLLs are the same ones, so it runs from a plain `cmd.exe` with no MSYS2 on the `PATH`.
 
 The first build takes a few minutes (the plot library alone is 25,000 lines). Later builds only recompile what changed; the script never empties `build/`, only `build/dist/`. For a clean rebuild, delete the `build` folder first. `build/` is ignored by git.
 
