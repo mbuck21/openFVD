@@ -34,6 +34,13 @@ A new call from core to a window means a new virtual function on one of these, i
 - **`noLimitsImporter`** (`nolimitsimporter.*`): takes a `track*`, builds `secbezier` sections with `track::appendSectionFromFile()`.
 - **`fvdmath.*`:** `asinh2016` and `asin2016`, see the traps.
 - **`trainCatalogue`** (`traintype.*`): reads `data/traintypes.json`. QtCore only; `tests/traintypes` builds it alone.
+- **`trackState`** (`trackstate.*`): a track's whole state as a value: its saved bytes plus the live values they do not hold. `captureTrackState()` takes it; `restoreTrackState()` puts it back in place and recomputes the whole track. The base of undo (`docs/decisions/0011-undo-by-snapshot-commands-on-top.md`).
+- **`trackHistory`** (`trackhistory.*`): the undo history of one track. Steps hold the state before and after, a label, the commands that made them and a selection. Scopes (`beginStep`/`endStep`, `historyScope`) make several changes one step or roll them back; `noteEdit` records a change already made. Undo and redo restore states. A restore rebuilds every section, function and transition, so after a rollback, undo or redo every target is found again from its numbers.
+- **`commandRegistry`** (`command.*`, with the group files `commands_anchor.cpp`, `commands_section.cpp`, `commands_transition.cpp`, `commands_track.cpp`, `commands_smoothing.cpp`): every edit as a named command (`transition.setChange`), with typed parameters in model units, a description, a target given by numbers (`commandTarget`), and an apply function. `run()` validates and records one step; `describe()` is the list an agent reads. To add a command:
+  1. In the group's file, write an apply function that makes exactly the model steps and the `updateTrack()` call of the window's slot, without moving float arithmetic.
+  2. Fill a `commandSpec`: name `<object>.<verb><Property>`, description, target kind, undo label, each parameter with a unit (`"none"` if none) and a range if it has one, example arguments, and `merges` for a value typed digit by digit (`exampleTarget` when the default target does not fit).
+  3. Append it to the list that file's function returns; nothing else registers it.
+  4. Run `tools\run-tests.cmd`: `tests/commands` runs it on every baseline project with undo and redo and fails if a description, unit or example is missing.
 
 ## Where a change lands
 
@@ -57,6 +64,7 @@ A new call from core to a window means a new virtual function on one of these, i
 - **The `.fvd` file is written back to front.** `writeBytes()` writes each block reversed, so numbers are big-endian and a `vec3` or the colours appear reversed. Use the helpers in `exportfuncs.cpp`, never a raw `fwrite` of a struct in new code.
 - **`QColor` is written as raw bytes** (`track::saveTrack()`, 16 bytes each, guarded by a `Q_STATIC_ASSERT_X`). Do not change `track::display` into anything else without a version bump (issue 18).
 - **`updateTrack()` recomputes from a node onward**, not the whole track, so a recompute after an undo can differ from the stored nodes in the last digits (`docs/testing.md`, "Undo and redo check").
+- **A new field of the model must be saved, declared a live extra of the state (`trackState`), or derived from the others**, or undo loses it (decision record 0011).
 - **Notices are synchronous.** A listener runs inside the call that causes it (for example `updateTrack()`), before that call returns.
 
 ## Check a change

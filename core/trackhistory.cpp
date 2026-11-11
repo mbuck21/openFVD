@@ -59,7 +59,17 @@ void trackHistory::beginStep(const QString& label, const commandTarget& selectio
     scope s;
     if(mScopes.isEmpty()) {
         trackState now = captureTrackState(mTrack, &mHead);
-        s.before = now == mHead ? mHead : now;
+        if(now == mHead) {
+            s.before = mHead;
+        } else {
+            // Changed outside any step and not noted: the change becomes part
+            // of this step's state before and can never be undone on its own.
+            // Kept as it is, but said, so that a missing noteEdit() shows.
+            qWarning("trackHistory: the track changed outside the history before step \"%s\"; "
+                     "that change is folded into this step and cannot be undone on its own",
+                     label.toUtf8().constData());
+            s.before = now;
+        }
         s.callCount = 0;
         mScopeLabel = label;
         mScopeSelection = selection;
@@ -85,13 +95,23 @@ void trackHistory::endStep(bool commit)
     if(!commit) {
         // Rollback: put back the state this scope began with, unless nothing
         // changed (a restore recomputes the whole track; not needed then).
+        // A restore deletes and rebuilds every section, function and
+        // transition: pointers into the track taken before are dead after it.
         trackState now = captureTrackState(mTrack, &s.before);
-        if(now != s.before) {
+        bool restored = now != s.before;
+        if(restored) {
             restoreTrackState(mTrack, s.before);
         }
         while(mScopeCalls.size() > s.callCount) mScopeCalls.removeLast();
         if(outermost) {
-            mHead = s.before;
+            // The head is the track as it now is: on some tracks a restore's
+            // full recompute leaves live values a little different from the
+            // state put back (trackstate.h), which is not an outside change.
+            if(restored) {
+                headAfterRestore(s.before);
+            } else {
+                mHead = s.before;
+            }
             mScopeCalls.clear();
         }
         return;
@@ -261,6 +281,16 @@ void trackHistory::setClock(clockFn clock)
     mClock = clock != NULL ? clock : defaultClock;
 }
 
+// The head after restoreTrackState(state): the track as it now is. On some
+// tracks the restore's full recompute leaves live values a little different
+// from state (trackstate.h); that is not an outside change, so the next
+// beginStep() must not warn about it.
+void trackHistory::headAfterRestore(const trackState& state)
+{
+    trackState now = captureTrackState(mTrack, &state);
+    mHead = now == state ? state : now;
+}
+
 void trackHistory::notify()
 {
     if(mListener != NULL) mListener->historyChanged(this);
@@ -302,8 +332,8 @@ bool trackHistory::undo(commandTarget* selection)
     trackState state = mSteps[mPosition-1].before;
     commandTarget sel = mSteps[mPosition-1].selection;
     --mPosition;
-    restoreTrackState(mTrack, state);
-    mHead = state;
+    restoreTrackState(mTrack, state);   // rebuilds the track: old pointers are dead
+    headAfterRestore(state);
     if(selection != NULL) *selection = sel;
     notify();
     return true;
@@ -316,8 +346,8 @@ bool trackHistory::redo(commandTarget* selection)
     trackState state = mSteps[mPosition].after;
     commandTarget sel = mSteps[mPosition].selection;
     ++mPosition;
-    restoreTrackState(mTrack, state);
-    mHead = state;
+    restoreTrackState(mTrack, state);   // rebuilds the track: old pointers are dead
+    headAfterRestore(state);
     if(selection != NULL) *selection = sel;
     notify();
     return true;

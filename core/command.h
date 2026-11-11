@@ -98,7 +98,10 @@ enum commandTargetKind
 
 QString targetKindName(commandTargetKind kind);  // "track", "section", "transition"
 
-// A target found in the track. Found again at every run; never stored.
+// A target found in the track. Found again at every run; never stored. A
+// rollback, an undo or a redo (trackHistory) deletes and rebuilds every
+// section, function and transition, so these pointers are dead after one:
+// call resolveTarget() again from the numbers.
 struct resolvedTarget
 {
     section* sec;

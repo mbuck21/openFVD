@@ -65,10 +65,17 @@ static int checkCount = 0;
 static int failCount = 0;
 static QString tmpPath;
 
-// Debug output and warnings are dropped (the exporters print thousands of
-// lines); a failed lenAssert (qCritical in release) is shown and fails the test.
+// The history's warnings, kept for the checks that look for them.
+static QStringList historyWarnings;
+
+// Debug output and other warnings are dropped (the exporters print thousands
+// of lines); a failed lenAssert (qCritical in release) is shown and fails the
+// test.
 static void messageHandler(QtMsgType type, const QMessageLogContext&, const QString& msg)
 {
+    if(type == QtWarningMsg && msg.startsWith("trackHistory")) {
+        historyWarnings.append(msg);
+    }
     if(type == QtCriticalMsg || type == QtFatalMsg) {
         fprintf(stderr, "critical: %s\n", msg.toLocal8Bit().constData());
         allOk = false;
@@ -314,6 +321,13 @@ static void runHarness(const QStringList& projects)
 
                 check(history.redo(&selection) && selection == target, label + ": redo, returning the target as the selection");
                 check(savedBytes(t) == savedAfter, label + ": after redo the saved bytes are exactly those after");
+                // the head after a redo is the track as it is: a scope opened
+                // now finds no outside change and records nothing
+                int warningsBefore = historyWarnings.size();
+                history.beginStep("Nothing");
+                history.endStep(true);
+                check(historyWarnings.size() == warningsBefore && history.steps().size() == 1,
+                      label + ": a scope after the redo sees no outside change and records nothing");
                 QList<QByteArray> exportsRedone = exportsOf(t);
 
                 // ---- SMOOTHING TRACES: the one place a difference is let through ----
@@ -623,6 +637,48 @@ static void checkHistory(const QString& repo)
     rename(t, original);
 }
 
+// A change made outside any step and not noted is folded into the next step;
+// beginStep() says so with a warning naming the step.
+static void checkOutsideChangeWarning(const QString& repo)
+{
+    testProject project;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/four-sections.fvd"), &project);
+    track* t = project.tracks[0];
+    trackHistory h(t);
+
+    historyWarnings.clear();
+    h.beginStep("Normal");
+    rename(t, "normal");
+    h.endStep(true);
+    h.undo();
+    h.redo();
+    h.beginStep("After undo and redo");
+    rename(t, "normal 2");
+    h.endStep(true);
+    check(historyWarnings.isEmpty(), "outside change: none in the normal case, no warning");
+
+    rename(t, "changed behind its back");
+    h.beginStep("Rename later");
+    rename(t, "later");
+    h.endStep(true);
+    check(historyWarnings.size() == 1 && historyWarnings[0].contains("changed outside the history")
+          && historyWarnings[0].contains("\"Rename later\""),
+          "outside change: beginStep warns, naming the step: " + historyWarnings.value(0));
+    check(h.undo() && t->name == "changed behind its back",
+          "outside change: the behaviour is kept (the change is folded into the step's state before)");
+    h.redo();
+
+    historyWarnings.clear();
+    rename(t, "again behind its back");
+    h.beginStep("Abandoned");
+    h.endStep(false);
+    h.beginStep("Next");
+    h.endStep(true);
+    check(historyWarnings.size() == 1 && historyWarnings[0].contains("\"Abandoned\""),
+          QString("outside change: a rolled-back scope warns once, and the next scope does not (%1 warnings)").arg(historyWarnings.size()));
+    historyWarnings.clear();
+}
+
 // ---- 4. commands ------------------------------------------------------------
 
 static void checkCommands(const QString& repo)
@@ -799,8 +855,12 @@ int main(int argc, char *argv[])
     check(projects.size() >= 8, QString("%1 baseline projects found").arg(projects.size()));
 
     checkSpecs();
+    historyWarnings.clear();
     runHarness(projects);
     checkHistory(repo);
+    check(historyWarnings.isEmpty(), QString("the harness and the history checks raised no history warning (%1)")
+          .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));
+    checkOutsideChangeWarning(repo);
     checkCommands(repo);
     timeLargest(projects);
 

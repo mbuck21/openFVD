@@ -77,7 +77,22 @@ public:
 // - noteEdit(), after the model was already changed (the window's edit slots
 //   until they are converted to commands).
 // The head state is the state after the last recorded step (or after
-// rebase()): noteEdit() takes it as the state before.
+// rebase()): noteEdit() takes it as the state before. A change made outside
+// any step and not noted is folded into the next step's state before and can
+// never be undone on its own; beginStep() warns (qWarning) when it finds one.
+//
+// Pointers do not survive a restore. A rollback, an undo and a redo all go
+// through restoreTrackState(), which deletes and rebuilds every section,
+// function, transition and node: any section*, func* or subfunc* taken before
+// is dead afterwards. Find every target again from its numbers
+// (commandTarget, resolveTarget()).
+//
+// How a solver uses a scope: it opens one scope, changes values and
+// recomputes directly inside it as many times as it needs, and at the end
+// either commits once (after a final full recompute, updateTrack(0, 0), so
+// that the committed state is the one undo and redo reproduce) or rolls back
+// once. A rollback costs a full rebuild and recompute (about 0.1 s on a large
+// track): it is the way to abandon a scope, not something to do per trial value.
 class trackHistory
 {
 public:
@@ -93,14 +108,21 @@ public:
     // head state's bytes where unchanged) with the label, the selection and the
     // merge key. A nested call joins the outer step: its label and key are
     // ignored, but it keeps the state at its start so that its own rollback
-    // can put that back.
+    // can put that back. When the outermost call finds the track different
+    // from the head state (a change made outside any step and not noted), it
+    // warns with qWarning, naming the label, and goes on: that change becomes
+    // part of this step's state before.
     void beginStep(const QString& label, const commandTarget& selection = commandTarget(),
                    const QString& mergeKey = QString());
     // Closes the innermost open scope. commit true: the outermost one records
     // the step (nothing when the state did not change; a merge with the head
     // step when its key allows it). commit false (rollback): the track is put
     // back as it was when this scope began, its calls are forgotten, and
-    // nothing is recorded; a solver tries values this way and leaves no trace.
+    // nothing is recorded. A rollback that has something to undo rebuilds the
+    // whole track (restoreTrackState()): every section*, func* and subfunc*
+    // taken before it is dead afterwards; find targets again from their
+    // numbers. It is the way to abandon a scope, not a per-trial reset (see
+    // the class comment).
     void endStep(bool commit);
     // Adds a call to the open step (commandRegistry::run() does this).
     void recordCall(const commandCall& call);
@@ -121,7 +143,9 @@ public:
 
     // ---- undo and redo ----
     // Refused (false) while a scope is open or when there is nothing to undo or
-    // redo. On success the step's selection is written to selection.
+    // redo. On success the step's selection is written to selection. Both
+    // rebuild the whole track: every section*, func* and subfunc* taken before
+    // is dead afterwards; find targets again from their numbers.
     bool undo(commandTarget* selection = NULL);
     bool redo(commandTarget* selection = NULL);
     bool canUndo() const;
@@ -174,6 +198,7 @@ private:
     void dropRedoBranch();
     qint64 stepCost(int index) const;
     void enforceLimits();
+    void headAfterRestore(const trackState& state);
     void notify();
 
     track* mTrack;
@@ -200,7 +225,9 @@ private:
 
 // A scope as an object: begins a step when made, and ends it when it goes out
 // of use, rolled back unless commit() was called. So an early return or an
-// error leaves no trace.
+// error leaves no trace. A rollback that has something to undo rebuilds the
+// whole track: every section*, func* and subfunc* taken before it is dead
+// afterwards; find targets again from their numbers.
 class historyScope
 {
 public:
