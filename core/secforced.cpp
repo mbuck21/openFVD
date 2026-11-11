@@ -339,7 +339,7 @@ float secforced::getMaxArgument()
     return min;
 }
 
-void secforced::saveSection(std::fstream& file)
+void secforced::saveSection(std::iostream& file)
 {
     file << "FRC";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
@@ -359,7 +359,7 @@ void secforced::saveSection(std::fstream& file)
     latForce->saveFunction(file);
 }
 
-void secforced::loadSection(std::fstream& file)
+void secforced::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -376,7 +376,7 @@ void secforced::loadSection(std::fstream& file)
     latForce->loadFunction(file);
 }
 
-void secforced::legacyLoadSection(std::fstream& file)
+void secforced::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 

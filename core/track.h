@@ -85,9 +85,9 @@ public:
 
     void exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toIndex);
 
-    QString saveTrack(std::fstream& file);
-    QString loadTrack(std::fstream& file);
-    QString legacyLoadTrack(std::fstream& file);
+    QString saveTrack(std::iostream& file);
+    QString loadTrack(std::iostream& file);
+    QString legacyLoadTrack(std::iostream& file);
     mnode* getPoint(int index);
     int getIndexFromDist(float dist);
     int getNumPoints(section* until = NULL);

@@ -11,9 +11,9 @@ class secnlcsv : public section
 public:
     secnlcsv(track* getParent, mnode* first);
     virtual int updateSection(int node = 0);
-    virtual void saveSection(std::fstream& file);
-    virtual void loadSection(std::fstream& file);
-    virtual void legacyLoadSection(std::fstream& file);
+    virtual void saveSection(std::iostream& file);
+    virtual void loadSection(std::iostream& file);
+    virtual void legacyLoadSection(std::iostream& file);
     virtual void saveSection(std::stringstream& file);
     virtual void loadSection(std::stringstream& file);
     virtual float getMaxArgument();
