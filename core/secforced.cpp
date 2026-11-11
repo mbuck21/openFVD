@@ -75,6 +75,10 @@ int secforced::updateSection(int node)
 		float diff = lNodes[0].forceNormal; // - normForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -84,6 +88,10 @@ int secforced::updateSection(int node)
 		diff = lNodes[0].forceLateral; // - latForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -103,6 +111,11 @@ int secforced::updateSection(int node)
     {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -209,6 +222,10 @@ int secforced::updateDistanceSection(int node)
 		float diff = lNodes[0].forceNormal; // - normForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -218,6 +235,10 @@ int secforced::updateDistanceSection(int node)
 		diff = lNodes[0].forceLateral; // - latForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -240,6 +261,11 @@ int secforced::updateDistanceSection(int node)
     while(length < end) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];

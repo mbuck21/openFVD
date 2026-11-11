@@ -192,7 +192,6 @@ void TrackProperties::on_buttonBox_accepted()
 
         if(!curTrack->mUndoHandler->busy) {
             undoAction* temp = new undoAction(curTrack, changeTrackFriction);
-            temp->toValue = QVariant(ui->frictionBox->value());
             curTrack->mUndoHandler->addAction(temp);
             gloParent->setUndoButtons();
         }
@@ -204,7 +203,6 @@ void TrackProperties::on_buttonBox_accepted()
 
         if(!curTrack->mUndoHandler->busy) {
             undoAction* temp = new undoAction(curTrack, changeTrackResistance);
-            temp->toValue = QVariant(ui->resistanceBox->value()*1e-5);
             curTrack->mUndoHandler->addAction(temp);
             gloParent->setUndoButtons();
         }
@@ -224,14 +222,11 @@ void TrackProperties::on_buttonBox_accepted()
         undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
         if(!curTrack->mUndoHandler->busy) {
             tempx = new undoAction(curTrack, changeAnchorPosX);
-            tempx->fromValue = QVariant(curTrack->trackData->startPos.x);
 
             tempy = new undoAction(curTrack, changeAnchorPosY);
-            tempy->fromValue = QVariant(curTrack->trackData->startPos.y);
             tempy->nextAction = tempx;
 
             tempz = new undoAction(curTrack, changeAnchorPosZ);
-            tempz->fromValue = QVariant(curTrack->trackData->startPos.z);
             tempz->nextAction = tempy;
         }
 
@@ -243,12 +238,7 @@ void TrackProperties::on_buttonBox_accepted()
 
         curTrack->trackData->updateTrack(0, 0);
         if(!curTrack->mUndoHandler->busy) {
-            tempx->toValue = QVariant(curTrack->trackData->startPos.x);
-            tempy->toValue = QVariant(curTrack->trackData->startPos.y);
-            tempz->toValue = QVariant(curTrack->trackData->startPos.z);
-
             undoAction* temp = new undoAction(curTrack, changeTrackHeartline);
-            temp->toValue = QVariant(ui->heartlineBox->value());
             temp->nextAction = tempz;
             curTrack->mUndoHandler->addAction(temp);
             gloParent->setUndoButtons();
@@ -277,9 +267,25 @@ void TrackProperties::on_buttonBox_rejected()
 
 void TrackProperties::openForTrack(trackHandler* _curTrack)
 {
-    if(_curTrack != curTrack) {
-        curTrack = _curTrack;
+    curTrack = _curTrack;
+    fillBoxes();
+    this->show();
+}
 
+// The track was put back to another state (an undo or redo): an open dialog
+// shows the values it has now, so OK does not write the old ones back.
+void TrackProperties::trackReset(trackHandler* _track)
+{
+    if(_track == curTrack && isVisible()) {
+        fillBoxes();
+    }
+}
+
+// Every box from the track, every time the dialog opens (not only for another
+// track: an undo since it was last open may have changed the values).
+void TrackProperties::fillBoxes()
+{
+    {
         ui->frictionBox->setValue(curTrack->trackData->fFriction);
         ui->resistanceBox->setValue(curTrack->trackData->fResistance*1e5);
 
@@ -303,5 +309,4 @@ void TrackProperties::openForTrack(trackHandler* _curTrack)
     bSettingHeartline = false;
     ui->trainTypeBox->setCurrentIndex(0);
     ui->trainSourceLabel->clear();
-    this->show();
 }

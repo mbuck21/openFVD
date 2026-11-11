@@ -22,62 +22,48 @@
 #include "undoaction.h"
 
 class MainWindow;
+class track;
 
-// The undo list of one track: a stack of undoActions limited to maxStackSize, and the
-// remembered old values of the edit boxes. Owned by trackHandler. doUndo() and
-// doRedo() are called from MainWindow's Edit menu. Window code (docs/decisions/0009).
+// The undo list of one track: a stack of undoActions limited to maxStackSize,
+// newest first. Every step holds the state of the track after it; the state
+// before the oldest step is the base state. Undo puts back the state before a
+// step, redo the state after it, and the panel then selects the step's section
+// and transition again. Owned by trackHandler. doUndo() and doRedo() are called
+// from MainWindow's Edit menu. docs/decisions/0011-undo-by-snapshot-commands-on-top.md.
+//
+// Anything that changes the track without a step (a load, an import) must call
+// clearActions() afterwards, or the first undo would take it back.
 class undoHandler
 {
 public:
-    undoHandler();
-    undoHandler(int _stackSize = 15);
+    undoHandler(track* _track, int _stackSize = 15);
     ~undoHandler();
     void doUndo();
     void doRedo();
+
+    // Records an edit that has just been made: takes the state of the track
+    // now as the step's after-state. A step that changed nothing is dropped.
     void addAction(undoAction* _action);
+
+    // Empties the list and takes the track as it is now as the base state.
     void clearActions();
 
     QList<undoAction*> lActions;
     int maxStackSize;
 
-    int stackIndex;
+    int stackIndex;     // the step the next undo takes back; -1 with an empty list
 
+    bool busy;          // set while a state is put back: nothing is recorded
 
-    double oldLengthSpinValue;
-    double oldChangeSpinValue;
-    double oldArg1Value;
-    double oldCenterSpinValue;
-    double oldTensionSpinValue;
+private:
+    // the state the track is in, as far as the list knows
+    const trackState& stateNow() const;
+    // the state before the step at index
+    const trackState& stateBefore(int index) const;
+    void putBack(undoAction* step, const trackState& state, bool undone);
 
-    int oldTransitionBoxValue;
-    int oldQuadraticBoxValue;
-
-    double oldSegmentLength;
-    double oldCurveDirection;
-    double oldCurveLeadIn;
-    double oldCurveLeadOut;
-    double oldCurveRadius;
-    double oldSegmentSpeed;
-
-    bool oldSpeedState;
-
-    double oldAnchorPosX;
-    double oldAnchorPosY;
-    double oldAnchorPosZ;
-    double oldAnchorRoll;
-    double oldAnchorPitch;
-    double oldAnchorYaw;
-    double oldAnchorNormal;
-    double oldAnchorLateral;
-    double oldAnchorPitchChange;
-    double oldAnchorYawChange;
-    double oldAnchorSpeed;
-    double oldTrackHeartline;
-    double oldTrackFriction;
-    double oldTrackResistance;
-
-
-    bool busy;
+    track* mTrack;
+    trackState baseState;
 };
 
 #endif // UNDOHANDLER_H

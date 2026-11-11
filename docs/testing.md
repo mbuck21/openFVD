@@ -25,7 +25,7 @@ There is no unit-test suite. FVD++ is a GUI program whose model code calls into 
 py -3 tools/run-baseline.py
 ```
 
-For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 60 seconds is stopped and counts as failed. Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
+For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 180 seconds is stopped and counts as failed (the undo check, which computes the whole track for every undo and redo, takes up to about 50 seconds on one project). Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
 
 Options:
 
@@ -123,22 +123,11 @@ loads the project, opens track 1 as a person would (select it, Edit), and writes
 
 The report `<outdir>/<project>.undo.batch.txt` has one line per edit (what it changed, which undo action types the program recorded and which were expected; an edit without a target in this project is skipped with the reason), the A2 and B2 comparisons, the list of undo action types exercised and not exercised, and a last line `OK` or `ERROR: ...`. The A, B, A2 and B2 files stay in `<outdir>` as `<project>.undo-A.nl2elem` and so on.
 
-Some edits are left out by default because the round trip fails on today's code; `KNOWN_BROKEN` in `ui/batchscenarios.cpp` lists them with the reason, and the report names each one. They are faults of the program, recorded so that the check passes today and catches any new change:
-
-| Edit | Left out | Why the round trip fails today |
-|---|---|---|
-| 4, 5 anchor pitch and yaw change rate | always | Undo recomputes the anchor's normal and lateral force from the rate instead of restoring them; the saved forces differ in the last digits. |
-| 9 anchor roll | when the anchor is rolled | Undo applies the old roll as a difference to the current one; with a rolled anchor the result differs in the last digits. |
-| 29 transition length on the first force section | always | The track is not restored (seen on `gen-normal-shapes` and `gen-smooth-whole`). Length undo is still checked on the geometric section (edit 51). |
-| 41 tension | always | Undo restores a remembered "old tension" that is never taken from the selected transition (`transitionWidget::changeSubfunc` sets the other four), so it restores whatever was left there; seen: minus infinity. |
-| 42, 43, 44 append, prepend, remove a roll transition | on a smoothed track | The track is not restored. On the other projects these edits run. |
-| 45, 46 append and prepend on normal force | always | A new normal-force transition starts as cubic with its shape argument never set; redo creates it again with another leftover value, so the saved file differs. |
-| 49, 52 argument of a force or geometric section | when that section uses distance | Undo of switching from distance back to time does not restore the saved project. |
-| 56 delete a section | always | Undo recreates the section's smoothing entry without the name the smoothing dialog gave it, so the saved file is shorter, and the section's own smoothing settings are lost. |
+No edit is left out. Undo and redo put back a snapshot of the whole track (`core/trackstate.h`, `docs/decisions/0011-undo-by-snapshot-commands-on-top.md`), so every kind of edit with undo comes back exactly; until Stage 2 thirteen edits were left out because the old undo re-applied each value by its own code and got eight kinds wrong (issue 31). `KNOWN_BROKEN` in `ui/batchscenarios.cpp` is kept, empty, until a later piece removes it; anything listed there is named in the report.
 
 Options: `--all-edits` puts the left-out edits back (to check a fix); `--edits 3,17` makes only those edits and the first and last (left-out edits stay out unless `--all-edits` is given too); `--each` also undoes and redoes every edit on its own right after making it and writes the files that differ as `<project>.edit<n>.before.fvd` and so on (a diagnostic only, see below).
 
-**Why the check compares only the end states.** The program recomputes the part of the track after an edit from the edited point onward, so after undoing one edit the recomputed nodes can differ from the ones stored before it in the last digits (seen: 0.001 mm on one tangent handle). Undoing everything ends with the first edit, which recomputes the whole track; that is the state compared. `--each` shows the per-edit differences for anyone chasing a failure.
+**Why the check compares only the end states.** An edit recomputes the part of the track after the edited point; undo and redo put the inputs back and recompute the whole track. The two can differ in the last digits (seen: 0.001 mm on one tangent handle), so undoing or redoing a single edit made with a partial recompute can show such a difference with `--each`. The first and the last scripted edit recompute the whole track, and a whole-track recompute gives what a fresh computation gives (also on smoothed tracks), so the end states A2 and B2 must match A and B exactly. `--each` shows the per-edit differences for anyone chasing a failure.
 
 
 ## The core-only program

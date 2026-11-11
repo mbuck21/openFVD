@@ -62,6 +62,12 @@ public:
 
     void showAddedSection(int index);
 
+    // Around a reset of the track's model (trackHandler::trackAboutToReset()
+    // and trackReset()): drop the section rows and the selection; make the
+    // rows again.
+    void dropSections();
+    void showSections();
+
     QList<sectionHandler*> sectionList;
     sectionHandler* selSection;
     trackHandler* inTrack;
@@ -151,7 +157,7 @@ private slots:
 
 private:
     void updateSectionIDs();
-    void showNewSection(sectionHandler* newSec, secType _type);
+    void showNewSection(sectionHandler* newSec, secType _type, bool record);
     Ui::trackWidget *ui;
     bool phantomChanges;
 };

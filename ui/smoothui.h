@@ -48,6 +48,7 @@ public:
 
     void updateUi();
     void showRows();
+    void dropSelection();
 
     void smoothHandlerChanged(smoothHandler* which, int fields);
     void smoothHandlerDeleted(smoothHandler* which);

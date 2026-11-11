@@ -255,7 +255,11 @@ void restoreTrackState(track* t, const trackState& state)
         t->loadTrackHeader(file);
         putNode(t->anchorNode, state.anchorNode);
 
-        QString error = t->loadTrackSections(file);
+        // the transitions' arguments as captured (a file load can move their
+        // last digits; see func::bKeepSavedArguments)
+        func::bKeepSavedArguments = true;
+        QString error = t->loadTrackSections(file, false);   // updateTrack(0, 0) below computes them
+        func::bKeepSavedArguments = false;
         lenAssert(error.isEmpty());
         tag = readString(&file, 3);
         lenAssert(tag == "EOT");

@@ -38,6 +38,7 @@ public:
     ~TrackProperties();
 
     void openForTrack(trackHandler* _curTrack);
+    void trackReset(trackHandler* _track);
 
     trackHandler* curTrack;
     
@@ -72,6 +73,7 @@ private slots:
     void on_buttonBox_rejected();
 
 private:
+    void fillBoxes();
     void fillTrainList();
 
     bool bSettingHeartline; // true while the train list is setting the heartline box

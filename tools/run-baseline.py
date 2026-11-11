@@ -89,7 +89,10 @@ UNSTABLE_IMPORTS = {
 DEFAULT_EXE = ROOT / "build" / "dist" / "FVD.exe"
 CORE_DEPLOYED = ROOT / "build" / "dist" / "fvdcore.exe"  # tools/build-windows.sh puts fvdcore beside FVD.exe
 CORE_DIR = ROOT / "build" / "tests" / "coreonly"  # where tools/run-tests.sh builds it (the older place)
-TIME_LIMIT_S = 60
+# Per run of the program. The undo check computes the whole track for every
+# undo and redo (about 115 of them); on gen-geometric-distance, whose scripted
+# edits leave long sections without a valid speed, one run takes about 50 s.
+TIME_LIMIT_S = 180
 FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
 

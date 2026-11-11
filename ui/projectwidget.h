@@ -45,6 +45,10 @@ public:
     QString loadProject(const QString& fileName);
     ~projectWidget();
 
+    // A track was put back to another state (undo, redo): the Track
+    // Properties dialog, if it is open for it, shows the values it has now.
+    void trackReset(trackHandler* which);
+
     // projectFileClient: what reading and writing the project file asks of
     // the windows (core/projectfile.h)
     void projectCleared();

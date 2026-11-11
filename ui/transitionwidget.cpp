@@ -247,11 +247,6 @@ void transitionWidget::changeSubfunc(subfunc *_newSubfunc)
         ui->errLabel->hide();
     }
 
-    mParent->selTrack->mUndoHandler->oldLengthSpinValue = selectedFunc->maxArgument - selectedFunc->minArgument;
-    mParent->selTrack->mUndoHandler->oldChangeSpinValue = selectedFunc->symArg;
-    mParent->selTrack->mUndoHandler->oldArg1Value = selectedFunc->arg1;
-    mParent->selTrack->mUndoHandler->oldCenterSpinValue = selectedFunc->centerArg;
-    mParent->selTrack->mUndoHandler->oldTransitionBoxValue = selectedFunc->degree;
 
     gloParent->updateInfoPanel();
     phantomChanges = false;
@@ -297,7 +292,6 @@ void transitionWidget::on_lengthSpin_valueChanged(double arg1)
 
     if(!inTrack->mUndoHandler->busy) {
         undoAction* temp = new undoAction(inTrack, onLengthSpin);
-        temp->toValue = QVariant(selectedFunc->maxArgument - selectedFunc->minArgument);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -310,7 +304,6 @@ void transitionWidget::on_transitionBox_currentIndexChanged(int index)
     undoAction* temp1 = NULL;
     if(!inTrack->mUndoHandler->busy) {
         temp1 = new undoAction(inTrack, onArg1);
-        temp1->fromValue = QVariant(selectedFunc->arg1);
     }
 
     selectedFunc->changeDegree((eDegree)index);
@@ -324,8 +317,6 @@ void transitionWidget::on_transitionBox_currentIndexChanged(int index)
 
     if(!inTrack->mUndoHandler->busy) {
         undoAction* temp = new undoAction(inTrack, onTransitionBox);
-        temp1->toValue = QVariant(selectedFunc->arg1);
-        temp->toValue = QVariant(selectedFunc->degree);
         temp->nextAction = temp1;
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
@@ -352,7 +343,6 @@ void transitionWidget::on_changeSpin_valueChanged(double arg1)
 
     if(!inTrack->mUndoHandler->busy) {
         undoAction* temp = new undoAction(inTrack, onChangeSpin);
-        temp->toValue = QVariant(selectedFunc->symArg);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -386,7 +376,6 @@ void transitionWidget::on_quadraticBox_currentIndexChanged(int index)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onArg1);
-        temp->toValue = QVariant(selectedFunc->arg1);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -431,7 +420,6 @@ void transitionWidget::on_quarticBox_currentIndexChanged(int index)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onArg1);
-        temp->toValue = QVariant(selectedFunc->arg1);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -464,7 +452,6 @@ void transitionWidget::on_quarticSpin_valueChanged(double arg1)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onArg1);
-        temp->toValue = QVariant(selectedFunc->arg1);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -505,7 +492,6 @@ void transitionWidget::on_quinticBox_currentIndexChanged(int index)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onArg1);
-        temp->toValue = QVariant(selectedFunc->arg1);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -537,7 +523,6 @@ void transitionWidget::on_quinticSpin_valueChanged(double arg1)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onArg1);
-        temp->toValue = QVariant(selectedFunc->arg1);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -557,7 +542,6 @@ void transitionWidget::on_centerSpin_valueChanged(double arg1)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onCenterSpin);
-        temp->toValue = QVariant(selectedFunc->centerArg);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -577,7 +561,6 @@ void transitionWidget::on_tensionSpin_valueChanged(double arg1)
     if(!inTrack->mUndoHandler->busy)
     {
         undoAction* temp = new undoAction(inTrack, onTensionSpin);
-        temp->toValue = QVariant(selectedFunc->tensionArg);
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
@@ -655,11 +638,12 @@ void transitionWidget::on_removeButton_released()
     func* parentFunc = selectedFunc->parent;
     int pos = parentFunc->getSubfuncNumber(selectedFunc);
 
+    // made now, for the number of the transition it removes; recorded once the
+    // track is recomputed
+    undoAction* temp = NULL;
     if(!inTrack->mUndoHandler->busy)
     {
-        undoAction* temp = new undoAction(inTrack, removeSubFunction);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
+        temp = new undoAction(inTrack, removeSubFunction);
     }
 
     parentFunc->removeSubFunction(pos);
@@ -686,6 +670,12 @@ void transitionWidget::on_removeButton_released()
     }
 
     gloParent->updateInfoPanel();
+
+    if(temp)
+    {
+        inTrack->mUndoHandler->addAction(temp);
+        gloParent->setUndoButtons();
+    }
 }
 
 void transitionWidget::adjustLengthSteps(secType _type, bool _argument)
@@ -727,7 +717,6 @@ void transitionWidget::on_lockCheck_stateChanged(int arg1)
         if(!inTrack->mUndoHandler->busy)
         {
             temp1 = new undoAction(inTrack, onLengthSpin);
-            temp1->fromValue = selectedFunc->maxArgument - selectedFunc->minArgument;
         }
         selectedFunc->parent->lock(id);
     }
@@ -762,11 +751,8 @@ void transitionWidget::on_lockCheck_stateChanged(int arg1)
         undoAction* temp = new undoAction(inTrack, changeFunctionStatus);
         if(temp1)
         {
-            temp1->toValue = selectedFunc->maxArgument - selectedFunc->minArgument;
             temp->nextAction = temp1;
         }
-        temp->toValue = arg1;
-        temp->fromValue = !arg1;
         inTrack->mUndoHandler->addAction(temp);
         gloParent->setUndoButtons();
     }
