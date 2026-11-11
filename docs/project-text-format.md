@@ -17,11 +17,11 @@ They call the `projectFileClient` at the same points as the binary functions. On
 
 - **Encoding:** UTF-8, JSON, four-space indentation, a newline at the end.
 - **Key order:** Qt's `QJsonObject` keeps keys in alphabetical order, so every object is written alphabetically. The order of keys does not matter when reading.
-- **Numbers:** every number in the model is a 32-bit float. It is written as the shortest decimal that reads back to exactly the same float, so `0.03` and not `0.029999999329447746`. Reading gives the identical float. JSON has no negative zero, infinity or NaN; those are written as the strings `"-0"`, `"inf"`, `"-inf"` and `"nan"`, and any number may be given that way.
+- **Numbers:** every number in the model is a 32-bit float. It is written as the shortest decimal that reads back to exactly the same float, so `0.03` and not `0.029999999329447746`. Reading gives the identical float. JSON has no negative zero, infinity or NaN; those are written as the strings `"-0"`, `"inf"`, `"-inf"` and `"nan"`. When reading, `"-0"` is accepted, but an input that is infinite, NaN or too large for a float is refused (see "Checked ranges"); a value under `recalculatedOnLoad` is not read at all.
 - **Whole numbers** (node counts, smoothing settings) must be written without a fraction.
 - **Names of choices** are words, checked on reading: a wrong one is refused with the list of the right ones.
 - **Unknown keys** are accepted and ignored, with a warning that names the place (`Warning: track 1, section 2 (curved): unknown key "colour" was ignored.`).
-- **Refused texts:** a key that is missing, a value of the wrong type, an unknown section type, shape or style, a freeform transition, or text that is not JSON is refused with a message that names the place, for example `Error: track 1, section 3 (force), roll, transition 1: "shape" is "wobbly", which is not one of ...`.
+- **Refused texts:** a key that is missing, a value of the wrong type, an unknown section type, shape or style, a freeform transition, a value outside its checked range (below), or text that is not JSON is refused with a message that names the place, for example `Error: track 1, section 3 (force), roll, transition 1: "shape" is "wobbly", which is not one of ...`.
 - **Recalculated values:** some values in the model are worked out again whenever a project is loaded. The text still shows them, so that a reader can see them and the round trip stays exact, but under a key `recalculatedOnLoad` inside the object they belong to. **Editing anything under `recalculatedOnLoad` changes nothing**; the reader skips it. To change a section's length, change the `to` of its transitions.
 
 ## Recalculated on load
@@ -37,6 +37,35 @@ Each was checked against the code and is proved by the byte-identity test (a val
 | A curve's `angle` | It is the end of its roll function (`seccurved::updateSection()`). |
 | A force or geometric section's `timeNodes`, when the argument is time | It is the shortest unlocked function's end times 1000 (`secforced::updateSection()`, `secgeometric::updateSection()`). With the argument distance the program does not touch it, so it is an ordinary key there. |
 | A smoothing entry's `name`, `fromNode` and `toNode`, for the whole track and for each section | They follow the track's name, the section's name and where the section lies (`smoothHandler::update()`). Custom regions keep all three. |
+
+## Checked ranges
+
+A text can hold values the windows never allow, and some of them would crash the program, make it loop forever or ask for more memory than the PC has. The reader refuses those before it touches the open project, with the place and the allowed range in the message, for example `Error: track 1, smoothing, wholeTrack: "iterations" is 0, which is outside the allowed range 1 to 16.` Where a box in the windows sets the value, the range is that box's, widened to cover every display unit (a speed box allows 0.1 to 500 in km/h, mph or m/s). Every value of every saved project in `samples/` lies inside these ranges.
+
+| Value | Allowed | Why |
+|---|---|---|
+| Every number read as an input | finite, within a float | infinity and NaN were never inputs; a number too large for a float would become infinity |
+| Anchor `speed` | 0.025 to 500 m/s | the anchor speed box; `track::updateAnchorGeometrics()` divides by it, and a NoLimits CSV section spaces its nodes by it |
+| A section's `speed` when `speedMode` is `fixed` | 0.025 to 500 m/s | the speed boxes; a force section over distance held at 0 m/s never ends. With `physics` the stored value is not used and only has to be finite. |
+| `heartline` | -5 to 5 m | Track Properties |
+| `friction` | 0 to 2 | Track Properties |
+| `resistance` | 0 to 0.001 | Track Properties (the box shows it times 100000) |
+| `drawHeartline` | 0, 1 or 2 | the three choices of Track Properties |
+| A curve's `radius` | 0.3 to 500 m | the radius box (1 foot to 500 m); at zero or below the curve never reaches its angle |
+| A curve's `leadIn`, `leadOut` | 0 to 500 degrees | the lead-in and lead-out boxes |
+| A function's first `from` | 0 | every function starts at 0 |
+| Each transition's `to` | after where it starts (a length above 0) | a transition of no length divides by zero |
+| The end of a function (its last `to`) | time: 2000 s; distance and straight: 10000 m; curve: 5000 degrees | memory: a time-based section has 1000 nodes a second; 5000 degrees is the angle box's limit |
+| `center`, `tension` | -10 to 10 | the transition editor's boxes |
+| `locked` | never on a straight or a curve; on a force or geometric section, at least one of its three functions without a locked transition | the windows allow neither (`isLockable()`); with all three locked the section has no end |
+| A held-speed straight, curve or distance-based section | at most 2000000 nodes (length times 1000 divided by the held speed) | memory |
+| A NoLimits CSV section | at most 2000000 nodes (its length times 1000 divided by the anchor speed) | memory |
+| A Bezier section | its control polygon at most 20000 m long | memory (up to 1000 nodes a metre) |
+| Smoothing `length` | 0 to 6000 | the smoothing dialog (0 to 6 s) |
+| Smoothing `iterations` | 1 to 16 | the smoothing dialog; the filter divides the length by it |
+| A custom region's `fromNode`, `toNode` | 0 to 10000000, and `toNode` not before `fromNode` | the filter keeps `toNode - fromNode` values in memory |
+
+Judged harmless and so not limited beyond being finite: positions, angles (roll, pitch, yaw, a curve's direction), the anchor's forces, transition `change` and `shapeParameter` (a broken loop with extreme forces is a legitimate design; an odd shape parameter such as a quadratic's 0.5 gives infinite values, which the sections' loops stop on without harm), Bezier rolls and support points, a distance section's `timeNodes` (never used), a custom region reaching past the track's end (`track::getPoint()` stops at the last node), a region shorter than its filter (`track::applyRollSmoothFilter()` logs "Smoothing not possible" and leaves it, as it does when the window makes one), and the number of points or transitions (each one is written out in the text, so the memory it takes is bounded by the text itself).
 
 ## The project
 

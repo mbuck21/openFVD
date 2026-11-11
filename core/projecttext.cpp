@@ -68,6 +68,34 @@ static const char* SECTION_NAMES[] = { "anchor", "straight", "curved", "force", 
                                        "bezier", "nolimitscsv" };
 static const int SECTION_COUNT = 7;
 
+// ---------------------------------------------------------------------------
+// The ranges a text is checked against (docs/project-text-format.md,
+// "Checked ranges"). Where a box of the windows sets the value, the range is
+// the box's, widened to cover every display unit (a speed box allows 0.1 to
+// 500 in km/h, mph or m/s, so 0.025 to 500 m/s). The others keep the model
+// out of what it was never built for: a division by zero, a loop that does
+// not end, or more nodes than memory holds.
+// ---------------------------------------------------------------------------
+
+static const float LIMIT_SPEED_MIN = 0.025f;      // m/s, 0.1 km/h
+static const float LIMIT_SPEED_MAX = 500.f;       // m/s
+static const float LIMIT_RADIUS_MIN = 0.3f;       // m, 1 foot
+static const float LIMIT_RADIUS_MAX = 500.f;      // m
+static const float LIMIT_LEAD_MAX = 500.f;        // degrees
+static const float LIMIT_TIMEWARP = 10.f;         // centre and tension
+static const float LIMIT_HEARTLINE = 5.f;         // m, either way
+static const float LIMIT_FRICTION_MAX = 2.f;
+static const float LIMIT_RESISTANCE_MAX = 1e-3f;  // the box shows 100 for 1e-3
+static const int LIMIT_DRAW_HEARTLINE = 2;        // "Heartline only"
+static const int LIMIT_SMOOTH_LENGTH = 6000;      // nodes, the dialog's 6 s
+static const int LIMIT_SMOOTH_ITERATIONS = 16;
+static const int LIMIT_SMOOTH_NODE = 10000000;    // a custom region's node numbers
+static const float LIMIT_TIME_END = 2000.f;       // s, a time-based function's end
+static const float LIMIT_DISTANCE_END = 10000.f;  // m, a straight's or distance-based function's end
+static const float LIMIT_CURVE_END = 5000.f;      // degrees, a curve's roll function's end (the angle box)
+static const double LIMIT_NODES = 2000000.;       // nodes a section may need at a held speed
+static const double LIMIT_BEZIER_LENGTH = 20000.; // m, the length of a Bezier section's control polygon
+
 static int indexOfName(const QString& name, const char* const* names, int count)
 {
     for(int i = 0; i < count; ++i) {
@@ -573,12 +601,36 @@ public:
         fail(QString("\"%1\" must be %2").arg(key, expected));
     }
 
+    // Every number read as an input must be finite: the model's loops and
+    // divisions were never meant for infinity or NaN (a number too large for
+    // a float becomes infinity, so it is refused here too).
     float getFloat(const char* key)
     {
         QJsonValue v = value(key);
         float f = 0.f;
-        if(ok() && !floatFromJson(v, &f)) wrongType(key, "a number");
+        if(!ok()) return f;
+        if(!floatFromJson(v, &f)) {
+            wrongType(key, "a number");
+        } else if(!std::isfinite(f)) {
+            wrongType(key, "a finite number (not infinity or NaN, and within the range of a float)");
+        }
         return f;
+    }
+
+    // A number that must lie within [lo, hi]; unit is for the message.
+    float getFloatIn(const char* key, float lo, float hi, const char* unit)
+    {
+        float f = getFloat(key);
+        if(ok() && !(f >= lo && f <= hi)) {
+            outOfRange(key, QString::number(f), QString::number(lo), QString::number(hi), unit);
+        }
+        return f;
+    }
+
+    void outOfRange(const char* key, const QString& value, const QString& lo, const QString& hi, const char* unit)
+    {
+        QString u = (unit && *unit) ? QString(" ") + unit : QString();
+        fail(QString("\"%1\" is %2, which is outside the allowed range %3 to %4%5").arg(key, value, lo, hi, u));
     }
 
     int getInt(const char* key)
@@ -591,6 +643,15 @@ public:
             return 0;
         }
         return (int)d;
+    }
+
+    int getIntIn(const char* key, int lo, int hi, const char* unit)
+    {
+        int i = getInt(key);
+        if(ok() && (i < lo || i > hi)) {
+            outOfRange(key, QString::number(i), QString::number(lo), QString::number(hi), unit);
+        }
+        return i;
     }
 
     bool getBool(const char* key)
@@ -649,8 +710,9 @@ public:
         QJsonArray a = getArray(key);
         glm::vec3 r(0.f, 0.f, 0.f);
         if(!ok()) return r;
-        if(a.size() != 3 || !floatFromJson(a[0], &r.x) || !floatFromJson(a[1], &r.y) || !floatFromJson(a[2], &r.z)) {
-            wrongType(key, "a list of three numbers [x, y, z]");
+        if(a.size() != 3 || !floatFromJson(a[0], &r.x) || !floatFromJson(a[1], &r.y) || !floatFromJson(a[2], &r.z)
+                || !std::isfinite(r.x) || !std::isfinite(r.y) || !std::isfinite(r.z)) {
+            wrongType(key, "a list of three finite numbers [x, y, z]");
         }
         return r;
     }
@@ -686,8 +748,10 @@ private:
     void readColor(objectReader& parent, const char* key, char* out);
     void readSmoothing(objectReader& parent, const char* key, bool custom, smoothData* out);
     void readSmoothingObject(const QJsonObject& o, const QString& where, bool custom, smoothData* out);
-    void readFunction(objectReader& parent, const char* key, QList<transitionData>* out);
-    bool readSection(const QJsonValue& v, const QString& where, sectionData* out);
+    void readFunction(objectReader& parent, const char* key, float maxEnd, const char* unit,
+                      bool lockable, QList<transitionData>* out);
+    void readSpeed(objectReader& r, sectionData* out);
+    bool readSection(const QJsonValue& v, const QString& where, float anchorSpeed, sectionData* out);
     bool readTrack(const QJsonValue& v, const QString& where, trackData* out);
 };
 
@@ -737,13 +801,21 @@ void textReader::readColor(objectReader& parent, const char* key, char* out)
 void textReader::readSmoothingObject(const QJsonObject& o, const QString& where, bool custom, smoothData* out)
 {
     objectReader r(o, where, &error, &warnings);
-    out->length = r.getInt("length");
-    out->iterations = r.getInt("iterations");
+    // the smoothing dialog's boxes: length 0 to 6 s, 1 to 16 iterations;
+    // track::applyRollSmoothFilter() divides the length by the iterations
+    out->length = r.getIntIn("length", 0, LIMIT_SMOOTH_LENGTH, "nodes");
+    out->iterations = r.getIntIn("iterations", 1, LIMIT_SMOOTH_ITERATIONS, "");
     out->active = r.getBool("active");
     if(custom) {
         out->name = r.getString("name");
-        out->fromNode = r.getInt("fromNode");
-        out->toNode = r.getInt("toNode");
+        // the filter allocates toNode - fromNode values; nodes past the
+        // track's end are harmless (track::getPoint() stops at the last one)
+        out->fromNode = r.getIntIn("fromNode", 0, LIMIT_SMOOTH_NODE, "");
+        out->toNode = r.getIntIn("toNode", 0, LIMIT_SMOOTH_NODE, "");
+        if(r.ok() && out->toNode < out->fromNode) {
+            r.fail(QString("\"toNode\" is %1, before \"fromNode\" %2; the region must not run backwards")
+                   .arg(out->toNode).arg(out->fromNode));
+        }
     } else {
         r.ignore("recalculatedOnLoad");
         out->fromNode = 0;
@@ -759,7 +831,8 @@ void textReader::readSmoothing(objectReader& parent, const char* key, bool custo
     readSmoothingObject(o, QString("%1, %2").arg(parent.where(), key), custom, out);
 }
 
-void textReader::readFunction(objectReader& parent, const char* key, QList<transitionData>* out)
+void textReader::readFunction(objectReader& parent, const char* key, float maxEnd, const char* unit,
+                              bool lockable, QList<transitionData>* out)
 {
     QJsonArray a = parent.getArray(key);
     if(!parent.ok()) return;
@@ -778,20 +851,70 @@ void textReader::readFunction(objectReader& parent, const char* key, QList<trans
                    "(its control points are not part of a project)");
             return;
         }
-        t.from = (i == 0) ? r.getFloat("from") : 0.f;
+        // A function starts at 0 (func::appendSubFunction(), removeSubFunction())
+        // and each transition ends after the one before: a zero or negative
+        // length divides by zero in subfunc::getValue().
+        float start = (i == 0) ? 0.f : out->last().to;
+        if(i == 0) {
+            t.from = r.getFloat("from");
+            if(r.ok() && t.from != 0.f) {
+                r.fail(QString("\"from\" is %1; a function starts at 0").arg(t.from));
+            }
+        } else {
+            t.from = 0.f;
+        }
         t.to = r.getFloat("to");
+        if(r.ok() && !(t.to > start)) {
+            r.fail(QString("\"to\" is %1, which is not after %2 where the transition starts; "
+                           "a transition must have a length above 0").arg(t.to).arg(start));
+        }
+        if(r.ok() && t.to > maxEnd) {
+            r.fail(QString("\"to\" is %1, past the largest end this section may have, %2 %3")
+                   .arg(t.to).arg(maxEnd).arg(unit));
+        }
         t.change = (t.shape == tozero) ? 0.f : r.getFloat("change");
         t.shapeParameter = r.getFloat("shapeParameter");
-        t.center = r.getFloat("center");
-        t.tension = r.getFloat("tension");
+        // the transition editor's boxes
+        t.center = r.getFloatIn("center", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
+        t.tension = r.getFloatIn("tension", -LIMIT_TIMEWARP, LIMIT_TIMEWARP, "");
         t.locked = r.getBool("locked");
+        if(r.ok() && t.locked && !lockable) {
+            r.fail("\"locked\" is true, but a transition of a straight or a curve cannot be locked");
+        }
         r.ignore("recalculatedOnLoad");
         r.finish();
         out->append(t);
     }
 }
 
-bool textReader::readSection(const QJsonValue& v, const QString& where, sectionData* out)
+// A held speed is what the section's nodes move at, so it must be above zero:
+// a force section over distance at 0 m/s never ends. With the speed from the
+// physics the stored value is not used.
+void textReader::readSpeed(objectReader& r, sectionData* out)
+{
+    out->bSpeed = r.getChoice("speedMode", "fixed", "physics");
+    if(!r.ok()) return;
+    if(out->bSpeed) {
+        out->fVel = r.getFloat("speed");
+    } else {
+        out->fVel = r.getFloatIn("speed", LIMIT_SPEED_MIN, LIMIT_SPEED_MAX, "m/s");
+    }
+}
+
+static float functionEnd(const QList<transitionData>& f)
+{
+    return f.isEmpty() ? 0.f : f.last().to;
+}
+
+static bool anyLocked(const QList<transitionData>& f)
+{
+    for(int i = 0; i < f.size(); ++i) {
+        if(f[i].locked) return true;
+    }
+    return false;
+}
+
+bool textReader::readSection(const QJsonValue& v, const QString& where, float anchorSpeed, sectionData* out)
 {
     if(!expectObject(v, where)) return false;
     objectReader r(v.toObject(), where, &error, &warnings);
@@ -816,39 +939,65 @@ bool textReader::readSection(const QJsonValue& v, const QString& where, sectionD
     }
     switch(out->type) {
     case straight:
-        out->bSpeed = sr.getChoice("speedMode", "fixed", "physics");
-        out->fVel = sr.getFloat("speed");
-        readFunction(sr, "roll", &out->roll);
+        readSpeed(sr, out);
+        readFunction(sr, "roll", LIMIT_DISTANCE_END, "m", false, &out->roll);
+        if(sr.ok() && !out->bSpeed && (double)functionEnd(out->roll)*F_HZ/out->fVel > LIMIT_NODES) {
+            sr.fail(QString("%1 m at the held speed of %2 m/s needs more than %3 nodes")
+                    .arg(functionEnd(out->roll)).arg(out->fVel).arg(LIMIT_NODES, 0, 'f', 0));
+        }
         break;
     case curved:
-        out->bSpeed = sr.getChoice("speedMode", "fixed", "physics");
-        out->fVel = sr.getFloat("speed");
-        out->fRadius = sr.getFloat("radius");
+        readSpeed(sr, out);
+        // a radius of zero or below makes the curve turn the wrong way or not
+        // at all, and seccurved::updateSection() then never reaches its angle
+        out->fRadius = sr.getFloatIn("radius", LIMIT_RADIUS_MIN, LIMIT_RADIUS_MAX, "m");
         out->fDirection = sr.getFloat("direction");
-        out->fLeadIn = sr.getFloat("leadIn");
-        out->fLeadOut = sr.getFloat("leadOut");
+        out->fLeadIn = sr.getFloatIn("leadIn", 0.f, LIMIT_LEAD_MAX, "degrees");
+        out->fLeadOut = sr.getFloatIn("leadOut", 0.f, LIMIT_LEAD_MAX, "degrees");
         out->bOrientation = sr.getChoice("orientation", "quaternion", "euler") ? EULER : QUATERNION;
-        readFunction(sr, "roll", &out->roll);
+        readFunction(sr, "roll", LIMIT_CURVE_END, "degrees", false, &out->roll);
+        if(sr.ok() && !out->bSpeed
+                && (double)functionEnd(out->roll)*F_PI/180.*out->fRadius*F_HZ/out->fVel > LIMIT_NODES) {
+            sr.fail(QString("a %1 degree curve of %2 m radius at the held speed of %3 m/s needs more than %4 nodes")
+                    .arg(functionEnd(out->roll)).arg(out->fRadius).arg(out->fVel).arg(LIMIT_NODES, 0, 'f', 0));
+        }
         break;
     case forced:
-    case geometric:
-        out->bSpeed = sr.getChoice("speedMode", "fixed", "physics");
-        out->fVel = sr.getFloat("speed");
+    case geometric: {
+        readSpeed(sr, out);
         out->bOrientation = sr.getChoice("orientation", "quaternion", "euler") ? EULER : QUATERNION;
         out->bArgument = sr.getChoice("argument", "time", "distance") ? DISTANCE : TIME;
         if(sr.ok() && out->bArgument == DISTANCE) {
             out->hasTime = true;
-            out->iTime = sr.getInt("timeNodes");
+            out->iTime = sr.getInt("timeNodes");   // kept, never used
         }
-        readFunction(sr, "roll", &out->roll);
+        if(!sr.ok()) break;
+        float maxEnd = out->bArgument == DISTANCE ? LIMIT_DISTANCE_END : LIMIT_TIME_END;
+        const char* unit = out->bArgument == DISTANCE ? "m" : "s";
+        readFunction(sr, "roll", maxEnd, unit, true, &out->roll);
         if(out->type == forced) {
-            readFunction(sr, "normalForce", &out->second);
-            readFunction(sr, "lateralForce", &out->third);
+            readFunction(sr, "normalForce", maxEnd, unit, true, &out->second);
+            readFunction(sr, "lateralForce", maxEnd, unit, true, &out->third);
         } else {
-            readFunction(sr, "pitchRate", &out->second);
-            readFunction(sr, "yawRate", &out->third);
+            readFunction(sr, "pitchRate", maxEnd, unit, true, &out->second);
+            readFunction(sr, "yawRate", maxEnd, unit, true, &out->third);
+        }
+        if(!sr.ok()) break;
+        // the section ends where the shortest unlocked function ends; with all
+        // three locked there is no end (secforced::getMaxArgument()), and the
+        // windows never allow it (isLockable())
+        if(anyLocked(out->roll) && anyLocked(out->second) && anyLocked(out->third)) {
+            sr.fail("every function has a locked transition, so the section has no end; "
+                    "at least one function must have none");
+            break;
+        }
+        float end = qMax(functionEnd(out->roll), qMax(functionEnd(out->second), functionEnd(out->third)));
+        if(out->bArgument == DISTANCE && !out->bSpeed && (double)end*F_HZ/out->fVel > LIMIT_NODES) {
+            sr.fail(QString("%1 m at the held speed of %2 m/s needs more than %3 nodes")
+                    .arg(end).arg(out->fVel).arg(LIMIT_NODES, 0, 'f', 0));
         }
         break;
+    }
     case bezier: {
         QJsonArray points = sr.getArray("points");
         for(int i = 0; i < points.size() && error.isEmpty(); ++i) {
@@ -870,11 +1019,28 @@ bool textReader::readSection(const QJsonValue& v, const QString& where, sectionD
             QJsonArray s = supports[i].toArray();
             glm::vec3 p;
             if(!supports[i].isArray() || s.size() != 3 || !floatFromJson(s[0], &p.x)
-                    || !floatFromJson(s[1], &p.y) || !floatFromJson(s[2], &p.z)) {
-                sr.fail(QString("support %1 must be a list of three numbers [x, y, z]").arg(i+1));
+                    || !floatFromJson(s[1], &p.y) || !floatFromJson(s[2], &p.z)
+                    || !std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) {
+                sr.fail(QString("support %1 must be a list of three finite numbers [x, y, z]").arg(i+1));
                 return false;
             }
             out->supports.append(p);
+        }
+        // secbezier::updateSection() makes up to 1000 nodes a metre along
+        // the curve, which its control polygon bounds
+        if(sr.ok()) {
+            double length = 0.;
+            for(int i = 0; i + 1 < out->points.size(); ++i) {
+                const bezierData& a = out->points[i];
+                const bezierData& b = out->points[i+1];
+                length += glm::distance(glm::dvec3(a.point), glm::dvec3(a.control2))
+                        + glm::distance(glm::dvec3(a.control2), glm::dvec3(b.control1))
+                        + glm::distance(glm::dvec3(b.control1), glm::dvec3(b.point));
+            }
+            if(length > LIMIT_BEZIER_LENGTH) {
+                sr.fail(QString("the points span %1 m along their control polygon; at most %2 m")
+                        .arg(length).arg(LIMIT_BEZIER_LENGTH, 0, 'f', 0));
+            }
         }
         break;
     }
@@ -890,6 +1056,17 @@ bool textReader::readSection(const QJsonValue& v, const QString& where, sectionD
             c.lateral = pr.getVec3("lateral");
             pr.finish();
             out->csvPoints.append(c);
+        }
+        // secnlcsv::updateSection() places a node every (anchor speed / 1000) m
+        if(sr.ok()) {
+            double length = 0.;
+            for(int i = 1; i < out->csvPoints.size(); ++i) {
+                length += glm::distance(glm::dvec3(out->csvPoints[i-1].position), glm::dvec3(out->csvPoints[i].position));
+            }
+            if(length*F_HZ/anchorSpeed > LIMIT_NODES) {
+                sr.fail(QString("the points span %1 m, which at the anchor speed of %2 m/s needs more than %3 nodes")
+                        .arg(length).arg(anchorSpeed).arg(LIMIT_NODES, 0, 'f', 0));
+            }
         }
         break;
     }
@@ -925,28 +1102,33 @@ bool textReader::readTrack(const QJsonValue& v, const QString& where, trackData*
         out->roll = ar.getFloat("roll");
         out->pitch = ar.getFloat("pitch");
         out->yaw = ar.getFloat("yaw");
-        out->speed = ar.getFloat("speed");
+        // the anchor speed box; track::updateAnchorGeometrics() divides by it
+        // and a NoLimits CSV section spaces its nodes by it
+        out->speed = ar.getFloatIn("speed", LIMIT_SPEED_MIN, LIMIT_SPEED_MAX, "m/s");
         out->normalForce = ar.getFloat("normalForce");
         out->lateralForce = ar.getFloat("lateralForce");
         ar.finish();
     }
+    if(!error.isEmpty()) return false;
 
-    out->heartline = r.getFloat("heartline");
-    out->friction = r.getFloat("friction");
-    out->resistance = r.getFloat("resistance");
+    // the Track Properties boxes
+    out->heartline = r.getFloatIn("heartline", -LIMIT_HEARTLINE, LIMIT_HEARTLINE, "m");
+    out->friction = r.getFloatIn("friction", 0.f, LIMIT_FRICTION_MAX, "");
+    out->resistance = r.getFloatIn("resistance", 0.f, LIMIT_RESISTANCE_MAX, "");
     out->drawTrack = r.getBool("drawTrack");
-    out->drawHeartline = r.getInt("drawHeartline");
+    out->drawHeartline = r.getIntIn("drawHeartline", 0, LIMIT_DRAW_HEARTLINE, "");
     out->style = (trackStyle)r.getName("style", STYLE_NAMES, 0, STYLE_COUNT);
     out->wireframe = r.getBool("wireframe");
     QJsonArray pov = r.getArray("povPosition");
-    if(r.ok() && (pov.size() != 2 || !floatFromJson(pov[0], &out->pov.x) || !floatFromJson(pov[1], &out->pov.y))) {
-        r.wrongType("povPosition", "a list of two numbers [x, y]");
+    if(r.ok() && (pov.size() != 2 || !floatFromJson(pov[0], &out->pov.x) || !floatFromJson(pov[1], &out->pov.y)
+                  || !std::isfinite(out->pov.x) || !std::isfinite(out->pov.y))) {
+        r.wrongType("povPosition", "a list of two finite numbers [x, y]");
     }
 
     QJsonArray sections = r.getArray("sections");
     for(int i = 0; i < sections.size() && error.isEmpty(); ++i) {
         sectionData s;
-        if(!readSection(sections[i], QString("%1, section %2").arg(where).arg(i+1), &s)) return false;
+        if(!readSection(sections[i], QString("%1, section %2").arg(where).arg(i+1), out->speed, &s)) return false;
         out->sections.append(s);
     }
 

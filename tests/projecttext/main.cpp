@@ -420,6 +420,265 @@ static void checkMessages(const QByteArray& t1, const QByteArray& b1, const QStr
     expectRefused(QByteArray("[1, 2, 3]\n"), "a list in place of the project", QStringList() << "object");
 }
 
+// Values the windows could never produce, which would crash, hang or exhaust
+// memory if they reached the model, are refused before the project is touched.
+static QJsonObject transition(const char* shape, double to, double change)
+{
+    QJsonObject t;
+    t["shape"] = QString(shape);
+    t["to"] = to;
+    t["change"] = change;
+    t["shapeParameter"] = -10;
+    t["center"] = 0;
+    t["tension"] = 0;
+    t["locked"] = false;
+    return t;
+}
+
+static void setFirst(QJsonObject& section, const char* function, const char* key, const QJsonValue& v)
+{
+    QJsonArray f = section[function].toArray();
+    QJsonObject t = f[0].toObject();
+    t[key] = v;
+    f[0] = t;
+    section[function] = f;
+}
+
+static QJsonArray vec(double x, double y, double z)
+{
+    QJsonArray a;
+    a.append(x);
+    a.append(y);
+    a.append(z);
+    return a;
+}
+
+static void checkRanges(const QByteArray& t1, const QString& tmp)
+{
+    int straightNo = sectionOfType(t1, "straight");
+    int curve = sectionOfType(t1, "curved");
+    int force = sectionOfType(t1, "force");
+    QString straightName = QString("track 1, section %1").arg(straightNo+1);
+    QString curveName = QString("track 1, section %1").arg(curve+1);
+    QString forceName = QString("track 1, section %1").arg(force+1);
+
+    // the case of the review: an active whole-track entry with 0 iterations
+    // would divide by zero in track::applyRollSmoothFilter()
+    expectRefused(editTrack(t1, [](QJsonObject& t) {
+                      QJsonObject s = t["smoothing"].toObject();
+                      QJsonObject w = s["wholeTrack"].toObject();
+                      w["active"] = true;
+                      w["iterations"] = 0;
+                      s["wholeTrack"] = w;
+                      t["smoothing"] = s;
+                  }), "smoothing iterations 0 on an active entry", QStringList() << "track 1, smoothing, wholeTrack" << "\"iterations\"" << "1 to 16");
+    expectRefused(editTrack(t1, [](QJsonObject& t) {
+                      QJsonObject s = t["smoothing"].toObject();
+                      QJsonObject w = s["wholeTrack"].toObject();
+                      w["iterations"] = 17;
+                      s["wholeTrack"] = w;
+                      t["smoothing"] = s;
+                  }), "smoothing iterations 17", QStringList() << "wholeTrack" << "\"iterations\"");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) {
+                      QJsonObject s = o["smoothing"].toObject();
+                      s["length"] = -400;
+                      o["smoothing"] = s;
+                  }), "a negative smoothing length", QStringList() << curveName << "smoothing" << "\"length\"" << "0 to 6000");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) {
+                      QJsonObject s = o["smoothing"].toObject();
+                      s["length"] = 6001;
+                      o["smoothing"] = s;
+                  }), "a smoothing length above 6000", QStringList() << curveName << "\"length\"");
+
+    QJsonObject region;
+    region["name"] = QString("custom Region");
+    region["length"] = 400;
+    region["iterations"] = 1;
+    region["active"] = true;
+    region["fromNode"] = 2000;
+    region["toNode"] = 1000;
+    expectRefused(editTrack(t1, [&](QJsonObject& t) {
+                      QJsonObject s = t["smoothing"].toObject();
+                      s["custom"] = QJsonArray() << region;
+                      t["smoothing"] = s;
+                  }), "a custom smoothing region that runs backwards", QStringList() << "track 1, smoothing, custom 1" << "\"toNode\"");
+    region["fromNode"] = -5;
+    expectRefused(editTrack(t1, [&](QJsonObject& t) {
+                      QJsonObject s = t["smoothing"].toObject();
+                      s["custom"] = QJsonArray() << region;
+                      t["smoothing"] = s;
+                  }), "a negative node of a custom region", QStringList() << "custom 1" << "\"fromNode\"");
+    region["fromNode"] = 0;
+    region["toNode"] = 2000000000;
+    expectRefused(editTrack(t1, [&](QJsonObject& t) {
+                      QJsonObject s = t["smoothing"].toObject();
+                      s["custom"] = QJsonArray() << region;
+                      t["smoothing"] = s;
+                  }), "a custom region of two thousand million nodes", QStringList() << "custom 1" << "\"toNode\"");
+    {
+        // a region past the track's end is harmless and is accepted
+        region["toNode"] = 1000000;
+        QByteArray t = editTrack(t1, [&](QJsonObject& tr) {
+            QJsonObject s = tr["smoothing"].toObject();
+            s["custom"] = QJsonArray() << region;
+            tr["smoothing"] = s;
+        });
+        coreProject p;
+        QString r = readProjectText(t, &p);
+        check(r == QString("Load Successful.") && p.tracks.size() == 1,
+              QString("an active custom region reaching past the track's end loads (%1)").arg(r));
+    }
+
+    // transitions
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "roll", "to", 0); }),
+                  "a transition of zero length", QStringList() << forceName + " (force), roll, transition 1" << "\"to\"");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "roll", "to", -1); }),
+                  "a transition ending before it starts", QStringList() << forceName << "roll, transition 1");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) {
+                      QJsonArray f = o["normalForce"].toArray();
+                      f.append(transition("linear", f[0].toObject()["to"].toDouble(), 0.5));
+                      o["normalForce"] = f;
+                  }), "a later transition of zero length", QStringList() << forceName + " (force), normalForce, transition 2" << "\"to\"");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "roll", "from", 1); }),
+                  "a function that does not start at 0", QStringList() << forceName << "\"from\"");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "lateralForce", "to", 2001); }),
+                  "a time-based function past 2000 s", QStringList() << forceName << "lateralForce" << "2000 s");
+    expectRefused(editSection(t1, straightNo, [](QJsonObject& o) { setFirst(o, "roll", "to", 10001); }),
+                  "a straight longer than 10000 m", QStringList() << straightName << "10000 m");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { setFirst(o, "roll", "to", 5001); }),
+                  "a curve of more than 5000 degrees", QStringList() << curveName << "5000 degrees");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "normalForce", "center", 10.5); }),
+                  "a centre outside -10 to 10", QStringList() << forceName << "\"center\"" << "-10 to 10");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "normalForce", "tension", -11); }),
+                  "a tension outside -10 to 10", QStringList() << forceName << "\"tension\"");
+    expectRefused(editSection(t1, straightNo, [](QJsonObject& o) { setFirst(o, "roll", "locked", true); }),
+                  "a locked transition on a straight", QStringList() << straightName << "\"locked\"");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) {
+                      setFirst(o, "roll", "locked", true);
+                      setFirst(o, "normalForce", "locked", true);
+                      setFirst(o, "lateralForce", "locked", true);
+                  }), "a force section with every function locked", QStringList() << forceName << "locked");
+
+    // speeds
+    expectRefused(editSection(t1, force, [](QJsonObject& o) {
+                      o["speedMode"] = QString("fixed");
+                      o["speed"] = 0;
+                  }), "a held speed of 0", QStringList() << forceName << "\"speed\"" << "m/s");
+    expectRefused(editSection(t1, straightNo, [](QJsonObject& o) {
+                      o["speedMode"] = QString("fixed");
+                      o["speed"] = -3;
+                  }), "a negative held speed", QStringList() << straightName << "\"speed\"");
+    {
+        QByteArray t = editSection(t1, force, [](QJsonObject& o) {
+            o["speedMode"] = QString("physics");
+            o["speed"] = 0;
+        });
+        coreProject p;
+        QString r = readProjectText(t, &p);
+        check(r == QString("Load Successful."),
+              QString("a stored speed of 0 is accepted where the speed comes from the physics (%1)").arg(r));
+    }
+    expectRefused(editSection(t1, force, [](QJsonObject& o) {
+                      o["argument"] = QString("distance");
+                      o["timeNodes"] = 1000;
+                      o["speedMode"] = QString("fixed");
+                      o["speed"] = 0.025;
+                      setFirst(o, "roll", "to", 60);
+                      setFirst(o, "normalForce", "to", 60);
+                      setFirst(o, "lateralForce", "to", 60);
+                  }), "60 m over distance at a held 0.025 m/s", QStringList() << forceName << "nodes");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) {
+                      o["speedMode"] = QString("fixed");
+                      o["speed"] = 0.025;
+                      o["radius"] = 500;
+                  }), "a 90 degree curve of 500 m at a held 0.025 m/s", QStringList() << curveName << "nodes");
+    expectRefused(editTrack(t1, [](QJsonObject& t) {
+                      QJsonObject a = t["anchor"].toObject();
+                      a["speed"] = 0;
+                      t["anchor"] = a;
+                  }), "an anchor speed of 0", QStringList() << "track 1, anchor" << "\"speed\"" << "0.025 to 500 m/s");
+
+    // the curve
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { o["radius"] = 0; }),
+                  "a curve radius of 0", QStringList() << curveName << "\"radius\"" << "0.3 to 500 m");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { o["radius"] = -15; }),
+                  "a negative curve radius", QStringList() << curveName << "\"radius\"");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { o["leadIn"] = -1; }),
+                  "a negative lead-in", QStringList() << curveName << "\"leadIn\"");
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { o["leadOut"] = 501; }),
+                  "a lead-out above 500 degrees", QStringList() << curveName << "\"leadOut\"");
+
+    // the track
+    expectRefused(editTrack(t1, [](QJsonObject& t) { t["friction"] = -0.01; }),
+                  "a negative friction", QStringList() << "track 1" << "\"friction\"" << "0 to 2");
+    expectRefused(editTrack(t1, [](QJsonObject& t) { t["resistance"] = -1e-5; }),
+                  "a negative air resistance", QStringList() << "track 1" << "\"resistance\"");
+    expectRefused(editTrack(t1, [](QJsonObject& t) { t["heartline"] = 6; }),
+                  "a heartline of 6 m", QStringList() << "track 1" << "\"heartline\"" << "-5 to 5 m");
+    expectRefused(editTrack(t1, [](QJsonObject& t) { t["drawHeartline"] = 3; }),
+                  "an unknown heartline drawing", QStringList() << "track 1" << "\"drawHeartline\"");
+
+    // numbers that are not finite
+    expectRefused(editSection(t1, curve, [](QJsonObject& o) { o["direction"] = QString("inf"); }),
+                  "an infinite number", QStringList() << curveName << "\"direction\"" << "finite");
+    expectRefused(editSection(t1, force, [](QJsonObject& o) { setFirst(o, "normalForce", "change", QString("nan")); }),
+                  "a NaN", QStringList() << forceName << "\"change\"" << "finite");
+    expectRefused(editTrack(t1, [](QJsonObject& t) {
+                      QJsonObject a = t["anchor"].toObject();
+                      a["roll"] = 1e39;   // a double, too large for a float
+                      t["anchor"] = a;
+                  }), "a number too large for a float", QStringList() << "track 1, anchor" << "\"roll\"" << "finite");
+    expectRefused(editTrack(t1, [](QJsonObject& t) {
+                      QJsonObject a = t["anchor"].toObject();
+                      a["position"] = vec(0, 1e300, 0);
+                      t["anchor"] = a;
+                  }), "a position too large for a float", QStringList() << "track 1, anchor" << "\"position\"");
+
+    // point lists that would need more nodes than memory holds
+    {
+        QJsonObject csv;
+        csv["type"] = QString("nolimitscsv");
+        QJsonObject p1, p2;
+        p1["position"] = vec(0, 5, 0);
+        p1["direction"] = vec(0, 0, -1);
+        p1["lateral"] = vec(1, 0, 0);
+        p2 = p1;
+        p2["position"] = vec(0, 5, -300000);
+        csv["points"] = QJsonArray() << p1 << p2;
+        csv["smoothing"] = QJsonDocument::fromJson(t1).object()["tracks"].toArray()[0].toObject()["sections"]
+                .toArray()[0].toObject()["smoothing"];
+        expectRefused(editTrack(t1, [&](QJsonObject& t) {
+                          QJsonArray s = t["sections"].toArray();
+                          s.append(csv);
+                          t["sections"] = s;
+                      }), "a NoLimits CSV section of 300 km", QStringList() << "nolimitscsv" << "nodes");
+
+        QJsonObject bez;
+        bez["type"] = QString("bezier");
+        bez["name"] = QString("far");
+        QJsonObject b1, b2;
+        b1["point"] = vec(0, 5, 0);
+        b1["controlPoint1"] = vec(0, 5, 0);
+        b1["controlPoint2"] = vec(0, 5, -10000);
+        b1["roll"] = 0;
+        b1["continuousRoll"] = false;
+        b1["relativeRoll"] = false;
+        b2 = b1;
+        b2["point"] = vec(0, 5, -30000);
+        b2["controlPoint1"] = vec(0, 5, -20000);
+        b2["controlPoint2"] = vec(0, 5, -30000);
+        bez["points"] = QJsonArray() << b1 << b2;
+        bez["supports"] = QJsonArray();
+        bez["smoothing"] = csv["smoothing"];
+        expectRefused(editTrack(t1, [&](QJsonObject& t) {
+                          QJsonArray s = t["sections"].toArray();
+                          s.append(bez);
+                          t["sections"] = s;
+                      }), "a Bezier section of 30 km", QStringList() << "bezier" << "control polygon");
+    }
+    Q_UNUSED(tmp);
+}
+
 // a freeform transition in the model cannot be written
 static void checkFreeformWrite(const QString& path)
 {
@@ -548,6 +807,7 @@ int main(int argc, char** argv)
         check(false, "samples/baseline/four-sections.fvd was read");
     } else {
         checkMessages(fourT1, fourB1, tmp);
+        checkRanges(fourT1, tmp);
         checkFreeformWrite(fourPath);
         checkToZero(fourT1, tmp);
 
