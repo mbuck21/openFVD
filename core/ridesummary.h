@@ -204,4 +204,15 @@ double rideBiggestFall(const QVector<double>& heights, double hysteresis, bool c
 // "straight", "curved", ... for an enum secType value.
 QString rideSectionTypeName(int type);
 
+// The words the sheet prints for the thresholds, built from the options so
+// that a label cannot disagree with the numbers. The command line and the
+// panel both use them.
+QString rideFloaterLabel(const rideSummaryOptions& options);    // "Floater airtime (+0.1 g down to -0.5 g)"
+QString rideEjectorLabel(const rideSummaryOptions& options);    // "Ejector airtime (below -0.5 g)"
+QString rideInversionLabel(const rideSummaryOptions& options);  // "Inversions (more than 135 degrees from upright)"
+
+// One sentence that goes under the forces and airtime: they are for the
+// single point the program follows, not for every car (docs/research/r7-train-against-point.md).
+QString rideSheetNote();
+
 #endif // RIDESUMMARY_H

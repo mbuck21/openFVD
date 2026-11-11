@@ -156,8 +156,11 @@ static int runSelftest(const QStringList& args)
     report(allOk, code == 0 && printed.contains("Length (centre line)") && printed.contains("Top speed") && printed.contains("force"),
            QString("summary of four-sections.fvd prints the ride sheet and its sections (exit code %1, %2 bytes)").arg(code).arg(printed.size()));
     code = runCaptured(cmdSummary, QStringList() << project << "--json", captureFile, printed);
-    report(allOk, code == 0 && printed.contains("\"length_m\"") && printed.contains("\"floater_airtime_s\"") && printed.contains("\"section_list\""),
-           QString("summary --json prints one JSON object (exit code %1)").arg(code));
+    report(allOk, code == 0 && printed.contains("\"tracks\"") && printed.contains("\"note\"") && printed.contains("\"length_m\"") && printed.contains("\"floater_airtime_s\"") && printed.contains("\"section_list\""),
+           QString("summary --json prints one object with a tracks array and the note (exit code %1)").arg(code));
+    code = cmdSummary.run(QStringList() << project << "--track" << "0");
+    int code2 = cmdSummary.run(QStringList() << project << "--track" << "-1");
+    report(allOk, code == 1 && code2 == 1, QString("summary with --track 0 or -1 exits 1 (exit codes %1, %2)").arg(code).arg(code2));
     if(!loaded.tracks.isEmpty()) {
         rideSummary sheet = computeRideSummary(loaded.tracks.at(0));
         report(allOk, !sheet.empty && sheet.sections.size() == loaded.tracks.at(0)->lSections.size()
@@ -172,6 +175,15 @@ static int runSelftest(const QStringList& args)
     int c2 = cmdFromText.run(QStringList() << textFile << backFile);
     checkSame(allOk, QString("totext then fromtext (exit codes %1, %2) gives the re-saved project").arg(c1).arg(c2), backFile,
               QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
+
+    // an existing output file is not replaced without --force
+    code = cmdToText.run(QStringList() << project << textFile);
+    c1 = cmdToText.run(QStringList() << project << textFile << "--force");
+    report(allOk, code == 1 && c1 == 0, QString("totext refuses an existing file (exit code %1) and writes it with --force (exit code %2)").arg(code).arg(c1));
+    code = cmdFromText.run(QStringList() << textFile << backFile);
+    c2 = cmdFromText.run(QStringList() << textFile << backFile << "--force");
+    report(allOk, code == 1 && c2 == 0, QString("fromtext refuses an existing file (exit code %1) and writes it with --force (exit code %2)").arg(code).arg(c2));
+    checkSame(allOk, "the forced fromtext still gives the re-saved project", backFile, QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
 
     // measures --list names every measure of the registry; the table has a column for each
     code = runCaptured(cmdMeasures, QStringList() << "--list", captureFile, printed);

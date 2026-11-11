@@ -314,7 +314,8 @@ static void checkInversionsModel()
 
 static void checkEmptyAndStalled(const QString& repo)
 {
-    track none;
+    // (the default constructor of track leaves its members unset: build one the usual way)
+    track none(glm::vec3(0.f, 5.f, 0.f), 0.f, 1.1f);
     rideSummary e = computeRideSummary(&none);
     report(e.empty && e.sectionCount == 0 && e.length_m == 0.0 && e.duration_s == 0.0 && !e.highest.valid
            && e.inversions == 0 && e.sections.isEmpty() && e.findings.isEmpty() && !e.nonFinite,
@@ -480,6 +481,14 @@ int main(int argc, char *argv[])
     report(defaults.floaterUpperG == 0.1f && defaults.ejectorUpperG == -0.5f && defaults.inversionAngleDeg == 135.0
            && defaults.inversionReleaseDeg == 5.0 && defaults.dropHysteresisM == 1.0,
            "the default thresholds are the owner's: floater +0.1 g, ejector -0.5 g, inversion 135 degrees (release 5, drop bump 1 m)");
+    rideSummaryOptions changed;
+    changed.floaterUpperG = 0.25f;
+    changed.inversionAngleDeg = 120.0;
+    report(rideFloaterLabel(defaults).contains("+0.1 g") && rideFloaterLabel(defaults).contains("-0.5 g")
+           && rideInversionLabel(defaults).contains("135") && rideEjectorLabel(defaults).contains("-0.5 g")
+           && rideFloaterLabel(changed).contains("+0.25") && rideInversionLabel(changed).contains("120")
+           && rideSheetNote().contains("heartline"),
+           "the sheet's labels are built from the options: " + rideFloaterLabel(defaults) + "; " + rideInversionLabel(changed));
     report(rideSectionTypeName(forced) == "force" && rideSectionTypeName(nolimitscsv) == "nolimits-csv", "section type names");
 
     checkAirtimeBands();

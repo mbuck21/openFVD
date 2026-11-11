@@ -149,6 +149,11 @@ Options: `--all-edits` puts the left-out edits back (to check a fix); `--edits 3
 fvdcore export <project.fvd> <outdir>
 fvdcore nodes <project.fvd> [--track N] [--every-m X | --every-s X | --all] [--frame world|anchor] [--out <file>]
 fvdcore compare <a.fvd> <b.fvd> [--track N] [--tsv]
+fvdcore summary <project.fvd> [--track N] [--sections] [--json]
+fvdcore measures <project.fvd> [--track N] [--ids a,b,c] [--every-m X | --every-s X | --all] [--out <file>]   (or --list)
+fvdcore check <project.fvd> [--track N] [--check ID] [--json] [--fail-on problem|warning|information]   (or --list)
+fvdcore totext <project.fvd> <out.json|-> [--force]
+fvdcore fromtext <in.json|-> <out.fvd> [--force]
 fvdcore selftest <repository folder>
 fvdcore <repository folder>            the same as selftest
 fvdcore help
@@ -156,7 +161,7 @@ fvdcore help
 
 `export` does what `FVD.exe --batch-export` does, in the same order, and writes the same files with the same names (the exports, `<project>.resaved.fvd`, `<project>.batch.txt` with the same lines) and the same exit code, except `<project>.loadstate.txt`, which describes the windows. The two programs' files are identical byte for byte, also for a missing, empty, cut-off or wrong file. It writes no `fvd.log` and nothing else beside its output; `--log <file>` keeps Qt's debug output, which is otherwise dropped.
 
-With a repository folder as its only argument (how `tools\run-tests.cmd` runs every test; also `fvdcore selftest <folder>`) it exports `samples/baseline/four-sections.fvd` into a temporary folder and compares the Spline export and the re-saved project with the 2016 binary's files, byte for byte. It then checks that `nodes --all` writes a header and one line per node, that `nodes` at its default spacing runs from the first to the last node, that `compare` of a project with itself reports zero everywhere, and that an unknown command exits 1. `py -3 tools/run-baseline.py --core` does the full baseline comparison with it.
+With a repository folder as its only argument (how `tools\run-tests.cmd` runs every test; also `fvdcore selftest <folder>`) it exports `samples/baseline/four-sections.fvd` into a temporary folder and compares the Spline export and the re-saved project with the 2016 binary's files, byte for byte. It then checks that `nodes --all` writes a header and one line per node, that `nodes` at its default spacing runs from the first to the last node, that `compare` of a project with itself reports zero everywhere, that `summary` prints the ride sheet (text and JSON, and refuses `--track 0`), that `totext` then `fromtext` gives back the bytes of a re-save and each refuses to replace an existing file without `--force`, that `measures --list` names every measure and `measures --all` has a column for each, that `check` exits 0, exits 3 with `--fail-on` when a finding of that severity exists and exits 1 on a missing project, and that an unknown command exits 1. `py -3 tools/run-baseline.py --core` does the full baseline comparison with it.
 
 `py -3 tools/check-core.py` is the quick guard that goes with it: it fails, naming file and line, when a file in `core/` includes a header from `ui/` or `renderer/`, names `gloParent` or `glView`, or includes a QtWidgets or OpenGL header (`lenassert.h` too). `tools\run-tests.cmd` runs it first, then builds and runs the tests.
 

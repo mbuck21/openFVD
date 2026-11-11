@@ -28,14 +28,39 @@
 #include "../core/projecttext.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <cstdio>
 
-static int runToText(const QStringList& args)
+// The two file names and --force. An existing output file is not replaced
+// without --force, so a text that lost something cannot silently overwrite
+// the owner's saved project. "-" is never a file.
+static bool takeArgs(const QStringList& args, const command& cmd, QStringList& names, bool& force)
 {
-    if(args.size() != 2) {
-        fprintf(stderr, "usage: %s\n", cmdToText.usage);
-        return 1;
+    QStringList flags;
+    QMap<QString, QString> values;
+    QString error;
+    if(!parseOptions(args, QStringList() << "--force", QStringList(), names, flags, values, error) || names.size() != 2) {
+        if(!error.isEmpty()) fprintf(stderr, "%s\n", qPrintable(error));
+        fprintf(stderr, "usage: %s\n", cmd.usage);
+        return false;
     }
+    force = flags.contains("--force");
+    return true;
+}
+
+static bool mayWrite(const QString& file, bool force)
+{
+    if(file == "-" || force || !QFileInfo(file).exists()) return true;
+    fprintf(stderr, "%s already exists; give --force to replace it\n", qPrintable(file));
+    return false;
+}
+
+static int runToText(const QStringList& rawArgs)
+{
+    QStringList args;
+    bool force;
+    if(!takeArgs(rawArgs, cmdToText, args, force)) return 1;
+    if(!mayWrite(args.at(1), force)) return 1;
     coreProject project;
     QString error;
     QStringList warnings;
@@ -62,12 +87,12 @@ static int runToText(const QStringList& args)
     return 0;
 }
 
-static int runFromText(const QStringList& args)
+static int runFromText(const QStringList& rawArgs)
 {
-    if(args.size() != 2) {
-        fprintf(stderr, "usage: %s\n", cmdFromText.usage);
-        return 1;
-    }
+    QStringList args;
+    bool force;
+    if(!takeArgs(rawArgs, cmdFromText, args, force)) return 1;
+    if(!mayWrite(args.at(1), force)) return 1;
     QByteArray in;
     if(args.at(0) == "-") {
         char buffer[65536];
@@ -98,14 +123,14 @@ static int runFromText(const QStringList& args)
 
 const command cmdToText = {
     "totext",
-    "fvdcore totext <project.fvd> <out.json|->",
-    "write a project as text (JSON); - means standard output",
+    "fvdcore totext <project.fvd> <out.json|-> [--force]",
+    "write a project as text (JSON); - means standard output; an existing file needs --force",
     runToText
 };
 
 const command cmdFromText = {
     "fromtext",
-    "fvdcore fromtext <in.json|-> <out.fvd>",
-    "read a project from its text form and save it as .fvd; - means standard input",
+    "fvdcore fromtext <in.json|-> <out.fvd> [--force]",
+    "read a project from its text form and save it as .fvd; - means standard input; an existing file needs --force",
     runFromText
 };

@@ -44,6 +44,12 @@ static QJsonValue num(double v)
     return std::isfinite(v) ? QJsonValue(v) : QJsonValue(QJsonValue::Null);
 }
 
+// seconds and metres to 4 decimals in the JSON
+static QJsonValue rounded(double v)
+{
+    return std::isfinite(v) ? QJsonValue(std::floor(v*10000.0 + 0.5)/10000.0) : QJsonValue(QJsonValue::Null);
+}
+
 static int runCheck(const QStringList& args)
 {
     QStringList positional, flags;
@@ -119,10 +125,10 @@ static int runCheck(const QStringList& args)
             o["severity"] = severityWord(f.severity);
             o["from_node"] = f.fromNode;
             o["to_node"] = f.toNode;
-            o["from_time_s"] = f.fromNode/F_HZ;
-            o["to_time_s"] = f.toNode/F_HZ;
-            o["from_dist_m"] = num(t->getPoint(f.fromNode)->fTotalLength);
-            o["to_dist_m"] = num(t->getPoint(f.toNode)->fTotalLength);
+            o["from_time_s"] = rounded(f.fromNode/F_HZ);
+            o["to_time_s"] = rounded(f.toNode/F_HZ);
+            o["from_dist_m"] = rounded(t->getPoint(f.fromNode)->fTotalLength);
+            o["to_dist_m"] = rounded(t->getPoint(f.toNode)->fTotalLength);
             o["worst_node"] = f.worstNode;
             o["worst_value"] = num(f.worstValue);
             o["limit"] = num(f.limit);

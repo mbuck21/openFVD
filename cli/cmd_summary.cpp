@@ -18,7 +18,7 @@
 */
 
 // fvdcore summary: the ride sheet (core/ridesummary.h) of a project's tracks,
-// as aligned text or, with --json, as one JSON object with stable key names.
+// as aligned text or, with --json, as one JSON object ({"tracks": [...]}) with stable key names.
 // Metric units only. The key names are described in cli/README.md.
 
 #include "commands.h"
@@ -49,14 +49,14 @@ static QString where(const rideSpot& s)
 
 static QString valueLine(const QString& label, const rideSpot& s, int decimals, const QString& unit)
 {
-    QString text = QString("  %1").arg(label, -34);
+    QString text = QString("  %1").arg(label, -48);
     if(!s.valid) return text + "none\n";
     return text + QString("%1 %2  %3\n").arg(f(s.value, decimals), 9).arg(unit, -3).arg(where(s));
 }
 
 static QString fallLine(const QString& label, const rideFall& d)
 {
-    QString text = QString("  %1").arg(label, -34);
+    QString text = QString("  %1").arg(label, -48);
     if(!d.valid) return text + "none\n";
     return text + QString("%1 m  from %2 m (%3 s) down to %4 m (%5 s), height %6 m to %7 m\n")
             .arg(f(d.amount_m, 1), 9).arg(f(d.start.dist_m, 1)).arg(f(d.start.time_s, 1))
@@ -65,7 +65,7 @@ static QString fallLine(const QString& label, const rideFall& d)
 
 static QString climbLine(const QString& label, const rideFall& d)
 {
-    QString text = QString("  %1").arg(label, -34);
+    QString text = QString("  %1").arg(label, -48);
     if(!d.valid) return text + "none\n";
     return text + QString("%1 m  from %2 m (%3 s) up to %4 m (%5 s), height %6 m to %7 m\n")
             .arg(f(d.amount_m, 1), 9).arg(f(d.start.dist_m, 1)).arg(f(d.start.time_s, 1))
@@ -74,7 +74,7 @@ static QString climbLine(const QString& label, const rideFall& d)
 
 static QString plain(const QString& label, const QString& value)
 {
-    return QString("  %1%2\n").arg(label, -34).arg(value);
+    return QString("  %1%2\n").arg(label, -48).arg(value);
 }
 
 static QString sheetText(const rideSummary& r, bool withSections)
@@ -94,8 +94,9 @@ static QString sheetText(const rideSummary& r, bool withSections)
     t += climbLine("Biggest climb", r.biggestClimb);
     t += valueLine("Top speed", r.topSpeed, 1, "m/s");
     t += valueLine("Lowest speed", r.lowSpeed, 1, "m/s");
-    t += plain("Floater airtime (0.1 to -0.5 g)", f(r.floaterAirtime_s, 2) + " s");
-    t += plain("Ejector airtime (below -0.5 g)", f(r.ejectorAirtime_s, 2) + " s");
+    rideSummaryOptions options;
+    t += plain(rideFloaterLabel(options), f(r.floaterAirtime_s, 2) + " s");
+    t += plain(rideEjectorLabel(options), f(r.ejectorAirtime_s, 2) + " s");
     t += plain("Total airtime", f(r.totalAirtime_s, 2) + " s");
     t += valueLine("Highest vertical force", r.normalMax, 2, "g");
     t += valueLine("Lowest vertical force", r.normalMin, 2, "g");
@@ -103,10 +104,11 @@ static QString sheetText(const rideSummary& r, bool withSections)
     t += valueLine("Lateral, rider pressed left", r.lateralLeft, 2, "g");
     t += valueLine("Along-track, pressed back", r.alongMax, 2, "g");
     t += valueLine("Along-track, thrown forward", r.alongMin, 2, "g");
-    t += plain("Inversions (over 135 degrees)", QString::number(r.inversions));
+    t += plain(rideInversionLabel(options), QString::number(r.inversions));
     t += valueLine("Largest angle from upright", r.maxTilt, 1, "deg");
     t += plain("Findings", QString("%1 problem(s), %2 warning(s), %3 information")
                .arg(r.findingCount[findingProblem]).arg(r.findingCount[findingWarning]).arg(r.findingCount[findingInformation]));
+    t += "\n  " + rideSheetNote() + "\n";
     if(r.nonFinite) {
         t += "  Note: some values are not numbers (the train stalls); they are left out above.\n";
     }
@@ -132,6 +134,14 @@ static QJsonValue num(double v)
     return std::isfinite(v) ? QJsonValue(v) : QJsonValue(QJsonValue::Null);
 }
 
+// Seconds and metres that are sums of steps, rounded to 4 decimals (2.617,
+// not 2.616999999999823). Only the JSON is rounded; the text sheet prints its
+// own digits.
+static QJsonValue rounded(double v)
+{
+    return std::isfinite(v) ? QJsonValue(std::floor(v*10000.0 + 0.5)/10000.0) : QJsonValue(QJsonValue::Null);
+}
+
 static QJsonValue spotJson(const rideSpot& s)
 {
     if(!s.valid) return QJsonValue(QJsonValue::Null);
@@ -139,8 +149,8 @@ static QJsonValue spotJson(const rideSpot& s)
     o["value"] = num(s.value);
     o["node"] = s.node;
     o["section"] = s.section;
-    o["time_s"] = num(s.time_s);
-    o["dist_m"] = num(s.dist_m);
+    o["time_s"] = rounded(s.time_s);
+    o["dist_m"] = rounded(s.dist_m);
     return o;
 }
 
@@ -148,7 +158,7 @@ static QJsonValue fallJson(const rideFall& d)
 {
     if(!d.valid) return QJsonValue(QJsonValue::Null);
     QJsonObject o;
-    o["amount_m"] = num(d.amount_m);
+    o["amount_m"] = rounded(d.amount_m);
     o["start"] = spotJson(d.start);
     o["end"] = spotJson(d.end);
     return o;
@@ -163,19 +173,19 @@ static QJsonObject sheetJson(const rideSummary& r, int trackNumber, const QStrin
     o["non_finite"] = r.nonFinite;
     o["sections"] = r.sectionCount;
     o["nodes"] = r.nodeCount;
-    o["length_m"] = num(r.length_m);
-    o["heart_length_m"] = num(r.heartLength_m);
-    o["duration_s"] = num(r.duration_s);
+    o["length_m"] = rounded(r.length_m);
+    o["heart_length_m"] = rounded(r.heartLength_m);
+    o["duration_s"] = rounded(r.duration_s);
     o["highest"] = spotJson(r.highest);
     o["lowest"] = spotJson(r.lowest);
-    o["height_range_m"] = num(r.heightRange_m);
+    o["height_range_m"] = rounded(r.heightRange_m);
     o["biggest_drop"] = fallJson(r.biggestDrop);
     o["biggest_climb"] = fallJson(r.biggestClimb);
     o["top_speed"] = spotJson(r.topSpeed);
     o["lowest_speed"] = spotJson(r.lowSpeed);
-    o["floater_airtime_s"] = num(r.floaterAirtime_s);
-    o["ejector_airtime_s"] = num(r.ejectorAirtime_s);
-    o["total_airtime_s"] = num(r.totalAirtime_s);
+    o["floater_airtime_s"] = rounded(r.floaterAirtime_s);
+    o["ejector_airtime_s"] = rounded(r.ejectorAirtime_s);
+    o["total_airtime_s"] = rounded(r.totalAirtime_s);
     o["normal_max_g"] = spotJson(r.normalMax);
     o["normal_min_g"] = spotJson(r.normalMin);
     o["lateral_right_g"] = spotJson(r.lateralRight);     // rider pressed toward his right (positive)
@@ -183,6 +193,13 @@ static QJsonObject sheetJson(const rideSummary& r, int trackNumber, const QStrin
     o["along_max_g"] = spotJson(r.alongMax);
     o["along_min_g"] = spotJson(r.alongMin);
     o["inversions"] = r.inversions;
+    rideSummaryOptions options;
+    QJsonObject labels;
+    labels["floater_airtime"] = rideFloaterLabel(options);
+    labels["ejector_airtime"] = rideEjectorLabel(options);
+    labels["inversions"] = rideInversionLabel(options);
+    o["labels"] = labels;
+    o["note"] = rideSheetNote();
     o["max_tilt_deg"] = spotJson(r.maxTilt);
     QJsonObject counts;
     counts["problem"] = r.findingCount[findingProblem];
@@ -213,8 +230,8 @@ static QJsonObject sheetJson(const rideSummary& r, int trackNumber, const QStrin
         so["number"] = s.number;
         so["type"] = s.typeName;
         so["name"] = s.name;
-        so["length_m"] = num(s.length_m);
-        so["duration_s"] = num(s.duration_s);
+        so["length_m"] = rounded(s.length_m);
+        so["duration_s"] = rounded(s.duration_s);
         so["first_node"] = s.firstNode;
         so["last_node"] = s.lastNode;
         so["end_x"] = num(s.endPosition.x);
@@ -241,8 +258,9 @@ static int runSummary(const QStringList& args)
         fprintf(stderr, "usage: %s\n", cmdSummary.usage);
         return 1;
     }
-    int trackNumber = 0;    // 0: every track
-    if(values.contains("--track")) {
+    int trackNumber = 0;
+    bool trackGiven = values.contains("--track");    // without --track: every track
+    if(trackGiven) {
         bool ok;
         trackNumber = values["--track"].toInt(&ok);
         if(!ok) { fprintf(stderr, "--track needs a whole number\n"); return 1; }
@@ -253,7 +271,7 @@ static int runSummary(const QStringList& args)
         return 1;
     }
     QList<int> numbers;
-    if(trackNumber > 0) {
+    if(trackGiven) {
         if(!trackByNumber(project, trackNumber, error)) {
             fprintf(stderr, "%s\n", qPrintable(error));
             return 1;
@@ -279,10 +297,9 @@ static int runSummary(const QStringList& args)
         }
     }
     if(json) {
-        // One track: that object; several: an object with a "tracks" array.
+        // Always an object with a "tracks" array (one entry for one track).
         QJsonObject top;
-        if(all.size() == 1) top = all.at(0).toObject();
-        else top["tracks"] = all;
+        top["tracks"] = all;
         text = QString::fromUtf8(QJsonDocument(top).toJson(QJsonDocument::Indented));
     }
     QByteArray bytes = text.toUtf8();

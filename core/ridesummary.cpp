@@ -80,6 +80,33 @@ QString rideSectionTypeName(int type)
     return "unknown";
 }
 
+static QString gText(float g)
+{
+    QString t = QString::number(g, 'g', 3);
+    return (g > 0.f ? "+" : "") + t;
+}
+
+QString rideFloaterLabel(const rideSummaryOptions& o)
+{
+    return QString("Floater airtime (%1 g down to %2 g)").arg(gText(o.floaterUpperG)).arg(gText(o.ejectorUpperG));
+}
+
+QString rideEjectorLabel(const rideSummaryOptions& o)
+{
+    return QString("Ejector airtime (at or below %1 g)").arg(gText(o.ejectorUpperG));
+}
+
+QString rideInversionLabel(const rideSummaryOptions& o)
+{
+    return QString("Inversions (more than %1 degrees from upright)").arg(o.inversionAngleDeg, 0, 'g', 4);
+}
+
+QString rideSheetNote()
+{
+    return "These forces and the airtime are for the single point the program follows along the heartline; "
+           "the front and rear cars of a train feel more (docs/research/r7-train-against-point.md).";
+}
+
 void rideAirtime(const QVector<float>& normalForce, const QVector<double>& dt,
                  const rideSummaryOptions& options, double* floaterSeconds, double* ejectorSeconds)
 {
