@@ -80,6 +80,22 @@ public:
     section* appendSectionFromFile(enum secType type);
     void updateAnchorGeometrics();
 
+    // After a change to the anchor node: the first section starts again from
+    // the anchor as it is now (the whole node, the copy a load makes when it
+    // builds the section), then the whole track is computed with
+    // updateTrack(0, 0). Without the copy the first section kept the anchor
+    // it was made from until the project was saved and reopened.
+    void updateFromAnchor();
+
+    // The startPos (the anchor's place in the scene) that puts the heartline
+    // point at the start of the track at holdX, holdY, holdZ (metres, as the
+    // anchor's X, Y and Z boxes show it), for an anchor turned by yaw a,
+    // pitch b and roll y (radians) with the heartline fHeart above the track.
+    // The anchor boxes' and Track Properties' expression, unchanged: the hold
+    // is a double, as the boxes give it, and each sum is narrowed to the float
+    // once. Defined in commands_anchor.cpp.
+    static glm::vec3 anchorStartPos(float a, float b, float y, float fHeart, double holdX, double holdY, double holdZ);
+
     int exportTrack3(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack4(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
 

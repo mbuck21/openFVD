@@ -581,6 +581,19 @@ void track::updateAnchorGeometrics()
     anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/anchorNode->fVel*1.8/F_PI;
 }
 
+// See track.h. A load makes the first section from the anchor node after the
+// anchor is set up (newSection() copies *anchorNode); the sections only ever
+// read that copy (updateNorm() aside, which gives the same bits again), so
+// copying the anchor now gives the first section the start a reload gives it.
+void track::updateFromAnchor()
+{
+    if(!lSections.isEmpty())
+    {
+        lSections[0]->lNodes[0] = *anchorNode;
+    }
+    updateTrack(0, 0);
+}
+
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
 {
     QList<int> exportPoints;

@@ -50,8 +50,10 @@ public:
 
     // Live values the saved bytes do not hold.
     QByteArray anchorNode;          // *track::anchorNode as it is in memory (raw bytes of the mnode)
-    QByteArray firstNode;           // lSections[0]->lNodes[0] (a copy of the anchor made when that
-                                    // section was made, not refreshed since); empty with no sections
+    QByteArray firstNode;           // lSections[0]->lNodes[0]: a copy of the anchor, made with the
+                                    // section and again by every anchor edit (track::updateFromAnchor()),
+                                    // but roll smoothing that starts at the first node turns it;
+                                    // empty with no sections
     QList<QByteArray> bezierPoints; // per section: every bezier_t of a Bezier section as raw bytes,
                                     // else empty. The file holds only some fields; fVel (a point's
                                     // speed, set by the NoLimits 1 importer, zeroed by a load) and the

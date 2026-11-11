@@ -28,6 +28,8 @@
 //    bytes and the three exports exactly; redo brings back the saved bytes
 //    and the three exports exactly, on smoothed projects too.
 //    A command exercised on no project fails the test.
+//    Every anchor command also gives the same exports live as after the
+//    project is saved and loaded again (checkAnchorReload()).
 // 3. The history: scopes, rollback, nesting, noteEdit, rebase, undo and redo,
 //    merging with a fake clock, the two caps, the listener, selections.
 // 4. Commands: validation errors name the parameter, unknown commands and
@@ -56,6 +58,7 @@
 #include <QTemporaryDir>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <sstream>
 
 using namespace std;
@@ -341,6 +344,109 @@ static void runHarness(const QStringList& projects)
               .arg(on.size() == 1 ? "" : "s").arg(on.isEmpty() ? QString() : QString(": ") + on.join(", ")));
     }
     printf("commands exercised: %s\n", QStringList(exercised.keys()).join(", ").toUtf8().constData());
+}
+
+// ---- 2b. an anchor edit reaches the track at once ---------------------------
+
+// The fields of two anchor nodes that differ, by name ("fRoll, vLat").
+static QString anchorFieldsDiffering(const mnode& a, const mnode& b)
+{
+    QStringList names;
+#define ANCHOR_FIELD(f) if(memcmp(&a.f, &b.f, sizeof(a.f)) != 0) names << #f;
+    ANCHOR_FIELD(vPos) ANCHOR_FIELD(vDir) ANCHOR_FIELD(vLat) ANCHOR_FIELD(vNorm) ANCHOR_FIELD(fRoll)
+    ANCHOR_FIELD(fVel) ANCHOR_FIELD(fEnergy) ANCHOR_FIELD(forceNormal) ANCHOR_FIELD(forceLateral)
+    ANCHOR_FIELD(fPitchFromLast) ANCHOR_FIELD(fYawFromLast)
+#undef ANCHOR_FIELD
+    if(names.isEmpty() && memcmp(static_cast<const void*>(&a), static_cast<const void*>(&b), sizeof(mnode)) != 0) names << "other fields";
+    return names.join(", ");
+}
+
+// Every anchor command on every track of every baseline project, against the
+// same project saved to a file and loaded into a fresh model.
+// - When the reloaded anchor node is the live one bit for bit, the live
+//   exports must equal the reloaded exports byte for byte: what the track is
+//   after an anchor edit is what saving and reopening gives. Before
+//   track::updateFromAnchor() the first section kept the anchor it was made
+//   from, and these differ on every project where the edit matters.
+// - A load builds the anchor node from its saved values with arithmetic of
+//   its own (track::loadTrackHeader(): changePitch() and setRoll() from a level
+//   node, the energy with 0.5f, the change rates from the forces); the slots,
+//   whose arithmetic the commands keep, turn the node as it is. Where that
+//   leaves the reloaded anchor different in its last bits, the live anchor is
+//   put into the reloaded model and the track computed from it: the exports
+//   must then equal the live ones, so the sections hold nothing of the old
+//   anchor. Such runs are listed, with the anchor fields that differ.
+// Undo and redo of the same runs are checked by runHarness().
+static void checkAnchorReload(const QStringList& projects)
+{
+    const QList<commandSpec>& all = commandRegistry::all();
+    int runs = 0, sameAnchor = 0;
+    QStringList otherAnchor;
+    for(int c = 0; c < all.size(); ++c) {
+        const commandSpec& spec = all[c];
+        if(!spec.name.startsWith("anchor.")) continue;
+        for(int p = 0; p < projects.size(); ++p) {
+            QString stem = QFileInfo(projects[p]).fileName();
+            int trackCount;
+            {
+                testProject probe;
+                loadProjectFile(projects[p], &probe);
+                trackCount = probe.tracks.size();
+            }
+            for(int ti = 0; ti < trackCount; ++ti) {
+                testProject project;
+                loadProjectFile(projects[p], &project);
+                if(ti >= project.tracks.size()) continue;
+                track* t = project.tracks[ti];
+                QString label = QString("reload: %1 on %2 track %3").arg(spec.name, stem).arg(ti+1);
+
+                trackHistory history(t);
+                QString error;
+                if(!check(commandRegistry::run(&history, spec.name, commandTarget::forTrack(ti), spec.example, &error),
+                          label + ": runs " + error)) continue;
+                QList<QByteArray> liveExports = exportsOf(t);
+
+                QString file = QDir(tmpPath).filePath("reload.fvd");
+                QString saved = saveProjectFile(file, project.texPath, project.tracks, &project);
+                testProject reloaded;
+                QString loaded = loadProjectFile(file, &reloaded);
+                if(!check(!loaded.contains("Error") && ti < reloaded.tracks.size(),
+                          label + ": saves and loads again (" + saved + ", " + loaded + ")")) continue;
+                track* r = reloaded.tracks[ti];
+                ++runs;
+
+                if(memcmp(static_cast<const void*>(t->anchorNode), static_cast<const void*>(r->anchorNode), sizeof(mnode)) == 0) {
+                    ++sameAnchor;
+                    QList<QByteArray> reloadedExports = exportsOf(r);
+                    check(reloadedExports == liveExports, label + ": the live exports equal those after saving and reloading ("
+                          + exportDiff(liveExports, reloadedExports) + ")");
+                } else {
+                    QString fields = anchorFieldsDiffering(*t->anchorNode, *r->anchorNode);
+                    // how far apart the live and the reloaded track are, node by node
+                    double dv = 0., dp = 0.;
+                    int n = qMin(t->getNumPoints(), r->getNumPoints());
+                    for(int k = 0; k < n; ++k) {
+                        dv = qMax(dv, (double)fabs(t->getPoint(k)->fVel - r->getPoint(k)->fVel));
+                        dp = qMax(dp, (double)glm::distance(t->getPoint(k)->vPos, r->getPoint(k)->vPos));
+                    }
+                    otherAnchor << QString("%1 on %2 track %3 (%4; up to %5 m/s and %6 m apart, %7 and %8 nodes)")
+                                   .arg(spec.name, stem).arg(ti+1).arg(fields).arg(dv, 0, 'g', 3).arg(dp, 0, 'g', 3)
+                                   .arg(t->getNumPoints()).arg(r->getNumPoints());
+                    *r->anchorNode = *t->anchorNode;
+                    r->updateFromAnchor();
+                    QList<QByteArray> reloadedExports = exportsOf(r);
+                    check(reloadedExports == liveExports, label + ": the reloaded anchor differs in " + fields
+                          + "; with the live anchor put in, the exports equal the live ones ("
+                          + exportDiff(liveExports, reloadedExports) + ")");
+                }
+            }
+        }
+    }
+    printf("reload: %d anchor command runs; in %d the reloaded anchor node is the live one bit for bit\n", runs, sameAnchor);
+    printf("reload: in %d the load builds an anchor node of its own from the saved values:\n", otherAnchor.size());
+    for(int i = 0; i < otherAnchor.size(); ++i) {
+        printf("  %s\n", otherAnchor[i].toUtf8().constData());
+    }
 }
 
 // ---- 3. the history ---------------------------------------------------------
@@ -869,6 +975,7 @@ int main(int argc, char *argv[])
     checkSpecs();
     historyWarnings.clear();
     runHarness(projects);
+    checkAnchorReload(projects);
     checkHistory(repo);
     check(historyWarnings.isEmpty(), QString("the harness and the history checks raised no history warning (%1)")
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));
