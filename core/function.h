@@ -62,14 +62,6 @@ public:
 
     void saveFunction(std::iostream& file);
     void loadFunction(std::iostream& file);
-
-    // Set while a saved track state is put back (core/trackstate.cpp): then
-    // loadFunction() leaves every transition with the arguments it was saved
-    // with. A file load lets each transition appended during the load move
-    // the ones before it (func::appendSubFunction() works their arguments out
-    // again), which can change their last digits; projects load as they always
-    // have, so that stays the default.
-    static bool bKeepSavedArguments;
     void legacyLoadFunction(std::iostream& file);
     void saveFunction(std::stringstream& file);
     void loadFunction(std::stringstream& file);

@@ -26,7 +26,7 @@
 //    arguments on every baseline project where its target exists, through
 //    commandRegistry::run(); the model changes; undo brings back the saved
 //    bytes and the three exports exactly; redo brings back the saved bytes
-//    exactly (and the exports; see the marked place for smoothed projects).
+//    and the three exports exactly, on smoothed projects too.
 //    A command exercised on no project fails the test.
 // 3. The history: scopes, rollback, nesting, noteEdit, rebase, undo and redo,
 //    merging with a fake clock, the two caps, the listener, selections.
@@ -286,7 +286,6 @@ static void runHarness(const QStringList& projects)
                 if(!spec.findExampleTarget(t, ti, &target)) continue;
 
                 QString label = QString("%1 on %2 track %3 (%4)").arg(spec.name, stem).arg(ti+1).arg(target.toText());
-                bool smoothed = t->smoothingActive();
                 trackHistory history(t);
 
                 QByteArray savedBefore = savedBytes(t);
@@ -330,21 +329,6 @@ static void runHarness(const QStringList& projects)
                       label + ": a scope after the redo sees no outside change and records nothing");
                 QList<QByteArray> exportsRedone = exportsOf(t);
 
-                // ---- SMOOTHING TRACES: the one place a difference is let through ----
-                // On a track with roll smoothing, the original program leaves
-                // traces of old smoothing in the nodes after a recompute, so the
-                // exports after redo (a clean full recompute) can differ in the
-                // last digits from those the command itself left. Another unit is
-                // fixing that in core; when it lands, delete this branch so that
-                // the check below fails on smoothed projects too.
-                if(smoothed && exportsRedone != exportsAfter) {
-                    qint64 n = 0;
-                    QString diff = exportDiff(exportsAfter, exportsRedone, &n);
-                    printf("WARNING: %s: smoothed track, after redo the exports differ from those after the command: %s, %lld bytes\n",
-                           label.toUtf8().constData(), diff.toUtf8().constData(), (long long)n);
-                    continue;
-                }
-                // ---- end of the marked place ----
                 check(exportsRedone == exportsAfter, label + ": after redo the three exports are exactly those after ("
                       + exportDiff(exportsAfter, exportsRedone) + ")");
             }

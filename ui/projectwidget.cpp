@@ -329,6 +329,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
     case 1:
         trackList[index]->trackData->name = item->text(1);
         if(trackList[index]->trackWidgetItem) gloParent->renameTab(trackList[index]);
+        trackList[index]->mUndoHandler->takeOutsideChange();
         return;
     case 2:
         if(item->checkState(2) == Qt::Checked) {
@@ -336,6 +337,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
         } else {
             trackList[index]->trackData->drawTrack = false;
         }
+        trackList[index]->mUndoHandler->takeOutsideChange();
         return;
     default:
         lenAssert(0 && "unexpected default case");

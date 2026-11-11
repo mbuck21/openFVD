@@ -48,6 +48,14 @@ public:
     // Empties the list and takes the track as it is now as the base state.
     void clearActions();
 
+    // The track was changed by an edit that is not an undo step (renaming,
+    // colours, style, the smoothing dialog): takes the track as it is now as
+    // the state the list is at (the newest step's after-state, or the base
+    // state when nothing is left to undo), so the next step's before-state
+    // includes the change and undoing that step keeps it. Undoing an older
+    // step still takes it back.
+    void takeOutsideChange();
+
     QList<undoAction*> lActions;
     int maxStackSize;
 

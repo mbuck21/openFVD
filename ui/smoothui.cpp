@@ -21,6 +21,7 @@
 #include "smoothhandler.h"
 #include "mainwindow.h"
 #include "trackwidget.h"
+#include "undohandler.h"
 #include "lenassert.h"
 
 smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
@@ -71,6 +72,7 @@ smoothUi::smoothUi(trackHandler* _track, QWidget *parent) :
     customChar = 'a';
 
     phantomChanges = false;
+    bShowingFields = false;
 }
 
 smoothUi::~smoothUi()
@@ -86,6 +88,14 @@ smoothUi::~smoothUi()
 void smoothUi::on_buttonBox_accepted()
 {
     m_track->applyRollSmooth();
+    outsideChange();
+}
+
+// The dialog's edits are not undo steps: the undo list takes the track as it
+// is now (undoHandler::takeOutsideChange()).
+void smoothUi::outsideChange()
+{
+    m_trackwidget->inTrack->mUndoHandler->takeOutsideChange();
 }
 
 void smoothUi::updateUi()
@@ -123,6 +133,9 @@ QTreeWidgetItem* smoothUi::rowFor(smoothHandler* _handler)
 // Writes the entry's values into its row, for the columns in fields.
 void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fields)
 {
+    // the rows' itemChanged() then comes from the model, not from a person
+    bool oldShowing = bShowingFields;
+    bShowingFields = true;
     if(fields & smoothHandler::fieldLabel) row->setText(0, _handler->sLabel);
     if(fields & smoothHandler::fieldName) row->setText(1, _handler->sName);
     if(fields & smoothHandler::fieldFrom) row->setText(2, QString::number(_handler->getFrom()/1000.).append("s"));
@@ -130,6 +143,7 @@ void smoothUi::showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fie
     if(fields & smoothHandler::fieldLength) row->setText(4, QString::number(_handler->getLength()/1000.).append("s"));
     if(fields & smoothHandler::fieldIterations) row->setText(5, QString::number(_handler->getIterations()));
     if(fields & smoothHandler::fieldActive) row->setCheckState(6, _handler->active ? Qt::Checked : Qt::Unchecked);
+    bShowingFields = oldShowing;
 }
 
 void smoothUi::smoothHandlerChanged(smoothHandler* which, int fields)
@@ -191,6 +205,7 @@ void smoothUi::on_lengthBox_valueChanged(double arg1)
     curHandler->setLength((int)(arg1*1000.+0.5));
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_iterBox_valueChanged(int arg1)
@@ -200,6 +215,7 @@ void smoothUi::on_iterBox_valueChanged(int arg1)
     curHandler->setIterations(arg1);
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_fromBox_valueChanged(double arg1)
@@ -221,6 +237,7 @@ void smoothUi::on_fromBox_valueChanged(double arg1)
     curHandler->setFrom((int)(arg1*1000.+0.5));
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_toBox_valueChanged(double arg1)
@@ -242,6 +259,7 @@ void smoothUi::on_toBox_valueChanged(double arg1)
     curHandler->setTo(setTo);
     generateWarnings();
     phantomChanges = false;
+    outsideChange();
 }
 
 void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
@@ -255,6 +273,7 @@ void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
                 break;
             }
         }
+        if(!bShowingFields) outsideChange();
     }
 
     if(phantomChanges) return;
@@ -270,12 +289,16 @@ void smoothUi::on_smoothUnitTree_itemChanged(QTreeWidgetItem *item, int column)
 
     generateWarnings();
     phantomChanges = false;
+    // not while the model writes into the rows (an update of the track, in
+    // the middle of an edit that records its own step)
+    if(!bShowingFields) outsideChange();
 }
 
 void smoothUi::on_newButton_released()
 {
     m_track->smoothList.append(new smoothHandler(m_track, -2, &customChar, 400, 1, 0, 1000));
     updateUi();
+    outsideChange();
 }
 
 void smoothUi::on_removeButton_released()
@@ -290,6 +313,7 @@ void smoothUi::on_removeButton_released()
     smoothHandler* entry = m_track->smoothList.takeAt(i);
     curHandler = NULL;
     delete entry;
+    outsideChange();
 }
 
 // Before the track's model is replaced (trackHandler::trackAboutToReset()): no

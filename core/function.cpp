@@ -158,8 +158,6 @@ void func::saveFunction(std::iostream& file)
     }
 }
 
-bool func::bKeepSavedArguments = false;
-
 void func::loadFunction(std::iostream& file)
 {
     if(readString(&file, 4) != "FUNC") {
@@ -167,18 +165,10 @@ void func::loadFunction(std::iostream& file)
         return;
     }
     int size = readInt(&file);
-    std::streampos first = file.tellg();
     funcList[0]->loadSubFunc(file);
     for(int i = 1; i < size; ++i) {
         appendSubFunction(1, i-1);
         funcList[i]->loadSubFunc(file);
-    }
-    if(bKeepSavedArguments) {
-        // every transition read again, now that none is appended after it
-        file.seekg(first);
-        for(int i = 0; i < size; ++i) {
-            funcList[i]->loadSubFunc(file);
-        }
     }
 }
 

@@ -80,6 +80,7 @@ private:
     void showFields(smoothHandler* _handler, QTreeWidgetItem* row, int fields);
 
     void generateWarnings();
+    void outsideChange();
 
     Ui::smoothUi *ui;
 
@@ -90,6 +91,7 @@ private:
     QMap<smoothHandler*, QTreeWidgetItem*> rows;
 
     bool phantomChanges;
+    bool bShowingFields;    // showFields() is writing into the rows
     smoothHandler* curHandler;
 };
 

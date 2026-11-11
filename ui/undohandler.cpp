@@ -118,6 +118,16 @@ void undoHandler::addAction(undoAction* _action)
     stackIndex = 0;
 }
 
+void undoHandler::takeOutsideChange()
+{
+    if(busy) return;   // a restore in progress is not an edit
+    if(stackIndex >= 0 && stackIndex < lActions.size()) {
+        lActions[stackIndex]->after = captureTrackState(mTrack, &lActions[stackIndex]->after);
+    } else {
+        baseState = captureTrackState(mTrack, &baseState);
+    }
+}
+
 void undoHandler::clearActions()
 {
     while(lActions.size())

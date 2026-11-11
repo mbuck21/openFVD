@@ -1164,6 +1164,7 @@ void trackWidget::on_smoothButton_released()
     }
 
     smoothScreen->updateUi();
+    inTrack->mUndoHandler->takeOutsideChange();
     smoothScreen->show();
 }
 
@@ -1247,7 +1248,10 @@ void trackWidget::on_sectionListWidget_itemChanged(QTreeWidgetItem *item, int co
     Q_UNUSED(item);
     if(phantomChanges) return;
 
-    if(column == 1) writeNames();
+    if(column == 1) {
+        writeNames();
+        inTrack->mUndoHandler->takeOutsideChange();
+    }
 }
 
 void trackWidget::update()

@@ -171,7 +171,6 @@ void trackHandler::trackAboutToReset(track* which)
 
 void trackHandler::trackReset(track* which)
 {
-    Q_UNUSED(which);
 
     // the restore leaves the last section active; the panel selects below
     trackData->activeSection = NULL;
@@ -204,6 +203,7 @@ void trackHandler::trackReset(track* which)
 
     gloParent->updateInfoPanel();
     gloParent->setUndoButtons();
+    gloParent->rideSheetChanged(which);
 }
 
 void trackHandler::selectAfterReset(undoAction* step, bool undone)

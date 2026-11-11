@@ -139,6 +139,7 @@ void TrackProperties::ondefaultColor_received()
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[0]);
     ui->defaultColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
+    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_sectionColorButton_released()
@@ -154,6 +155,7 @@ void TrackProperties::onsectionColor_received()
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[1]);
     ui->sectionColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
+    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_transitionColorButton_released()
@@ -169,11 +171,13 @@ void TrackProperties::ontransitionColor_received()
     palette.setColor(QPalette::ButtonText, curTrack->trackData->display.colors[2]);
     ui->transitionColorButton->setPalette(palette);
     curTrack->trackData->hasChanged = true;
+    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_drawBox_currentIndexChanged(int index)
 {
     curTrack->trackData->drawHeartline = index;
+    curTrack->mUndoHandler->takeOutsideChange();
 }
 
 void TrackProperties::on_styleBox_currentIndexChanged(int)
@@ -257,6 +261,9 @@ void TrackProperties::on_buttonBox_accepted()
         curTrack->mMesh->buildMeshes(0);
         curTrack->trackData->hasChanged = true;
     }
+
+    // style and wireframe are not undo steps
+    curTrack->mUndoHandler->takeOutsideChange();
 
 }
 
