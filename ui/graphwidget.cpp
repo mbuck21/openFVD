@@ -346,7 +346,7 @@ void graphWidget::redrawMeasures()
     // Findings: one list item per sentence and the count in the label
     bool wasPhantom = phantomChanges;
     phantomChanges = true;
-    findingsItem->takeChildren();
+    qDeleteAll(findingsItem->takeChildren());
     QList<finding> found;
     if(wantFindings && !noTrack) {
         found = checkRegistry::runAll(t);
@@ -474,12 +474,13 @@ bool graphWidget::measureRange(QCPAxis* axis, double& lower, double& upper, doub
 
 QString graphWidget::measuresSelfCheck(const QStringList& ids, bool findings)
 {
+    bool wasPhantom = phantomChanges;
     phantomChanges = true;
     for(int i = 0; i < measureItems.size(); ++i) {
         measureItems[i]->setCheckState(1, ids.contains(measureItems[i]->data(0, Qt::UserRole).toString()) ? Qt::Checked : Qt::Unchecked);
     }
     findingsItem->setCheckState(1, findings ? Qt::Checked : Qt::Unchecked);
-    phantomChanges = false;
+    phantomChanges = wasPhantom;
     redrawGraphs();
     int points = 0;
     for(int i = 0; i < measureGraphs.size(); ++i) {
