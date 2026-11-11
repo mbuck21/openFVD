@@ -31,7 +31,6 @@ Each was checked against the code and is proved by the byte-identity test (a val
 | Value | Why it cannot be an input |
 |---|---|
 | A transition's `startValue` | Every section's `updateSection()` sets the first transition's start from the node before it (the force, roll rate, pitch or yaw rate it arrives with) and each later one from the end of the one before (`func::translateValues()`). |
-| A transition's `from`, after the first | A later transition starts where the one before it ends (`func::appendSubFunction()`). |
 | A `tozero` transition's `change` | It is always minus its start value (`subfunc::translateValues()`). |
 | A straight's `length` | It is the end of its roll function (`secstraight::updateSection()`). |
 | A curve's `angle` | It is the end of its roll function (`seccurved::updateSection()`). |
@@ -54,6 +53,7 @@ A text can hold values the windows never allow, and some of them would crash the
 | A curve's `radius` | 0.3 to 500 m | the radius box (1 foot to 500 m); at zero or below the curve never reaches its angle |
 | A curve's `leadIn`, `leadOut` | 0 to 500 degrees | the lead-in and lead-out boxes |
 | A function's first `from` | 0 | every function starts at 0 |
+| A later transition's `from` | at most 4 last digits (4 steps of a float) from the `to` before it; may be left out | a transition starts where the one before ends (below) |
 | Each transition's `to` | after where it starts (a length above 0) | a transition of no length divides by zero |
 | The end of a function (its last `to`) | time: 2000 s; distance and straight: 10000 m; curve: 5000 degrees | memory: a time-based section has 1000 nodes a second; 5000 degrees is the angle box's limit |
 | `center`, `tension` | -10 to 10 | the transition editor's boxes |
@@ -147,14 +147,23 @@ A function is a list of transitions, one after the other. The argument (`from`, 
 | Key | Type | What |
 |---|---|---|
 | `shape` | text | `linear`, `quadratic`, `cubic`, `quartic`, `quintic`, `sinusoidal`, `plateau`, `tozero`; `freeform` is refused (below) |
-| `from` | number | where the first transition starts (only the first; usually 0) |
+| `from` | number | where it starts: 0 for the first; for a later one the `to` before it, and it may be left out (below) |
 | `to` | number | where it ends |
 | `change` | number | how much the value changes over the transition, in the function's unit (not for `tozero`) |
 | `shapeParameter` | number | the shape's own setting (quadratic, quartic, quintic, plateau) |
 | `center` | number | moves the middle of the transition (time-warp, "center") |
 | `tension` | number | steepens or flattens the transition (time-warp, "tension") |
 | `locked` | true/false | the transition stretches to the end of the section |
-| `recalculatedOnLoad` | object | `startValue`; `from` after the first transition; `change` for `tozero` |
+| `recalculatedOnLoad` | object | `startValue`; `change` for `tozero` |
+
+**A later transition's `from`** is written for every transition and read as it is. In a model the program loaded it is normally the `to` before it, but the last transition of a function can be one last digit away: the binary loader keeps it as the file had it. So it is a stored value, not a recalculated one. When editing by hand:
+
+- leave `from` out of a later transition and it starts at the `to` before it;
+- if it is given, it must lie within 4 last digits of the `to` before it (4 steps from one float to the next, about 0.000002 near 5). Further away is refused, for example `Error: track 1, section 3 (force), normalForce, transition 3: transition 3 starts at 5.00999832 but the one before ends at 4.99999857; make them equal or leave "from" out.` To move where a transition starts, change the `to` of the one before.
+
+A text written by the first version of this format has a later `from` under `recalculatedOnLoad`; it still reads, the value there is ignored and the transition starts at the `to` before it. The version number stayed at 1, since both shapes read.
+
+**Why a text round trip is exact but a binary one may not be.** When the program opens a binary file it adds the transitions of a function one at a time with `func::appendSubFunction()`, and each addition moves every later transition by (end before + its end − its start). In single precision that sum is not always the end it started from: a transition from 4.9999986 to 5.999999 becomes one ending at 5.9999995. So a project opened and saved, then opened and saved again, can have one transition end moved by one last digit; the original program does exactly the same, and the comparison with the 2016 program depends on it, so the binary load keeps it. Reading a text adds the transitions the same way but then sets every `from` and `to` to the text's value with no arithmetic, so the model is exactly the one the text was written from, and text to model to text gives the same text.
 
 **Freeform transitions** cannot be written or read. The original program does not save their control points in the `.fvd` file either, so they come back broken from a binary file; writing a project that holds one fails with a message naming it.
 
@@ -263,4 +272,4 @@ The program writes every list and object one item per line; the example is folde
 
 ## How reading builds the model
 
-The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions (the ones the undo list uses).
+The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in, then every `from` and `to` set to the text's values as they are), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions (the ones the undo list uses).

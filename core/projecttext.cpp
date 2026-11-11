@@ -96,6 +96,25 @@ static const float LIMIT_CURVE_END = 5000.f;      // degrees, a curve's roll fun
 static const double LIMIT_NODES = 2000000.;       // nodes a section may need at a held speed
 static const double LIMIT_BEZIER_LENGTH = 20000.; // m, the length of a Bezier section's control polygon
 
+// How far a later transition's "from" may lie from the end of the one before,
+// in steps of the last digit of a float (docs/project-text-format.md).
+static const qint64 FROM_TOLERANCE_ULPS = 4;
+
+// The number of floats between a and b (both finite): 0 when equal, 1 for
+// neighbours, across zero as well.
+static qint64 ulpDistance(float a, float b)
+{
+    qint32 ia, ib;
+    memcpy(&ia, &a, sizeof(float));
+    memcpy(&ib, &b, sizeof(float));
+    // the bit patterns of negative floats run backwards; fold them so that
+    // the integers are in the order of the floats
+    const qint64 lowest = std::numeric_limits<qint32>::min();
+    qint64 la = ia < 0 ? lowest - ia : (qint64)ia;
+    qint64 lb = ib < 0 ? lowest - ib : (qint64)ib;
+    return la > lb ? la - lb : lb - la;
+}
+
 static int indexOfName(const QString& name, const char* const* names, int count)
 {
     for(int i = 0; i < count; ++i) {
@@ -225,11 +244,9 @@ bool textWriter::writeFunction(func* f, const QString& where, QJsonArray* out)
         QJsonObject o;
         QJsonObject recalc;
         o["shape"] = QString(SHAPE_NAMES[shape]);
-        if(i == 0) {
-            o["from"] = floatToJson(sub->minArgument);
-        } else {
-            recalc["from"] = floatToJson(sub->minArgument);
-        }
+        // every piece's start is stored: a later one normally equals the end
+        // of the one before, but a loaded model can hold it a last digit away
+        o["from"] = floatToJson(sub->minArgument);
         o["to"] = floatToJson(sub->maxArgument);
         if(sub->degree == tozero) {
             recalc["change"] = floatToJson(sub->symArg);
@@ -854,15 +871,29 @@ void textReader::readFunction(objectReader& parent, const char* key, float maxEn
         // A function starts at 0 (func::appendSubFunction(), removeSubFunction())
         // and each transition ends after the one before: a zero or negative
         // length divides by zero in subfunc::getValue().
-        float start = (i == 0) ? 0.f : out->last().to;
+        // A later transition starts where the one before ends. Its "from" is
+        // stored all the same, because a loaded model can hold it a last digit
+        // or two away (docs/project-text-format.md, "A transition"); left out,
+        // it is the end before. A text of the first version has it under
+        // recalculatedOnLoad, which is not read, so it starts there too.
         if(i == 0) {
             t.from = r.getFloat("from");
             if(r.ok() && t.from != 0.f) {
                 r.fail(QString("\"from\" is %1; a function starts at 0").arg(t.from));
             }
         } else {
-            t.from = 0.f;
+            float before = out->last().to;
+            t.from = before;
+            if(r.has("from")) {
+                t.from = r.getFloat("from");
+                if(r.ok() && ulpDistance(t.from, before) > FROM_TOLERANCE_ULPS) {
+                    r.fail(QString("transition %1 starts at %2 but the one before ends at %3; "
+                                   "make them equal or leave \"from\" out")
+                           .arg(i+1).arg(t.from, 0, 'g', 9).arg(before, 0, 'g', 9));
+                }
+            }
         }
+        float start = t.from;
         t.to = r.getFloat("to");
         if(r.ok() && !(t.to > start)) {
             r.fail(QString("\"to\" is %1, which is not after %2 where the transition starts; "
@@ -1207,8 +1238,17 @@ static void writeVec3ForReadVec3(std::stringstream& ss, const glm::vec3& v, bool
 // As func::loadFunction() and subfunc::loadSubFunc(): the first piece is
 // there already, each further one is appended after its predecessor and then
 // filled in. The start values (and a tozero piece's change) are left to the
-// section's updateSection(), which sets them from the node before it; a later
-// piece starts where appendSubFunction() puts it, at the end of the one before.
+// section's updateSection(), which sets them from the node before it.
+//
+// The ends are not left to appendSubFunction(): it moves every later piece
+// with (end before + end - start), which in single precision is not always
+// the end it started from (4.9999986 to 5.999999 becomes 5.9999995), so a
+// model built that way can differ from the one the text was written from.
+// Once every piece exists (built as before, so that the values on the way are
+// those of a binary load), each start and end is set to the text's value as
+// it is, with no arithmetic; nothing later in the build moves them (a locked
+// piece is stretched to the section's end on every update, the same way in
+// the model the text came from).
 static void buildFunction(func* f, const QList<transitionData>& list)
 {
     for(int i = 0; i < list.size(); ++i) {
@@ -1223,6 +1263,10 @@ static void buildFunction(func* f, const QList<transitionData>& list)
         sub->centerArg = t.center;
         sub->tensionArg = t.tension;
         sub->locked = t.locked;
+    }
+    for(int i = 0; i < list.size(); ++i) {
+        f->funcList[i]->minArgument = list[i].from;
+        f->funcList[i]->maxArgument = list[i].to;
     }
 }
 
