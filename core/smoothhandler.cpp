@@ -158,6 +158,18 @@ void smoothHandler::setIterations(int _arg)
     changed(fieldIterations);
 }
 
+void smoothHandler::setName(const QString& _name)
+{
+    sName = _name;
+    changed(fieldName);
+}
+
+void smoothHandler::setActive(bool _on)
+{
+    active = _on;
+    changed(fieldActive);
+}
+
 void smoothHandler::saveSmooth(std::iostream& file)
 {
     QString name = sName;
