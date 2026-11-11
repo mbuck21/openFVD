@@ -67,10 +67,13 @@ track::~track()
         delete lSections.at(0);
         lSections.removeAt(0);
     }
+    // Each smoothing entry leaves the list before it is deleted: its
+    // destructor tells its listener (the smoothing dialog, which deletes the
+    // entry's row), and nothing that runs then may find it in the list.
     while(smoothList.size() != 0)
     {
-        delete smoothList[0];
-        smoothList.removeFirst();
+        smoothHandler* entry = smoothList.takeFirst();
+        delete entry;
     }
     delete anchorNode;
 }
@@ -79,8 +82,9 @@ void track::removeSection(int index)
 {
     if(lSections.size() <= index) return;
 
-    delete smoothList[index+1];
-    smoothList.removeAt(index+1);
+    // out of the list before it is deleted (see ~track())
+    smoothHandler* entry = smoothList.takeAt(index+1);
+    delete entry;
 
     if(index == lSections.size()-1)
     {

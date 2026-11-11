@@ -232,11 +232,14 @@ void smoothUi::smoothHandlerChanged(smoothHandler* which, int fields)
     else if(m_track->smoothList.contains(which)) showRows();
 }
 
+// The entry is being deleted (it has left the track's list already). The row
+// leaves the map before it is deleted: deleting it can move the selection,
+// whose slot looks rows up again.
 void smoothUi::smoothHandlerDeleted(smoothHandler* which)
 {
     if(which == curHandler) curHandler = NULL;   // removed from outside the dialog
-    delete rowFor(which);
-    rows.remove(which);
+    QTreeWidgetItem* row = rows.take(which);
+    delete row;
 }
 
 void smoothUi::on_smoothUnitTree_itemSelectionChanged()
