@@ -47,10 +47,15 @@
 // forces with g = 10 (track::updateAnchorGeometrics()), so a typed rate comes
 // back multiplied by 10/9.80665 = 1.0197, here at once as after reopening.
 // Left as the 2016 program has it; making the two agree is the owner's call.
+// A rate edit changes only the rate it names (rateForces()): the rate not
+// typed keeps its share of the forces as they are, so it comes back as it was
+// and does not grow with every keystroke.
 
 #include "command.h"
 #include "track.h"
 
+#include <cmath>
+#include <cstring>
 #include <limits>
 #include <type_traits>
 
@@ -224,22 +229,129 @@ void forcesFromRates(mnode* anchor)
     anchor->forceLateral = - glm::dot(forceVec, glm::normalize(anchor->vLat));
 }
 
-// on_pitchChangeBox_valueChanged(): the box shows degrees per second, the
-// node holds degrees per node.
-bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
+// The start forces after a rate edit that changes only the rate it names.
+//
+// A load turns the two forces into the two rates along the start's pitch and
+// yaw axes (track::updateAnchorGeometrics(): pitchVec = cos(roll) vNorm -
+// sin(roll) vLat, yawVec = sin(roll) vNorm + cos(roll) vLat), so in force
+// terms the pitch rate is the share u = c*normal - s*lateral and the yaw rate
+// the share w = s*normal + c*lateral (c, s: cosine and sine of the roll, as
+// the load computes them). The typed rate's share is that of the forces the
+// 2016 program makes from it, with the other rate taken as zero
+// (forcesFromRates(), g = 9.80665); the other rate's share is read from the
+// forces as they are and put back unchanged, so a rebuild gives that rate
+// back as it was. The 2016 program made the forces from both rates at once,
+// the other one read from the node, which (that rate having come from the
+// forces with g = 10) multiplied it by 1.0197 on every keystroke.
+//
+// At roll 0 (c = 1, s = 0) the typed rate's force is the 2016 one bit for bit
+// and, unless the search below moves it, the other force is not touched.
+// Otherwise the kept share is read again from the new forces until it reads
+// back as it was put in (at most 8 passes). A second run with the same value
+// then starts from forces that already give the other rate as it is, and
+// gives the same forces.
+void rateForces(track* t, bool pitchTyped, double rate)
 {
     mnode* anchor = t->anchorNode;
-    anchor->fPitchFromLast = arg(args, "rate")/F_HZ;
-    forcesFromRates(anchor);
+    const float target = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+    const float c = (float)std::cos(anchor->fRoll*F_PI/180);
+    const float s = (float)std::sin(anchor->fRoll*F_PI/180);
+
+    mnode typed = *anchor;
+    typed.fPitchFromLast = pitchTyped ? rate/F_HZ : 0.f;
+    typed.fYawFromLast = pitchTyped ? 0.f : rate/F_HZ;
+    forcesFromRates(&typed);
+    const float typedShare = pitchTyped ? c*typed.forceNormal - s*typed.forceLateral
+                                        : s*typed.forceNormal + c*typed.forceLateral;
+
+    float kept = pitchTyped ? s*anchor->forceNormal + c*anchor->forceLateral
+                            : c*anchor->forceNormal - s*anchor->forceLateral;
+    for(int pass = 0; pass < 8; ++pass) {
+        const float u = pitchTyped ? typedShare : kept;
+        const float w = pitchTyped ? kept : typedShare;
+        anchor->forceNormal = c*u + s*w;
+        anchor->forceLateral = c*w - s*u;
+        float again = pitchTyped ? s*anchor->forceNormal + c*anchor->forceLateral
+                                 : c*anchor->forceNormal - s*anchor->forceLateral;
+        if(memcmp(&again, &kept, sizeof(float)) == 0) break;
+        kept = again;
+    }
+
+    // The forces are floats near 1 g, and a small rate is a small difference
+    // of them, so the kept share as it reads back can give the other rate a
+    // few float steps away. Of the kept shares within 16 float steps, the
+    // first (nearest) that gives the other rate back bit for bit is taken, as
+    // the load computes it (updateAnchorGeometrics() on this node gives what
+    // the rebuild will: the edit changes neither its orientation nor its
+    // speed); if none does, the one that gives it back nearest.
+    float bestNormal = anchor->forceNormal, bestLateral = anchor->forceLateral;
+    float bestError = std::numeric_limits<float>::infinity();
+    for(int k = 0; k <= 32; ++k) {
+        const int steps = (k+1)/2;
+        float share = kept;
+        for(int i = 0; i < steps; ++i) {
+            share = nextafterf(share, (k % 2) ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+        }
+        const float u = pitchTyped ? typedShare : share;
+        const float w = pitchTyped ? share : typedShare;
+        anchor->forceNormal = c*u + s*w;
+        anchor->forceLateral = c*w - s*u;
+        t->updateAnchorGeometrics();
+        const float other = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+        const float error = std::fabs(other - target);
+        if(error < bestError) {
+            bestError = error;
+            bestNormal = anchor->forceNormal;
+            bestLateral = anchor->forceLateral;
+        }
+        if(memcmp(&other, &target, sizeof(float)) == 0) break;
+    }
+
+    // A step of the kept share moves a small rate by many of its own float
+    // steps (one step of a force near 1 g is about 2e-6 deg/s). When no kept
+    // share gives the rate back exactly, the two forces are stepped on their
+    // own, within 4 float steps of the normal and 16 of the lateral force
+    // (often much smaller, so finer), and the exact or nearest one is taken,
+    // the fewest steps away first.
+    if(bestError > 0.f) {
+        const float baseNormal = bestNormal, baseLateral = bestLateral;
+        int bestSteps = 1000;
+        for(int dn = -4; dn <= 4; ++dn) {
+            for(int dl = -16; dl <= 16; ++dl) {
+                float fn = baseNormal, fl = baseLateral;
+                for(int i = 0; i < abs(dn); ++i) fn = nextafterf(fn, dn > 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+                for(int i = 0; i < abs(dl); ++i) fl = nextafterf(fl, dl > 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+                anchor->forceNormal = fn;
+                anchor->forceLateral = fl;
+                t->updateAnchorGeometrics();
+                const float other = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+                const float error = std::fabs(other - target);
+                const int steps = abs(dn) + abs(dl);
+                if(error < bestError || (error == bestError && steps < bestSteps)) {
+                    bestError = error;
+                    bestSteps = steps;
+                    bestNormal = fn;
+                    bestLateral = fl;
+                }
+            }
+        }
+    }
+    anchor->forceNormal = bestNormal;
+    anchor->forceLateral = bestLateral;
+}
+
+// on_pitchChangeBox_valueChanged(): the box shows degrees per second, the
+// node holds degrees per node. The yaw rate is left as it is.
+bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    rateForces(t, true, arg(args, "rate"));
     return anchorChanged(t, error);
 }
 
-// on_yawChangeBox_valueChanged()
+// on_yawChangeBox_valueChanged(); the pitch rate is left as it is.
 bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
-    mnode* anchor = t->anchorNode;
-    anchor->fYawFromLast = arg(args, "rate")/F_HZ;
-    forcesFromRates(anchor);
+    rateForces(t, false, arg(args, "rate"));
     return anchorChanged(t, error);
 }
 

@@ -58,6 +58,7 @@
 #include <QTemporaryDir>
 #include <cmath>
 #include <cstdio>
+#include <climits>
 #include <cstring>
 #include <sstream>
 
@@ -488,6 +489,81 @@ static void checkAnchorSettles(const QStringList& projects)
           .arg(count).arg(sweepMost).arg(searched).arg(largestMove, 0, 'g', 3)
           .arg(sweepUnsettled.isEmpty() ? QString() : QString("; not: ") + sweepUnsettled.join(", ")));
     printf("settle: the largest number of rebuilds: %d on the baseline tracks, %d over the roll sweep\n", most, sweepMost);
+}
+
+// How many float steps apart two floats are (0 when bit for bit equal).
+static long long floatSteps(float a, float b)
+{
+    qint32 x, y;
+    memcpy(&x, &a, 4);
+    memcpy(&y, &b, 4);
+    long long u = x < 0 ? (long long)INT_MIN - x : x;
+    long long v = y < 0 ? (long long)INT_MIN - y : y;
+    return u > v ? u - v : v - u;
+}
+
+// A rate command changes only the rate it names. On every baseline track:
+// anchor.setPitchRate 50 times with the same value leaves the yaw rate bit for
+// bit as it was before the first run, after every run, with the forces after
+// run 2 and run 50 the same; the same the other way round; then the two alternated for 50 rounds,
+// both rates and both forces the same after rounds 2 and 50. Prints how far the
+// first run moved the other rate (in float steps). The 2016 arithmetic (both
+// rates converted together) grew the other rate by 1.0197 per run.
+static void checkRateCommands(const QStringList& projects)
+{
+    long long largestMove = 0;
+    QStringList notes;
+    for(int p = 0; p < projects.size(); ++p) {
+        QString stem = QFileInfo(projects[p]).fileName();
+        int trackCount;
+        {
+            testProject probe;
+            loadProjectFile(projects[p], &probe);
+            trackCount = probe.tracks.size();
+        }
+        for(int ti = 0; ti < trackCount; ++ti) {
+            for(int which = 0; which < 3; ++which) {
+                testProject project;
+                loadProjectFile(projects[p], &project);
+                track* t = project.tracks[ti];
+                trackHistory history(t);
+                mnode* a = t->anchorNode;
+                const float pitch0 = a->fPitchFromLast, yaw0 = a->fYawFromLast;
+                QString error;
+                bool ran = true;
+                float other1 = 0.f, p2 = 0.f, y2 = 0.f, n2 = 0.f, l2 = 0.f;
+                bool steady = true;
+                for(int run = 1; run <= 50; ++run) {
+                    if(which == 0 || which == 2) ran = commandRegistry::run(&history, "anchor.setPitchRate", commandTarget::forTrack(ti), commandArgs{{"rate", 7.5}}, &error) && ran;
+                    if(which == 1 || which == 2) ran = commandRegistry::run(&history, "anchor.setYawRate", commandTarget::forTrack(ti), commandArgs{{"rate", -6.0}}, &error) && ran;
+                    float other = which == 0 ? a->fYawFromLast : a->fPitchFromLast;
+                    if(run == 1) other1 = other;
+                    if(which < 2 && memcmp(&other, &other1, sizeof(float)) != 0) steady = false;
+                    if(run == 2) { p2 = a->fPitchFromLast; y2 = a->fYawFromLast; n2 = a->forceNormal; l2 = a->forceLateral; }
+                }
+                bool same50 = memcmp(&p2, &a->fPitchFromLast, 4) == 0 && memcmp(&y2, &a->fYawFromLast, 4) == 0
+                        && memcmp(&n2, &a->forceNormal, 4) == 0 && memcmp(&l2, &a->forceLateral, 4) == 0;
+                QString label = QString("rates: %1 track %2, %3").arg(stem).arg(ti+1)
+                        .arg(which == 0 ? "anchor.setPitchRate 7.5 fifty times" : which == 1 ? "anchor.setYawRate -6 fifty times"
+                                                                                  : "the two alternated fifty rounds");
+                if(which < 2) {
+                    float before = which == 0 ? yaw0 : pitch0;
+                    long long move = floatSteps(before, other1);
+                    largestMove = qMax(largestMove, move);
+                    QString otherName = which == 0 ? "yaw" : "pitch";
+                    QString detail = QString("%1 rate %2 deg/s before, %3 after run 1 (%4 float steps), %5 after run 50")
+                            .arg(otherName).arg(before*F_HZ, 0, 'g', 9).arg(other1*F_HZ, 0, 'g', 9).arg(move)
+                            .arg((which == 0 ? a->fYawFromLast : a->fPitchFromLast)*F_HZ, 0, 'g', 9);
+                    if(before != 0.f) notes << stem + QString(" track %1: ").arg(ti+1) + (which == 0 ? "pitch rate typed, " : "yaw rate typed, ") + detail;
+                    check(ran && steady && same50 && move == 0, label + ": the other rate stays bit for bit, and the rates and forces after run 2 equal those after run 50 (" + detail + ")");
+                } else {
+                    check(ran && same50, label + ": both rates and both forces after round 2 equal those after round 50");
+                }
+            }
+        }
+    }
+    printf("rates: the first run moved the rate not typed by at most %lld float steps\n", largestMove);
+    for(int i = 0; i < notes.size(); ++i) printf("  %s\n", notes[i].toUtf8().constData());
 }
 
 // ---- 3. the history ---------------------------------------------------------
@@ -1068,6 +1144,7 @@ int main(int argc, char *argv[])
     runHarness(projects);
     checkAnchorReload(projects);
     checkAnchorSettles(projects);
+    checkRateCommands(projects);
     checkHistory(repo);
     check(historyWarnings.isEmpty(), QString("the harness and the history checks raised no history warning (%1)")
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));

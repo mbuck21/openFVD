@@ -592,8 +592,8 @@ static void addHoldArgs(commandArgs& args, double x, double y, double z)
 void trackWidget::on_xBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    runAnchorCommand(inTrack, "anchor.setPositionX", commandArgs{{"x", arg1/gloParent->mOptions->getLengthFactor()}});
-    setupAnchorFrame(ui->xBox);
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionX", commandArgs{{"x", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->xBox : NULL);
 
     gloParent->updateInfoPanel();
 }
@@ -601,8 +601,8 @@ void trackWidget::on_xBox_valueChanged(double arg1)
 void trackWidget::on_yBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    runAnchorCommand(inTrack, "anchor.setPositionY", commandArgs{{"y", arg1/gloParent->mOptions->getLengthFactor()}});
-    setupAnchorFrame(ui->yBox);
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionY", commandArgs{{"y", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->yBox : NULL);
 
     inTrack->mMesh->buildMeshes(0);
 
@@ -612,8 +612,8 @@ void trackWidget::on_yBox_valueChanged(double arg1)
 void trackWidget::on_zBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    runAnchorCommand(inTrack, "anchor.setPositionZ", commandArgs{{"z", arg1/gloParent->mOptions->getLengthFactor()}});
-    setupAnchorFrame(ui->zBox);
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionZ", commandArgs{{"z", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->zBox : NULL);
 
     gloParent->updateInfoPanel();
 }
@@ -633,9 +633,9 @@ void trackWidget::on_rBox_valueChanged(double arg1)
     addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->zBox->value()/gloParent->mOptions->getLengthFactor());
-    runAnchorCommand(inTrack, "anchor.setRoll", args);
+    bool ok = runAnchorCommand(inTrack, "anchor.setRoll", args);
 
-    setupAnchorFrame(ui->rBox);
+    setupAnchorFrame(ok ? ui->rBox : NULL);
 
     gloParent->updateInfoPanel();
 }
@@ -647,9 +647,9 @@ void trackWidget::on_pBox_valueChanged(double arg1)
     addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->zBox->value()/gloParent->mOptions->getLengthFactor());
-    runAnchorCommand(inTrack, "anchor.setPitch", args);
+    bool ok = runAnchorCommand(inTrack, "anchor.setPitch", args);
 
-    setupAnchorFrame(ui->pBox);
+    setupAnchorFrame(ok ? ui->pBox : NULL);
 
     gloParent->updateInfoPanel();
 }
@@ -670,9 +670,9 @@ void trackWidget::on_jBox_valueChanged(double arg1)
     addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
                 ui->zBox->value()/gloParent->mOptions->getLengthFactor());
-    runAnchorCommand(inTrack, "anchor.setYaw", args);
+    bool ok = runAnchorCommand(inTrack, "anchor.setYaw", args);
 
-    setupAnchorFrame(ui->jBox);
+    setupAnchorFrame(ok ? ui->jBox : NULL);
 
     gloParent->updateInfoPanel();
 }
@@ -681,9 +681,9 @@ void trackWidget::on_anchorSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runAnchorCommand(inTrack, "anchor.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
+    bool ok = runAnchorCommand(inTrack, "anchor.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
 
-    setupAnchorFrame(ui->anchorSpeedBox);
+    setupAnchorFrame(ok ? ui->anchorSpeedBox : NULL);
 
     gloParent->updateInfoPanel();
 
@@ -1008,9 +1008,9 @@ void trackWidget::on_normalBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runAnchorCommand(inTrack, "anchor.setNormalForce", commandArgs{{"force", arg1}});
+    bool ok = runAnchorCommand(inTrack, "anchor.setNormalForce", commandArgs{{"force", arg1}});
 
-    setupAnchorFrame(ui->normalBox);
+    setupAnchorFrame(ok ? ui->normalBox : NULL);
 
     gloParent->updateInfoPanel();
 
@@ -1021,9 +1021,9 @@ void trackWidget::on_lateralBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runAnchorCommand(inTrack, "anchor.setLateralForce", commandArgs{{"force", arg1}});
+    bool ok = runAnchorCommand(inTrack, "anchor.setLateralForce", commandArgs{{"force", arg1}});
 
-    setupAnchorFrame(ui->lateralBox);
+    setupAnchorFrame(ok ? ui->lateralBox : NULL);
 
     gloParent->updateInfoPanel();
 
@@ -1057,17 +1057,17 @@ void trackWidget::setSelection(int index)
 void trackWidget::on_pitchChangeBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    runAnchorCommand(inTrack, "anchor.setPitchRate", commandArgs{{"rate", arg1}});
+    bool ok = runAnchorCommand(inTrack, "anchor.setPitchRate", commandArgs{{"rate", arg1}});
 
-    setupAnchorFrame(ui->pitchChangeBox);
+    setupAnchorFrame(ok ? ui->pitchChangeBox : NULL);
 }
 
 void trackWidget::on_yawChangeBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    runAnchorCommand(inTrack, "anchor.setYawRate", commandArgs{{"rate", arg1}});
+    bool ok = runAnchorCommand(inTrack, "anchor.setYawRate", commandArgs{{"rate", arg1}});
 
-    setupAnchorFrame(ui->yawChangeBox);
+    setupAnchorFrame(ok ? ui->yawChangeBox : NULL);
 }
 
 void trackWidget::on_sectionListWidget_itemChanged(QTreeWidgetItem *item, int column)
