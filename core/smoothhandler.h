@@ -72,9 +72,9 @@ public:
     void setLength(int _arg);
     void setIterations(int _arg);
 
-    void saveSmooth(std::fstream& file);
-    void loadSmooth(std::fstream& file);
-    void legacyLoadSmooth(std::fstream& file);
+    void saveSmooth(std::iostream& file);
+    void loadSmooth(std::iostream& file);
+    void legacyLoadSmooth(std::iostream& file);
 
     bool active;
 

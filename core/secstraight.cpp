@@ -132,7 +132,7 @@ float secstraight::getMaxArgument()
     return rollFunc->getMaxArgument();
 }
 
-void secstraight::saveSection(std::fstream& file)
+void secstraight::saveSection(std::iostream& file)
 {
     file << "STR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
@@ -148,7 +148,7 @@ void secstraight::saveSection(std::fstream& file)
     rollFunc->saveFunction(file);
 }
 
-void secstraight::loadSection(std::fstream& file)
+void secstraight::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -161,7 +161,7 @@ void secstraight::loadSection(std::fstream& file)
     rollFunc->loadFunction(file);
 }
 
-void secstraight::legacyLoadSection(std::fstream& file)
+void secstraight::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 

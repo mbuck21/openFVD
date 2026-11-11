@@ -79,7 +79,7 @@ void mnode::updateRoll()
     return;
 }
 
-void mnode::saveNode(fstream& file)
+void mnode::saveNode(std::iostream& file)
 {
     /*writeBytes(&file, (const char*)&vPos, sizeof(glm::vec3));
     writeBytes(&file, (const char*)&vDir, sizeof(glm::vec3));*/
@@ -87,7 +87,7 @@ void mnode::saveNode(fstream& file)
     writeBytes(&file, (const char*)&fVel, sizeof(float));
 }
 
-void mnode::legacyLoadNode(fstream& file)
+void mnode::legacyLoadNode(std::iostream& file)
 {
     vPos = readVec3(&file);
     vDir = readVec3(&file);

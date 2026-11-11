@@ -8,7 +8,7 @@ FVD++ builds roller-coaster track geometry from the forces the rider should feel
 
 ## The three layers
 
-- **`core/`** is the model: tracks, sections, nodes, the project file, the export files, the importers, smoothing, the train catalogue. It includes nothing from `ui/` or `renderer/`, names neither `gloParent` nor `glView`, and uses QtCore and `QColor` only. `tools/check-core.py` and the core-only program in `tests/coreonly/` enforce it.
+- **`core/`** is the model: tracks, sections, nodes, the project file, the export files, the importers, smoothing, the train catalogue. It includes nothing from `ui/` or `renderer/`, names neither `gloParent` nor `glView`, and uses QtCore and `QColor` only. `tools/check-core.py` and the core-only program `fvdcore` (`cli/`, built into `build/dist/`; `tests/coreonly/` is the test that builds it from `core/` alone) enforce it.
 - **`ui/`** is every window, the undo classes and the batch mode. It calls `core/` and `renderer/`.
 - **`renderer/`** is the OpenGL view and the mesh builder. It reads `core/` and reaches into `ui/` through `gloParent` and `glView`.
 
@@ -39,7 +39,7 @@ The model tells the windows what happened through three interfaces it defines an
 | `sky/` | Skybox faces (the `.jpg` files are the ones in the qrc; the `.png` variants are unused leftovers). | |
 | `osx/` | macOS app delegate and document handling; `common.cpp` (resource path helper) is built everywhere. | |
 | `data/` | `traintypes.json`, the train catalogue: one entry per train type with its heartline, seating and restraint, each value with a source and a confidence. Read by `trainCatalogue` (`core/traintype.h`); shown in the Track Properties dialog. | |
-| `tests/` | Automated tests, one folder each, console programs: `fvdmath/` (the 2016 maths), `traintypes/` (the catalogue), `coreonly/` (the program `fvdcore`, built from `core/` alone: it loads a project, computes and exports). `tests/README.md`, `docs/testing.md`. | |
+| `tests/` | Automated tests, one folder each, console programs: `fvdmath/` (the 2016 maths), `traintypes/` (the catalogue), `coreonly/` (the test that builds the program `fvdcore` of `cli/` from `core/` alone and runs its self-test). `tests/README.md`, `docs/testing.md`. | |
 | `tools/` | The build scripts (`build-windows.cmd`, `build-windows.sh`), the test runners (`run-tests.cmd`, `run-tests.sh`), `run-baseline.py` (the baseline comparison), `compare_exports.py`, `make-import-samples.py`, `check-core.py` (fails if `core/` reaches into `ui/` or `renderer/`). | |
 | `samples/` | `baseline/` (projects and the 2016 binary's exports of them, the fixed reference), `import/` (inputs and references for the batch import), `investigations/` (projects made for the research notes). `private/` is the owner's own projects and is not in git. | |
 | `bin/` | Committed release binaries: `win64/FVD.exe` (static Qt, MinGW, built 2016-10-19, runs on Windows 11 as-is) and `osx64.zip`. See `docs/building.md`. | |
