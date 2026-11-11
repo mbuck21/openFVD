@@ -417,6 +417,12 @@ static void checkAnchorReload(const QStringList& projects)
                       + exportDiff(liveExports, reloadedExports) + ")");
                 if(sameAnchor && reloadedExports == liveExports) ++same;
 
+                // the command left the node settled: building it again changes nothing
+                mnode before = *t->anchorNode;
+                int passes = t->settleAnchor();
+                check(passes == 1 && memcmp(static_cast<const void*>(&before), static_cast<const void*>(t->anchorNode), sizeof(mnode)) == 0,
+                      label + QString(": the command leaves the anchor settled (one more rebuild: %1 pass, node unchanged)").arg(passes));
+
                 // the same command again
                 trackState once = captureTrackState(t);
                 commandRegistry::run(&history, spec.name, commandTarget::forTrack(ti), spec.example, &error);
@@ -429,6 +435,59 @@ static void checkAnchorReload(const QStringList& projects)
     printf("reload: %d of %d anchor command runs give the same anchor node and exports live as after saving and reloading\n", same, runs);
     printf("reload: running the command a second time with the same values changes the track in %d: %s\n", notIdempotent.size(),
            notIdempotent.isEmpty() ? "none" : notIdempotent.join("; ").toUtf8().constData());
+}
+
+// The anchor commands rebuild the anchor until its roll settles
+// (track::settleAnchor(): up to 8 rebuilds, then, for a roll that alternates
+// between two floats, the nearest kept roll within 256 floats; a command whose
+// anchor does not settle fails with a message). Every baseline track settles
+// from the anchor its load built, and so does every roll from -180 to 180
+// degrees in steps of 0.25 at three pitches; the largest number of rebuilds
+// is printed.
+static void checkAnchorSettles(const QStringList& projects)
+{
+    int most = 0;
+    bool all = true;
+    QStringList unsettled;
+    for(int p = 0; p < projects.size(); ++p) {
+        testProject project;
+        loadProjectFile(projects[p], &project);
+        for(int ti = 0; ti < project.tracks.size(); ++ti) {
+            int passes = project.tracks[ti]->settleAnchor();
+            if(passes < 0) {
+                all = false;
+                unsettled << QString("%1 track %2").arg(QFileInfo(projects[p]).fileName()).arg(ti+1);
+            }
+            most = qMax(most, passes);
+        }
+    }
+    check(all, QString("settle: the anchor of every baseline track settles (at most %1 rebuilds)%2")
+          .arg(most).arg(unsettled.isEmpty() ? QString() : QString("; not: ") + unsettled.join(", ")));
+
+    int sweepMost = 0, count = 0, searched = 0;
+    double largestMove = 0.;
+    QStringList sweepUnsettled;
+    const float pitches[] = { 0.f, 12.5f, -40.f };
+    for(int k = 0; k < 3; ++k) {
+        for(int r = -720; r <= 720; ++r) {
+            track t(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+            t.startPitch = pitches[k];
+            t.anchorNode->fRoll = r*0.25f;
+            int passes = t.settleAnchor();
+            ++count;
+            if(passes < 0) sweepUnsettled << QString("roll %1 pitch %2").arg(r*0.25).arg(pitches[k]);
+            if(passes > 8) {
+                ++searched;
+                largestMove = qMax(largestMove, (double)fabs(t.anchorNode->fRoll - r*0.25f));
+            }
+            sweepMost = qMax(sweepMost, passes);
+        }
+    }
+    check(sweepUnsettled.isEmpty(), QString("settle: %1 rolls from -180 to 180 degrees at pitch 0, 12.5 and -40 settle (at most %2 rebuilds; "
+                                            "%3 alternated and were moved to the nearest kept roll, by at most %4 degrees)%5")
+          .arg(count).arg(sweepMost).arg(searched).arg(largestMove, 0, 'g', 3)
+          .arg(sweepUnsettled.isEmpty() ? QString() : QString("; not: ") + sweepUnsettled.join(", ")));
+    printf("settle: the largest number of rebuilds: %d on the baseline tracks, %d over the roll sweep\n", most, sweepMost);
 }
 
 // ---- 3. the history ---------------------------------------------------------
@@ -958,6 +1017,7 @@ int main(int argc, char *argv[])
     historyWarnings.clear();
     runHarness(projects);
     checkAnchorReload(projects);
+    checkAnchorSettles(projects);
     checkHistory(repo);
     check(historyWarnings.isEmpty(), QString("the harness and the history checks raised no history warning (%1)")
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));

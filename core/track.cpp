@@ -23,6 +23,7 @@
 #include <QVector>
 #include <limits>
 #include <cmath>
+#include <cstring>
 
 #define RELTHRESH 0.98f
 
@@ -620,6 +621,39 @@ void track::rebuildAnchor()
     updateAnchorGeometrics();
 
     anchorNode->updateNorm();
+}
+
+// See track.h.
+int track::settleAnchor(int maxPasses)
+{
+    int pass = 1;
+    for(; pass <= maxPasses; ++pass)
+    {
+        float roll = anchorNode->fRoll;
+        rebuildAnchor();
+        if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+    }
+
+    // Some rolls alternate between two neighbouring floats (-89.25 gives
+    // -89.2500076, which gives -89.25 again), so neither is kept. Then the
+    // nearest float roll a rebuild keeps is taken, within 256 floats either side
+    // of the last one (256 floats are 0.00012 degrees at a roll of 5 degrees).
+    const float last = anchorNode->fRoll;
+    for(int k = 1; k <= 256; ++k)
+    {
+        for(int side = 0; side < 2; ++side, ++pass)
+        {
+            float roll = last;
+            for(int i = 0; i < k; ++i)
+            {
+                roll = nextafterf(roll, side == 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+            }
+            anchorNode->fRoll = roll;
+            rebuildAnchor();
+            if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+        }
+    }
+    return -1;
 }
 
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)

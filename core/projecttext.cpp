@@ -1386,15 +1386,8 @@ static void buildTrack(track* t, const trackData& d, projectFileClient* client)
     t->povPos.x = d.pov.x;
     t->povPos.y = d.pov.y;
 
-    // the same expressions, in the same order, as track::loadTrack()
-    t->anchorNode->fEnergy = 0.5f*t->anchorNode->fVel*t->anchorNode->fVel + F_G*t->anchorNode->fPosHearty(0.9*t->fHeart);
-
-    t->anchorNode->changePitch(t->startPitch, false);
-    t->anchorNode->setRoll(t->anchorNode->fRoll);
-
-    t->updateAnchorGeometrics();
-
-    t->anchorNode->updateNorm();
+    // the anchor node from these values, as track::loadTrack() builds it
+    t->rebuildAnchor();
 
     const bool inOrder = readVec3ReadsInOrder();
     for(int i = 0; i < d.sections.size(); ++i) {

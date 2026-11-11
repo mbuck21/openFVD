@@ -33,12 +33,20 @@
 // other two alone (they need not equal what the other boxes show, so setting
 // all three would change them).
 //
-// An edit that changes the anchor node ends in anchorChanged(): the slot's
-// steps fix the values a save writes (roll, pitch, yaw, speed, the forces,
-// startPos), then track::rebuildAnchor() builds the node from them exactly as
-// a load does and track::updateFromAnchor() computes the track from it, the
-// first section included. The running track is then what saving and
-// reopening gives.
+// An edit that changes the anchor node ends in anchorChanged() or
+// holdAnchorPoint(): the slot's steps fix the values a save writes (roll,
+// pitch, yaw, speed, the forces), track::settleAnchor() builds the node from
+// them exactly as a load does, the roll, pitch and yaw edits then place
+// startPos from the roll the node holds, and track::updateFromAnchor()
+// computes the track from the node, the first section included. The running
+// track is then what saving and reopening gives.
+//
+// The pitch and yaw rate edits turn the typed rate into the two start forces
+// (forcesFromRates(), with g = 9.80665, as the 2016 program does). A file holds
+// the forces, not the rates, and a load computes the rates back from the
+// forces with g = 10 (track::updateAnchorGeometrics()), so a typed rate comes
+// back multiplied by 10/9.80665 = 1.0197, here at once as after reopening.
+// Left as the 2016 program has it; making the two agree is the owner's call.
 
 #include "command.h"
 #include "track.h"
@@ -64,29 +72,32 @@ double arg(const commandArgs& args, const char* name)
     return args.value(QString(name)).toDouble();
 }
 
-// The end of every edit that changes the anchor node. The slot's steps have
-// set the values a save writes; the node is now built from them as a load
-// builds it, the first section starts from it, and the track is computed.
-// So the running track is the one saving and reopening gives, whatever order
-// the anchor's values were edited in.
-//
-// A load sets fRoll again from the node it builds (setRoll() ends in
-// updateRoll()), so after one build the roll a save writes can be one or two
-// last digits from the roll the node was built from (15 becomes 15.0000019,
-// then 15.0000029), and a reopened track would be built from that. So the
-// node is built again until the roll it is built from is the roll it holds;
-// a save then writes the values the node was built from, and a load builds
-// the same node. On the baseline projects that takes one to three passes; at
-// most eight are made.
-void anchorChanged(track* t)
+// After an edit has set the values a save writes for the anchor (the slot's
+// steps), the node is built from them as a load builds it, until the roll it
+// is built from is the roll it holds (track::settleAnchor(): setRoll() derives
+// fRoll again, so 15 can become 15.0000019, then 15.0000029). A save then
+// writes the values the node was built from, and a load builds the same node,
+// whatever order the anchor's values were edited in. A roll that alternates
+// between two neighbouring floats is moved to the nearest one a rebuild keeps.
+// False, with a message, when none is found (tests/commands checks that every
+// baseline track and a sweep of rolls settle).
+bool settleAnchor(track* t, QString* error)
 {
-    float roll;
-    int passes = 0;
-    do {
-        roll = t->anchorNode->fRoll;
-        t->rebuildAnchor();
-    } while(t->anchorNode->fRoll != roll && ++passes < 8);
+    if(t->settleAnchor(8) < 0) {
+        if(error) *error = QString("the anchor's roll (%1 deg) does not settle: no nearby roll is kept when the anchor is built as a load builds it").arg(t->anchorNode->fRoll, 0, 'g', 9);
+        return false;
+    }
+    return true;
+}
+
+// The end of every edit that changes the anchor node: settled, then the first
+// section starts from it and the track is computed, so the running track is
+// the one saving and reopening gives.
+bool anchorChanged(track* t, QString* error)
+{
+    if(!settleAnchor(t, error)) return false;
     t->updateFromAnchor();
+    return true;
 }
 
 // on_xBox_valueChanged(): the x of startPos that puts the anchor's heartline
@@ -125,78 +136,73 @@ bool applySetPositionZ(track* t, const commandTarget&, const commandArgs& args, 
 
 // The end of the roll, pitch and yaw slots: startPos again, so that the
 // heartline point at the start stays where the X, Y and Z boxes show it
-// (holdX, holdY, holdZ, in metres), then the anchor's change rates from its
-// forces.
-void holdAnchorPoint(track* t, const commandArgs& args)
+// (holdX, holdY, holdZ, in metres). Done once the node has settled, from the
+// roll it holds (the slot used the roll before; the change rates the slot then
+// computed, the rebuild has computed again), then the track is computed.
+bool holdAnchorPoint(track* t, const commandArgs& args, QString* error)
 {
+    if(!settleAnchor(t, error)) return false;
+
     float a = t->startYaw * F_PI/180.f;
     float b = t->startPitch * F_PI/180.f;
     float y = t->anchorNode->fRoll * F_PI/180.f;
     t->startPos = track::anchorStartPos(a, b, y, t->fHeart, arg(args, "holdX"), arg(args, "holdY"), arg(args, "holdZ"));
 
-    t->updateAnchorGeometrics();
-}
-
-// on_rBox_valueChanged(), after the box has brought the value into -180..180.
-bool applySetRoll(track* t, const commandTarget&, const commandArgs& args, QString*)
-{
-    double roll = arg(args, "roll");
-    t->anchorNode->setRoll(roll-t->anchorNode->fRoll);
-    holdAnchorPoint(t, args);
-    anchorChanged(t);
+    t->updateFromAnchor();
     return true;
 }
 
+// on_rBox_valueChanged(), after the box has brought the value into -180..180.
+bool applySetRoll(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    double roll = arg(args, "roll");
+    t->anchorNode->setRoll(roll-t->anchorNode->fRoll);
+    return holdAnchorPoint(t, args, error);
+}
+
 // on_pBox_valueChanged()
-bool applySetPitch(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetPitch(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     double pitch = arg(args, "pitch");
     t->startPitch = pitch;
     t->anchorNode->changePitch(pitch-t->anchorNode->getPitch(), fabs(t->anchorNode->fRoll) >= 90.f);
-    holdAnchorPoint(t, args);
-    anchorChanged(t);
-    return true;
+    return holdAnchorPoint(t, args, error);
 }
 
 // on_jBox_valueChanged(), after the box has brought the value into -180..180.
-bool applySetYaw(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetYaw(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     double yaw = arg(args, "yaw");
     t->startYaw = yaw;
-    holdAnchorPoint(t, args);
-    anchorChanged(t);
-    return true;
+    return holdAnchorPoint(t, args, error);
 }
 
 // on_anchorSpeedBox_valueChanged()
-bool applySetSpeed(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetSpeed(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     t->anchorNode->fVel = arg(args, "speed");
     t->anchorNode->fEnergy = 0.5*t->anchorNode->fVel*t->anchorNode->fVel + F_G*t->anchorNode->fPosHearty(0.9*t->fHeart);
 
     t->updateAnchorGeometrics();
-    anchorChanged(t);
-    return true;
+    return anchorChanged(t, error);
 }
 
 // on_normalBox_valueChanged()
-bool applySetNormalForce(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetNormalForce(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     t->anchorNode->forceNormal = arg(args, "force");
 
     t->updateAnchorGeometrics();
-    anchorChanged(t);
-    return true;
+    return anchorChanged(t, error);
 }
 
 // on_lateralBox_valueChanged()
-bool applySetLateralForce(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetLateralForce(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     t->anchorNode->forceLateral = arg(args, "force");
 
     t->updateAnchorGeometrics();
-    anchorChanged(t);
-    return true;
+    return anchorChanged(t, error);
 }
 
 // The normal and lateral force at the anchor from its pitch and yaw change
@@ -220,23 +226,21 @@ void forcesFromRates(mnode* anchor)
 
 // on_pitchChangeBox_valueChanged(): the box shows degrees per second, the
 // node holds degrees per node.
-bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     mnode* anchor = t->anchorNode;
     anchor->fPitchFromLast = arg(args, "rate")/F_HZ;
     forcesFromRates(anchor);
-    anchorChanged(t);
-    return true;
+    return anchorChanged(t, error);
 }
 
 // on_yawChangeBox_valueChanged()
-bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QString*)
+bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     mnode* anchor = t->anchorNode;
     anchor->fYawFromLast = arg(args, "rate")/F_HZ;
     forcesFromRates(anchor);
-    anchorChanged(t);
-    return true;
+    return anchorChanged(t, error);
 }
 
 // The three hold parameters of the roll, pitch and yaw commands.

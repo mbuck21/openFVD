@@ -97,6 +97,16 @@ public:
     // track; updateFromAnchor() does.
     void rebuildAnchor();
 
+    // rebuildAnchor() until the roll the node is built from is, bit for bit,
+    // the roll it then holds (setRoll() derives fRoll again, so 15 can become
+    // 15.0000019, then 15.0000029): a save then writes the values the node was
+    // built from, and a load builds the same node. A roll that alternates
+    // between two neighbouring floats (about 1 in 75) is moved to the nearest
+    // float roll a rebuild keeps, at most 256 floats away. Returns the number of
+    // rebuilds (1 when the node was already settled), or -1 when no roll was
+    // kept after maxPasses rebuilds and that search.
+    int settleAnchor(int maxPasses = 8);
+
     // The startPos (the anchor's place in the scene) that puts the heartline
     // point at the start of the track at holdX, holdY, holdZ (metres, as the
     // anchor's X, Y and Z boxes show it), for an anchor turned by yaw a,

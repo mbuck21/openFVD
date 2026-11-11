@@ -88,6 +88,17 @@ trackWidget::trackWidget(QWidget *parent, trackHandler* _track) :
     ui->pitchChangeLabel->setText(QString("d%1/dt").arg(QChar(0x0398)));
     ui->yawChangeLabel->setText(QString("d%1/dt").arg(QChar(0x03a8)));
 
+    // The project stores the start forces, not these rates: a typed rate
+    // becomes the two forces, and the box then shows the rate the stored forces
+    // give (about 2 percent more; core/commands_anchor.cpp). It is rewritten
+    // once editing ends, not while it is being typed in.
+    QString rateTip("The project stores the start forces, not this rate. A typed rate sets the forces; "
+                    "when you leave the box it shows the rate those forces give, as after reopening.");
+    ui->pitchChangeBox->setToolTip(rateTip);
+    ui->yawChangeBox->setToolTip(rateTip);
+    connect(ui->pitchChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
+    connect(ui->yawChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
+
     smoothScreen = NULL;
     inTrack->trackData->bAutoSmooth = smoothScreen != NULL;
 
