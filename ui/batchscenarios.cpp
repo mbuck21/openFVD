@@ -1489,27 +1489,14 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
 // Undo action types (ui/undoaction.h), for the report only
 // ---------------------------------------------------------------------------
 
-static const char* ACTION_NAMES[] = {
-    "onLengthSpin", "onChangeSpin", "onArg1", "onCenterSpin", "onTensionSpin", "onTransitionBox",
-    "appendSubFunction", "removeSubFunction", "changeSegmentLength", "changeCurveDirection",
-    "changeCurveLeadIn", "changeCurveLeadOut", "changeCurveRadius", "changeSpeedState",
-    "changeSegmentSpeed", "changeAnchorPosX", "changeAnchorPosY", "changeAnchorPosZ",
-    "changeAnchorRoll", "changeAnchorPitch", "changeAnchorYaw", "changeAnchorNormal",
-    "changeAnchorLateral", "changeAnchorPitchChange", "changeAnchorYawChange", "changeAnchorSpeed",
-    "changeTrackHeartline", "changeTrackFriction", "changeTrackResistance", "appendSegment",
-    "removeSegment", "changeSegmentArgument", "changeSegmentOrientation", "changeFunctionStatus",
-    "newTrack", "deleteTrack"
-};
-
 int batchScenarios::actionTypeCount()
 {
-    return (int)(sizeof(ACTION_NAMES)/sizeof(ACTION_NAMES[0]));
+    return undoActionTypeCount();
 }
 
 QString batchScenarios::actionTypeName(int type)
 {
-    if(type < 0 || type >= actionTypeCount()) return QString("type%1").arg(type);
-    return QString(ACTION_NAMES[type]);
+    return undoActionTypeName(type);
 }
 
 bool batchScenarios::actionTypeHandled(int type)
@@ -1519,20 +1506,36 @@ bool batchScenarios::actionTypeHandled(int type)
 
 int batchScenarios::undoDepth(trackHandler* h)
 {
-    return h ? h->mUndoHandler->lActions.size() : 0;
+    return h ? h->mHistory->steps().size() : 0;
 }
 
-QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& types)
+QString batchScenarios::stepName(const historyStep& step)
+{
+    if(!step.calls.isEmpty()) return step.calls.first().name;
+    return step.label.section('+', 0, 0);
+}
+
+QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& types, QStringList* commands)
 {
     QStringList list;
     if(!h) return QString();
-    QList<undoAction*>& actions = h->mUndoHandler->lActions;
+    // the newest step first; a step's label is the names of its actions joined by "+"
+    const QList<historyStep>& recorded = h->mHistory->steps();
     for(int k = steps-1; k >= 0; --k) {
-        if(k >= actions.size()) continue;
+        if(k >= recorded.size()) continue;
+        const historyStep& step = recorded[recorded.size()-1-k];
         QStringList chain;
-        for(undoAction* a = actions[k]; a; a = a->nextAction) {
-            chain.append(actionTypeName(a->type));
-            types.append(a->type);
+        if(!step.calls.isEmpty()) {
+            for(int c = 0; c < step.calls.size(); ++c) {
+                chain.append(step.calls[c].name);
+                if(commands != NULL) commands->append(step.calls[c].name);
+            }
+        } else {
+            chain = step.label.split("+");
+            for(int c = 0; c < chain.size(); ++c) {
+                int type = undoActionTypeFromName(chain[c]);
+                if(type >= 0) types.append(type);
+            }
         }
         list.append(chain.join("+"));
     }

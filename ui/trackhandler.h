@@ -21,6 +21,7 @@
 
 #include "track.h"
 #include "tracklistener.h"
+#include "trackhistory.h"
 
 class QTreeWidgetItem;
 class trackWidget;
@@ -33,7 +34,7 @@ class undoAction;
 // pane, list row, mesh and undo list. Made by projectWidget (and importUi). Implements
 // trackListener: when the track says its geometry changed it rebuilds the mesh, and
 // it shows the status text and redraws the graphs. Holds no model logic.
-class trackHandler : public trackListener
+class trackHandler : public trackListener, public trackHistoryListener
 {
 public:
     trackHandler(QString _name, int _id, int _maxUndoChanges);
@@ -49,9 +50,13 @@ public:
     void trackAboutToReset(track* which);
     void trackReset(track* which);
 
+    // The track's history changed (a step, an undo, a redo, a clear): the
+    // Undo and Redo menu entries follow it, whoever made the change.
+    void historyChanged(trackHistory* which);
+
     // What trackReset() selects in the panel: the section and transition of
     // this undo step (undone or redone), or with NULL what was selected before.
-    void selectAfterReset(undoAction* step, bool undone);
+    void selectAfterReset(const commandTarget* selection);
 
     // Selects section sec in the panel (-1: the anchor, -2: nothing; clamped
     // to the sections there are) and, when funcType is not -1, its transition
@@ -60,6 +65,7 @@ public:
 
 
     track* trackData;
+    trackHistory* mHistory;     // the track's undo steps; made after the track, deleted before it
     QTreeWidgetItem* listItem;
     trackWidget* trackWidgetItem;
     graphWidget* graphWidgetItem;
@@ -73,8 +79,8 @@ private:
     int id;
 
     // the selection to bring back after a reset (see selectAfterReset())
-    undoAction* resetStep;
-    bool resetUndone;
+    bool resetHasSelection;
+    commandTarget resetSelection;
     int resetSection;
     int resetFunc;
     int resetSubfunc;

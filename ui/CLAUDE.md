@@ -15,7 +15,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 
 - **`MainWindow`** (`mainwindow.*`): the main window and the menus (load, save, export, undo, redo). Created by `main.cpp` (a hidden one by `batchRunner`). Creates the `glViewWidget`, the options, export, conversion and 3D-export dialogs. Holds `project`, the `projectWidget`.
 - **`projectWidget`** (`projectwidget.*`): the project: the list of `trackHandler`s, the ground texture path, the import entries. Loads and saves through `core/projectfile.*`.
-- **`trackHandler`** (`trackhandler.*`): one track's window side. Creates and owns the `track` (`trackData`), its `trackWidget`, `graphWidget`, list row, `trackMesh` and `undoHandler`. Receives the track's notices: rebuilds the mesh, shows the status text, redraws the graphs.
+- **`trackHandler`** (`trackhandler.*`): one track's window side. Creates and owns the `track` (`trackData`), its `trackWidget`, `graphWidget`, list row, `trackMesh`, `trackHistory` (`mHistory`, the track's undo steps; implements `trackHistoryListener`, so the Undo and Redo menu entries follow it) and `undoHandler`. Receives the track's notices: rebuilds the mesh, shows the status text, redraws the graphs.
 - **`trackWidget`** (`trackwidget.*`): the track's panel: anchor values, section list, per-section fields. Owns the list of `sectionHandler`s and holds the `smoothUi` (`smoothScreen`). Most edit slots are here.
 - **`sectionHandler`** (`sectionhandler.*`): one row of the section list; creates the section in the track when the panel's "add" is used.
 - **`graphWidget`** (`graphwidget.*`) with `graphHandler`: the plots (QCustomPlot) of one track. Contains the `transitionWidget`.
@@ -23,7 +23,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 - **`smoothUi`** (`smoothui.*`): the smoothing dialog; owns the list rows.
 - **`exportUi`** (`exportui.*`): the export dialog; calls `core/elementfile.*`.
 - **`TrackProperties`**, **`optionsMenu`**, **`importUi`**, **`conversionPanel`**, **`objectExporter`**: the other dialogs.
-- **`undoAction`, `undoHandler`** (`undoaction.*`, `undohandler.*`): a track's undo list. Each step holds the track's state after the edit; undo and redo restore a state (`core/trackstate.h`, `docs/decisions/0011-undo-by-snapshot-commands-on-top.md`). The core history (`core/trackhistory.*`) replaces them in a later piece.
+- **`undoAction`, `undoHandler`** (`undoaction.*`, `undohandler.*`): the window's side of a track's undo list. The list itself is the core `trackHistory` (`core/trackhistory.*`), owned by `trackHandler` as `mHistory`; each step holds the track's state before and after, a label and a selection (`core/trackstate.h`, `docs/decisions/0011-undo-by-snapshot-commands-on-top.md`). `undoHandler` is a thin adapter: `addAction()` reads an `undoAction` (its type and the section and transition numbers) and records a step with `noteEdit()`; `takeOutsideChange()` folds an edit that has no step into the newest state; `doUndo()`/`doRedo()` go through the history; `clearActions()` clears it.
 - **`rideSheet`** (`ridesheet.*`): the ride sheet panel, the third pane of `MainWindow`'s splitter (Visualize > Ride sheet shows and hides it). It shows the numbers of `core/ridesummary` for the current track and holds only a `track*`, never a pointer into its sections or nodes. It refreshes 150 ms after the last notice from `trackHandler` (`MainWindow::rideSheetChanged()`), and when the tab, the selected track or the unit option changes. No ride maths belongs in it.
 - **`batchRunner`** (`batchrunner.*`) and **`batchDriver`** (`batchscenarios.*`): the `--batch-...` commands (`docs/testing.md`).
 
@@ -32,7 +32,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the flows. The 
 | Change | Open |
 |---|---|
 | New field or box on a panel | the `.ui` form, the `on_<object>_<signal>()` slot in its `.cpp`, and the undo parts below |
-| Undoable value | the slot changes the model, then records one step at its end: `undoHandler::addAction(new undoAction(handler, type))`; an `eActionType` only names it in the reports |
+| Undoable value | the slot changes the model, then records one step at its end: `undoHandler::addAction(new undoAction(handler, type))`; an `eActionType` only names it (it becomes the step's label) and the reports. Or the slot runs a named command, which records its own step: `commandRegistry::run(handler->mHistory, name, target, args, &error)` |
 | New section type in the panel | `trackwidget.*` (add and append slots, section frame), `trackwidget.ui`; the model side is in `core/CLAUDE.md` |
 | Transition editor | `transitionwidget.*` and `.ui`; `graphwidget.*` for dragging on the plot |
 | Export dialog | `exportui.*` and `.ui`; the file framing is in `core/elementfile.*` |

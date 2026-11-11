@@ -421,12 +421,15 @@ QStringList batchRunner::panelState(MainWindow* w)
         }
 
         QStringList types;
-        QList<undoAction*>& actions = h->mUndoHandler->lActions;
-        for(int a = 0; a < actions.size(); ++a) {
-            types.append(batchScenarios::actionTypeName(actions[a]->type));
+        // newest first; the first name of a step's label is its main action
+        const QList<historyStep>& actions = h->mHistory->steps();
+        for(int a = actions.size()-1; a >= 0; --a) {
+            types.append(batchScenarios::stepName(actions[a]));
         }
+        // the position as the window's list counted it: the steps that can be redone, or -1 with none
+        int position = actions.isEmpty() ? -1 : actions.size() - h->mHistory->position();
         lines.append(QString("%1 undo list: %2 actions, position %3, newest first: %4")
-                     .arg(label).arg(actions.size()).arg(h->mUndoHandler->stackIndex)
+                     .arg(label).arg(actions.size()).arg(position)
                      .arg(types.isEmpty() ? QString("none") : types.join(" ")));
 
         QCustomPlot* plot = h->graphWidgetItem ? h->graphWidgetItem->findChild<QCustomPlot*>("plotter") : NULL;
@@ -732,7 +735,8 @@ int batchRunner::runUndoCheck()
 
     bool allOk = true;
     int totalSteps = 0;
-    QList<int> covered, leftOut;
+    QList<int> covered, leftOut, nowCommand;
+    QStringList commandsSeen;
     for(int i = 0; i < batchScenarios::editCount(); ++i) {
         QString reason, desc, expected, note;
         bool bookend = i == 0 || i == batchScenarios::editCount()-1;
@@ -756,13 +760,23 @@ int batchRunner::runUndoCheck()
         }
         int steps = batchScenarios::undoDepth(h) - before;
         QList<int> types;
-        QString recorded = batchScenarios::recordedActions(h, steps, types);
+        QStringList commandNames;
+        QString recorded = batchScenarios::recordedActions(h, steps, types, &commandNames);
         if(steps <= 0) {
             lReport.append(QString("edit %1: %2: FAILED, no undo step was recorded (expected %3)").arg(i+1).arg(desc).arg(expected));
             allOk = false;
             continue;
         }
         covered += types;
+        commandsSeen += commandNames;
+        if(!commandNames.isEmpty()) {
+            // the action types this edit used to record, now made by a command
+            QStringList wanted = expected.split("+");
+            for(int w = 0; w < wanted.size(); ++w) {
+                int type = undoActionTypeFromName(wanted[w]);
+                if(type >= 0 && !types.contains(type)) nowCommand.append(type);
+            }
+        }
         totalSteps += steps;
         if(!each) {
             lReport.append(QString("edit %1: %2: recorded %3 (expected %4)").arg(i+1).arg(desc).arg(recorded).arg(expected));
@@ -857,11 +871,21 @@ int batchRunner::runUndoCheck()
             notExercised.append(batchScenarios::actionTypeName(type) + " (undo has no case for it)");
         } else {
             notExercised.append(batchScenarios::actionTypeName(type) + (leftOut.contains(type)
-                                ? " (its edits are left out: known to fail today)" : " (no edit reached it in this project)"));
+                                ? " (its edits are left out: known to fail today)"
+                                : nowCommand.contains(type) ? " (now a command)" : " (no edit reached it in this project)"));
         }
     }
     lReport.append(QString("undo action types exercised (%1): %2").arg(exercised.size()).arg(exercised.join(", ")));
     lReport.append(QString("undo action types not exercised (%1): %2").arg(notExercised.size()).arg(notExercised.join(", ")));
+
+    // coverage of the named commands (core/command.h): those that made a step
+    QStringList cmdExercised, cmdNot;
+    const QList<commandSpec>& specs = commandRegistry::all();
+    for(int c = 0; c < specs.size(); ++c) {
+        (commandsSeen.contains(specs[c].name) ? cmdExercised : cmdNot).append(specs[c].name);
+    }
+    lReport.append(QString("commands exercised (%1): %2").arg(cmdExercised.size()).arg(cmdExercised.join(", ")));
+    lReport.append(QString("commands not exercised (%1): %2").arg(cmdNot.size()).arg(cmdNot.join(", ")));
 
     QDir(workDir).removeRecursively();
     if(!windowsStayedHidden(error)) {

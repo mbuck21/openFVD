@@ -138,6 +138,8 @@ private:
     QString sError;
 };
 
+struct historyStep;
+
 namespace batchScenarios
 {
     // the fixed list of scenario names; each builds one project
@@ -164,7 +166,14 @@ namespace batchScenarios
     // READ ONLY, for the report: how many steps the undo list holds, and the
     // action types of the newest steps (adapt these two when undo moves, seam S8)
     int undoDepth(trackHandler* h);
-    QString recordedActions(trackHandler* h, int steps, QList<int>& types);
+    // The newest steps, newest first, as text. A step made by an old slot is
+    // its action names joined by "+"; a step made by named commands is their
+    // names joined by "+". types gets the action types of the first kind;
+    // commands (when given) the command names of the second.
+    QString recordedActions(trackHandler* h, int steps, QList<int>& types, QStringList* commands = NULL);
+    // How the reports name a step: the command's name for a step made by
+    // commands, else the main action name of its label.
+    QString stepName(const historyStep& step);
 }
 
 #endif // BATCHSCENARIOS_H
