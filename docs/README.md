@@ -44,8 +44,8 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/research/n2-matching-the-2016-maths.md` | N2: what the 2016 binary's `asinhf` and `asinf` computed, the reproduction in `core/fvdmath.cpp` that matches it on every argument, and an audit of the other maths functions the core uses. | current |
 | `samples/investigations/` | Synthetic projects made to test one explanation each (N1); not part of the baseline. | current |
 | `docs/development-workflow.md` | How a session runs a task here. | current |
-| `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-9`) with the architect's notes on what each needs. | current |
-| `docs/roadmap.md` | The stages, the dependencies, what is serial and what runs together. | current |
+| `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-18`) with the architect's notes on what each needs. | current |
+| `docs/roadmap.md` | Where each request is in the plan, the seven shared pieces, the stages and their pieces, what is serial and what runs together, what is asked of the owner and by when. | current |
 | `docs/maybe-later.md` | Ideas deliberately left out, each with its trigger. | current |
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
 | `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | superseded by 0005 |
@@ -56,6 +56,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0007-stage-1-batch-mode-first-and-the-nine-seams.md` | Stage 1 starts with a no-click batch mode; the core is separated from the windows through nine seams; train data is JSON. | accepted |
 | `docs/decisions/0008-float-maths-reproduces-the-2016-runtime.md` | Where a C runtime maths function changes the track, the program computes it exactly as the 2016 binary did (`core/fvdmath.*`); today `asinh` and `asin`. | accepted |
 | `docs/decisions/0009-undo-stays-window-code-until-the-command-list.md` | Undo moves to `ui/` unchanged in Stage 1; every edit becomes a core function and a command in Stage 2 (T1), where the undo defects are fixed. | accepted |
+| `docs/decisions/0010-the-plan-reworked-around-seven-shared-pieces.md` | The roadmap reworked for FR-10 to FR-18: seven shared pieces built once, the solver and the ride over a finished track as pieces of their own, no change to saved files before Stage 4. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |
