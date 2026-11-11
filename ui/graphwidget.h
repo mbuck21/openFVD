@@ -21,12 +21,17 @@
 
 #include <QWidget>
 #include <QList>
+#include <QMap>
+#include <QString>
+#include <QStringList>
 #include "graphhandler.h"
 
 class dragLabel;
 class transitionWidget;
 class sectionHandler;
 class QCPAxis;
+class QCPGraph;
+class QTreeWidgetItem;
 
 namespace Ui {
 class graphWidget;
@@ -58,6 +63,10 @@ public:
 
     QCPAxis* yAxes[4];
 
+    // Self-check for the batch runner and tests: ticks the measures with these
+    // ids (and "Findings" if asked), redraws, and says what was drawn.
+    QString measuresSelfCheck(const QStringList& ids, bool findings);
+
 
 public slots:
     void on_selTree_itemChanged(QTreeWidgetItem *item, int column);
@@ -70,8 +79,24 @@ public slots:
     void setBezPoints();
 
 private:
+    // The "Measures" group of the graph list (built from core/measure.h at run
+    // time) and what it draws. Kept apart from pGraphList, which is indexed by
+    // enum graphType.
+    void buildMeasureItems();
+    void redrawMeasures();
+    void clearMeasureGraphs();
+    bool measureRange(QCPAxis* axis, double& lower, double& upper, double& minKey, double& maxKey);
+    QCPAxis* axisForUnit(const QString& unit);
+
     Ui::graphWidget *ui;
     QList<graphHandler*> pGraphList;
+    QTreeWidgetItem* measuresRoot;
+    QTreeWidgetItem* findingsItem;
+    QList<QTreeWidgetItem*> measureItems;   // one per listed measure, its id in Qt::UserRole
+    QList<QCPGraph*> measureGraphs;         // the curves of the ticked measures
+    QList<QCPGraph*> findingGraphs;         // the shaded spans
+    QMap<QString, QCPAxis*> unitAxes;       // one y axis per unit other than g
+    int findingCount;
     QList<dragLabel*> bezPoints;
     bool phantomChanges;
 };

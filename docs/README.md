@@ -41,6 +41,12 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/research/r3-force-limits.md` | R3: ASTM F2291 and EN 13814 acceleration limits and restraint classes, what can be encoded. | current |
 | `docs/research/r4-nl2-blocks.md` | R4: NoLimits 2 sections, blocks and block scripts; how much compatibility is feasible. | current |
 | `docs/research/r5-fvd-workflow.md` | R5: why an early change knocks on, how other tools work, a ranked shortlist of directions. | current |
+| `docs/research/r6-parametric-elements.md` | R6: how elements are defined, what an element is in this program, the caveats worked through, a first experiment (prototype in `docs/research/r6-prototype/`). | current |
+| `docs/research/r7-train-against-point.md` | R7: a whole train against the program's single point on a camelback, a loop and a lift crest; how big the difference is at the front, middle and rear car (prototype in `docs/research/r7-prototype/`). | current |
+| `docs/research/r8-friction-and-margins.md` | R8: what `fFriction` and `fResistance` mean, real ranges, commissioning practice, proposed low, nominal and high values for the energy-margin check. | current |
+| `docs/research/r9-special-track.md` | R9: lift, launch, brake and trim numbers with sources, swing launches, switches and transfer track, what NoLimits 2 takes. | current |
+| `docs/research/r10-comfort.md` | R10: which comfort measures match "rough", published values, a proposal for the comfort measures. | current |
+| `docs/project-text-format.md` | The project as JSON text: the schema, units, which values are recalculated on load, the checked ranges. | current |
 | `docs/research/n1-difference-from-2016-on-an-owner-project.md` | N1: why the rebuild differs from the 2016 binary on one of the owner's projects (the C runtime's `asinhf`), and the two-line remedy for the owner to decide. | current |
 | `docs/research/n2-matching-the-2016-maths.md` | N2: what the 2016 binary's `asinhf` and `asinf` computed, the reproduction in `core/fvdmath.cpp` that matches it on every argument, and an audit of the other maths functions the core uses. | current |
 | `samples/investigations/` | Synthetic projects made to test one explanation each (N1); not part of the baseline. | current |

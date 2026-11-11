@@ -1,0 +1,296 @@
+# R7 results (written by run_r7.py; do not edit by hand)
+
+Settings of every track: heartline 1.10 m, friction 0.030, resistance 2e-05 (the program defaults). Trains: short 4 cars x 2.5 m = 10.0 m; long 9 cars x 2.2 m = 19.8 m; extreme 10 cars x 3.0 m = 30.0 m.
+
+## Validation: the point model against the program
+
+| shape | points | worst speed diff (m/s) | worst normal diff, program speed (g) | worst normal diff, own speed (g) | worst lateral diff (g) | points at vertical left out |
+|---|---|---|---|---|---|---|
+| camelback | 0.1 m | 0.0003 | 0.037 | 0.037 | 0.000 | 0 |
+| camelback | every node | 0.0003 | 0.012 | 0.012 | 0.000 | 0 |
+| loop | 0.1 m | 0.0004 | 0.024 | 0.024 | 0.000 | 2 |
+| loop | every node | 0.0004 | 0.006 | 0.006 | 0.000 | 16 |
+| layout | 0.1 m | 0.0003 | 0.043 | 0.043 | 0.018 | 0 |
+| layout | every node | 0.0001 | 0.023 | 0.023 | 0.008 | 0 |
+
+The design step of fvd2d.py (used for the redesign) against the program, same force program, compared at the dumped nodes:
+
+| shape | worst height diff (m) | worst speed diff (m/s) | worst pitch diff (deg) |
+|---|---|---|---|
+| camelback | 0.0001 | 0.00030 | 0.0002 |
+| loop | 0.0020 | 0.00072 | 0.0029 |
+
+## Check against the closed form: a train on a circular crest
+
+No friction, no drag, heartline on the rail, crest radius 20 m, arc from +57 to -57 degrees (40 m long, so every car of a 30 m train is on it when the train is centred), entry 25 m/s on a 20 m straight climb before the arc. Train centred on the top: its centre of mass sits R (1 - mean cos(offset/R)) below the top, so it has that much more speed head, and every car feels n = cos(phi) - v^2/(g R).
+
+| train | point speed, formula | point speed, prototype | train speed (centred), formula | train speed, prototype | centre car force (g), formula | centre car force, prototype |
+|---|---|---|---|---|---|---|
+| 10 m, 4 cars | 10.7242 | 10.7242 | 10.9009 | 10.9009 | 0.3922 | 0.3922 |
+| 20 m, 8 cars | 10.7242 | 10.7242 | 11.4414 | 11.4414 | 0.3306 | 0.3306 |
+| 30 m, 10 cars | 10.7242 | 10.7242 | 12.2649 | 12.2649 | 0.2302 | 0.2302 |
+
+(Centre car: the car at the centre, or just behind it for an even number of cars, when the train is centred on the top.)
+
+## Camelback
+
+Shape `camelback`: 218.8 m of centre line, entry 30.00 m/s, highest point 30.00 m above the start at s = 117.1 m, speed there 15.47 m/s, exit 25.95 m/s.
+
+Speed of the train (when its centre is at the place) minus the point's speed there, m/s:
+
+| train | largest difference (m/s, where) | at pull-up (s=75 m, point 26.94 m/s) | at crest (s=117 m, point 15.47 m/s) | at pull-out (s=152 m, point 24.20 m/s) |
+|---|---|---|---|---|
+| short, 4 x 2.5 m = 10.0 m | +0.12 at s=118 | -0.04 | +0.12 | -0.05 |
+| long, 9 x 2.2 m = 19.8 m | +0.46 at s=117 | -0.17 | +0.46 | -0.19 |
+| extreme, 10 x 3.0 m = 30.0 m | +1.00 at s=117 | -0.36 | +1.00 | -0.39 |
+
+Normal force (g) felt when each car passes the place:
+
+| train | car | pull-up (point 3.50) | crest (point -0.20) | pull-out (point 3.51) |
+|---|---|---|---|---|
+| short | front | 3.65 | -0.26 | 3.25 |
+| short | middle (mean of the two centre cars) | 3.49 | -0.22 | 3.49 |
+| short | rear | 3.30 | -0.24 | 3.69 |
+| long | front | 3.79 | -0.45 | 2.92 |
+| long | middle | 3.47 | -0.27 | 3.46 |
+| long | rear | 3.01 | -0.40 | 3.85 |
+| extreme | front | 3.86 | -0.72 | 2.66 |
+| extreme | middle (mean of the two centre cars) | 3.43 | -0.36 | 3.41 |
+| extreme | rear | 2.75 | -0.65 | 3.91 |
+
+Extremes and airtime for each car while it is between s = 0 and 219 m (seconds; floater = +0.1 to -0.5 g, ejector = below -0.5 g):
+
+| train | car | lowest g | highest g | below 0 g (s) | floater (s) | ejector (s) |
+|---|---|---|---|---|---|---|
+| point | - | -0.20 | 3.51 | 3.24 | 3.26 | 0.00 |
+| short | front | -0.35 | 3.66 | 3.21 | 3.23 | 0.00 |
+| short | car 3 of 4 | -0.25 | 3.56 | 3.22 | 3.25 | 0.00 |
+| short | rear | -0.35 | 3.70 | 3.21 | 3.24 | 0.00 |
+| long | front | -0.60 | 3.82 | 2.64 | 2.18 | 0.96 |
+| long | middle | -0.27 | 3.47 | 3.19 | 3.22 | 0.00 |
+| long | rear | -0.58 | 3.87 | 2.37 | 2.31 | 0.86 |
+| extreme | front | -0.88 | 3.90 | 2.33 | 1.53 | 1.49 |
+| extreme | car 6 of 10 | -0.37 | 3.49 | 3.13 | 3.16 | 0.00 |
+| extreme | rear | -0.84 | 3.94 | 2.21 | 1.70 | 1.34 |
+
+Along-track force (g) when each car passes the place (+ pressed into the seat back, - pressed forward into the restraint; the point feels only friction and drag):
+
+| train | car | pull-up | crest | pull-out |
+|---|---|---|---|---|
+| short | front | +0.08 | -0.20 | +0.04 |
+| short | rear | -0.12 | +0.14 | -0.17 |
+| long | front | +0.23 | -0.38 | +0.01 |
+| long | rear | -0.15 | +0.32 | -0.35 |
+| extreme | front | +0.33 | -0.49 | -0.08 |
+| extreme | rear | -0.11 | +0.44 | -0.46 |
+
+## Vertical loop
+
+Shape `loop`: 124.5 m of centre line, entry 25.00 m/s, highest point 19.96 m above the start at s = 67.8 m, speed there 12.39 m/s, exit 21.39 m/s.
+
+Speed of the train (when its centre is at the place) minus the point's speed there, m/s:
+
+| train | largest difference (m/s, where) | at entry (s=42 m, point 23.03 m/s) | at top (s=68 m, point 12.39 m/s) | at exit (s=86 m, point 19.68 m/s) |
+|---|---|---|---|---|
+| short, 4 x 2.5 m = 10.0 m | +0.32 at s=68 | -0.09 | +0.32 | -0.11 |
+| long, 9 x 2.2 m = 19.8 m | +1.20 at s=68 | -0.36 | +1.20 | -0.42 |
+| extreme, 10 x 3.0 m = 30.0 m | +2.47 at s=68 | -0.77 | +2.47 | -0.80 |
+
+Normal force (g) felt when each car passes the place:
+
+| train | car | entry (point 4.20) | top (point 0.50) | exit (point 4.21) |
+|---|---|---|---|---|
+| short | front | 4.43 | 0.73 | 3.60 |
+| short | middle (mean of the two centre cars) | 4.17 | 0.59 | 4.15 |
+| short | rear | 3.83 | 0.69 | 4.59 |
+| long | front | 4.56 | 1.44 | 2.93 |
+| long | middle | 4.09 | 0.80 | 4.06 |
+| long | rear | 3.24 | 1.36 | 4.80 |
+| extreme | front | 4.61 | 2.22 | 2.77 |
+| extreme | middle (mean of the two centre cars) | 3.97 | 1.17 | 3.92 |
+| extreme | rear | 2.80 | 1.99 | 4.84 |
+
+Extremes and airtime for each car while it is between s = 0 and 124 m (seconds; floater = +0.1 to -0.5 g, ejector = below -0.5 g):
+
+| train | car | lowest g | highest g | below 0 g (s) | floater (s) | ejector (s) |
+|---|---|---|---|---|---|---|
+| point | - | 0.50 | 4.21 | 0.00 | 0.00 | 0.00 |
+| short | front | 0.53 | 4.53 | 0.00 | 0.00 | 0.00 |
+| short | car 3 of 4 | 0.51 | 4.33 | 0.00 | 0.00 | 0.00 |
+| short | rear | 0.48 | 4.65 | 0.00 | 0.00 | 0.00 |
+| long | front | 0.99 | 4.85 | 0.00 | 0.00 | 0.00 |
+| long | middle | 0.76 | 4.11 | 0.00 | 0.00 | 0.00 |
+| long | rear | 0.85 | 5.00 | 0.00 | 0.00 | 0.00 |
+| extreme | front | 1.00 | 5.02 | 0.00 | 0.00 | 0.00 |
+| extreme | car 6 of 10 | 1.00 | 4.08 | 0.00 | 0.00 | 0.00 |
+| extreme | rear | 1.00 | 5.12 | 0.00 | 0.00 | 0.00 |
+
+Along-track force (g) when each car passes the place (+ pressed into the seat back, - pressed forward into the restraint; the point feels only friction and drag):
+
+| train | car | entry | top | exit |
+|---|---|---|---|---|
+| short | front | +0.18 | -0.38 | +0.08 |
+| short | rear | -0.21 | +0.34 | -0.29 |
+| long | front | +0.36 | -0.68 | -0.16 |
+| long | rear | -0.26 | +0.62 | -0.54 |
+| extreme | front | +0.43 | -0.69 | -0.54 |
+| extreme | rear | -0.06 | +0.54 | -0.63 |
+
+## Layout: lift crest, first drop, camelback, ejector hill, turn
+
+Shape `layout`: 517.6 m of centre line, entry 3.50 m/s, highest point 0.00 m above the start at s = 0.0 m, speed there 3.50 m/s, exit 23.55 m/s.
+
+Speed of the train (when its centre is at the place) minus the point's speed there, m/s:
+
+| train | largest difference (m/s, where) | at drop, pitch -30 deg (s=19 m, point 5.50 m/s) | at first valley (s=76 m, point 27.97 m/s) | at camelback crest (s=187 m, point 15.50 m/s) | at ejector crest (s=311 m, point 21.37 m/s) | at turn (s=454 m, point 23.79 m/s) |
+|---|---|---|---|---|---|---|
+| short, 4 x 2.5 m = 10.0 m | +0.89 at s=16 | +0.41 | -0.07 | +0.07 | +0.02 | -0.03 |
+| long, 9 x 2.2 m = 19.8 m | +2.03 at s=16 | +1.34 | -0.24 | +0.32 | +0.15 | -0.08 |
+| extreme, 10 x 3.0 m = 30.0 m | +3.11 at s=16 | +2.28 | -0.49 | +0.78 | +0.39 | -0.13 |
+
+Normal force (g) felt when each car passes the place:
+
+| train | car | drop, pitch -30 deg (point 0.60) | first valley (point 3.50) | camelback crest (point -0.20) | ejector crest (point -0.60) | turn (point 2.60) |
+|---|---|---|---|---|---|---|
+| short | front | 0.72 | 3.37 | -0.25 | -0.63 | 2.59 |
+| short | middle (mean of the two centre cars) | 0.55 | 3.49 | -0.21 | -0.61 | 2.60 |
+| short | rear | 0.24 | 3.58 | -0.23 | -0.61 | 2.60 |
+| long | front | 0.75 | 3.16 | -0.43 | -0.72 | 2.58 |
+| long | middle | 0.46 | 3.46 | -0.25 | -0.62 | 2.59 |
+| long | rear | -0.29 | 3.63 | -0.38 | -0.69 | 2.61 |
+| extreme | front | 0.75 | 2.93 | -0.68 | -0.86 | 2.57 |
+| extreme | middle (mean of the two centre cars) | 0.33 | 3.41 | -0.33 | -0.66 | 2.58 |
+| extreme | rear | -0.81 | 3.64 | -0.61 | -0.80 | 2.61 |
+
+Extremes and airtime for each car while it is between s = 0 and 518 m (seconds; floater = +0.1 to -0.5 g, ejector = below -0.5 g):
+
+| train | car | lowest g | highest g | below 0 g (s) | floater (s) | ejector (s) |
+|---|---|---|---|---|---|---|
+| point | - | -0.60 | 3.51 | 4.91 | 3.35 | 1.60 |
+| short | front | -0.71 | 3.67 | 4.87 | 3.33 | 1.59 |
+| short | car 3 of 4 | -0.63 | 3.55 | 4.90 | 3.34 | 1.60 |
+| short | rear | -0.70 | 3.66 | 5.09 | 3.63 | 1.59 |
+| long | front | -0.84 | 3.82 | 4.06 | 2.58 | 2.21 |
+| long | middle | -0.62 | 3.46 | 4.87 | 3.32 | 1.59 |
+| long | rear | -1.55 | 3.79 | 4.35 | 3.03 | 2.29 |
+| extreme | front | -0.96 | 3.90 | 3.88 | 1.85 | 2.78 |
+| extreme | car 6 of 10 | -0.67 | 3.45 | 5.08 | 3.60 | 1.58 |
+| extreme | rear | -2.94 | 3.84 | 4.26 | 2.27 | 2.91 |
+
+Along-track force (g) when each car passes the place (+ pressed into the seat back, - pressed forward into the restraint; the point feels only friction and drag):
+
+| train | car | drop, pitch -30 deg | first valley | camelback crest | ejector crest | turn |
+|---|---|---|---|---|---|---|
+| short | front | -0.36 | +0.07 | -0.20 | -0.15 | -0.04 |
+| short | rear | +0.08 | -0.15 | +0.14 | +0.09 | -0.03 |
+| long | front | -0.45 | +0.16 | -0.38 | -0.30 | -0.04 |
+| long | rear | +0.13 | -0.27 | +0.32 | +0.24 | -0.01 |
+| extreme | front | -0.48 | +0.19 | -0.49 | -0.36 | -0.05 |
+| extreme | rear | +0.15 | -0.34 | +0.44 | +0.30 | -0.03 |
+
+Per element, seconds below 0 g for each car (first drop: s = 0 to 76 m; camelback: to 251 m; ejector hill: to 374 m):
+
+| element | point | short front / middle / rear | long front / middle / rear | extreme front / middle / rear |
+|---|---|---|---|---|
+| first drop | 0.00 | 0.00 / 0.00 / 0.20 | 0.00 / 0.00 / 0.41 | 0.00 / 0.26 / 0.45 |
+| camelback | 3.21 | 3.18 / 3.20 / 3.19 | 2.40 / 3.18 / 2.27 | 2.26 / 3.14 / 2.17 |
+| ejector hill | 1.70 | 1.69 / 1.70 / 1.70 | 1.65 / 1.69 / 1.67 | 1.62 / 1.68 / 1.64 |
+
+## Lift crest and first drop, three crest designs
+
+Lift at 3.5 m/s (a fixed-speed section; the train is held at that speed while its rear car is on it, unless gravity pulls it faster), then a crest designed for the point at the force given, a 45 m drop and a 3.5 g pull-out. Values while the car is between the start and the bottom of the drop.
+
+| crest force for the point (g) | tightest crest radius (m) | train | car | train speed when its centre passes pitch -30 deg (m/s) | speed when this car passes the tightest point (m/s) | lowest g | below 0 g (s) | ejector (s) |
+|---|---|---|---|---|---|---|---|---|
+| 0.30 | 4.8 | point | - | 4.68 | 3.87 | 0.30 | 0.00 | 0.00 |
+|  |  | short | front | 5.61 | 3.55 | 0.33 | 0.00 | 0.00 |
+|  |  | short | middle |  | 5.85 | -0.33 | 0.37 | 0.00 |
+|  |  | short | rear |  | 7.72 | -1.23 | 0.60 | 0.31 |
+|  |  | long | front | 6.91 | 3.50 | 0.36 | 0.00 | 0.00 |
+|  |  | long | middle |  | 6.42 | -0.55 | 0.42 | 0.09 |
+|  |  | long | rear |  | 11.61 | -3.89 | 0.69 | 0.42 |
+|  |  | extreme | front | 8.10 | 3.50 | 0.38 | 0.00 | 0.00 |
+|  |  | extreme | middle |  | 8.39 | -1.58 | 0.55 | 0.31 |
+|  |  | extreme | rear |  | 14.47 | -6.53 | 0.72 | 0.45 |
+| 0.60 | 6.3 | point | - | 5.49 | 3.72 | 0.60 | 0.00 | 0.00 |
+|  |  | short | front | 5.91 | 3.52 | 0.61 | 0.00 | 0.00 |
+|  |  | short | middle |  | 5.28 | 0.28 | 0.00 | 0.00 |
+|  |  | short | rear |  | 6.85 | -0.18 | 0.20 | 0.00 |
+|  |  | long | front | 6.83 | 3.50 | 0.61 | 0.00 | 0.00 |
+|  |  | long | middle |  | 5.75 | 0.17 | 0.00 | 0.00 |
+|  |  | long | rear |  | 10.26 | -1.55 | 0.41 | 0.26 |
+|  |  | extreme | front | 7.78 | 3.50 | 0.62 | 0.00 | 0.00 |
+|  |  | extreme | middle |  | 7.44 | -0.36 | 0.26 | 0.00 |
+|  |  | extreme | rear |  | 12.82 | -2.94 | 0.45 | 0.32 |
+| 0.75 | 8.2 | point | - | 7.38 | 3.63 | 0.75 | 0.00 | 0.00 |
+|  |  | short | front | 7.39 | 3.51 | 0.75 | 0.00 | 0.00 |
+|  |  | short | middle |  | 4.84 | 0.58 | 0.00 | 0.00 |
+|  |  | short | rear |  | 6.17 | 0.34 | 0.00 | 0.00 |
+|  |  | long | front | 7.71 | 3.50 | 0.75 | 0.00 | 0.00 |
+|  |  | long | middle |  | 5.22 | 0.52 | 0.00 | 0.00 |
+|  |  | long | rear |  | 9.14 | -0.41 | 0.24 | 0.00 |
+|  |  | extreme | front | 8.29 | 3.50 | 0.76 | 0.00 | 0.00 |
+|  |  | extreme | middle |  | 6.66 | 0.24 | 0.00 | 0.00 |
+|  |  | extreme | rear |  | 11.41 | -1.18 | 0.33 | 0.19 |
+
+## How the difference grows with train length
+
+Camelback: the point feels under +0.1 g over 59.4 m of track; heartline radius at the crest 22.5 m; point -0.200 g at the crest.
+
+| train length (m) | train / element length | speed diff at the top (m/s) | front car minus point (g) | middle minus point (g) | rear car minus point (g) | circle formula, middle (g) |
+|---|---|---|---|---|---|---|
+| 5 (2 cars) | 0.08 | +0.02 | -0.011 | -0.007 | -0.004 | -0.003 |
+| 10 (4 cars) | 0.17 | +0.12 | -0.059 | -0.021 | -0.039 | -0.015 |
+| 15 (6 cars) | 0.25 | +0.26 | -0.141 | -0.045 | -0.108 | -0.036 |
+| 20 (8 cars) | 0.34 | +0.47 | -0.250 | -0.077 | -0.204 | -0.064 |
+| 25 (10 cars) | 0.42 | +0.71 | -0.380 | -0.116 | -0.323 | -0.100 |
+| 30 (12 cars) | 0.51 | +1.00 | -0.528 | -0.163 | -0.460 | -0.144 |
+| 40 (16 cars) | 0.67 | +1.67 | -0.861 | -0.275 | -0.763 | -0.252 |
+
+Loop: the top half (upside down) is 27.8 m of track; heartline radius at the top 8.1 m; point 0.500 g at the top.
+
+| train length (m) | train / element length | speed diff at the top (m/s) | front car minus point (g) | middle minus point (g) | rear car minus point (g) | circle formula, middle (g) |
+|---|---|---|---|---|---|---|
+| 5 (2 cars) | 0.18 | +0.07 | +0.039 | +0.031 | +0.024 | +0.024 |
+| 10 (4 cars) | 0.36 | +0.32 | +0.229 | +0.092 | +0.188 | +0.117 |
+| 15 (6 cars) | 0.54 | +0.71 | +0.544 | +0.190 | +0.489 | +0.267 |
+| 20 (8 cars) | 0.72 | +1.22 | +0.939 | +0.322 | +0.860 | +0.466 |
+| 25 (10 cars) | 0.90 | +1.82 | +1.357 | +0.484 | +1.219 | +0.701 |
+| 30 (12 cars) | 1.08 | +2.48 | +1.752 | +0.669 | +1.520 | +0.960 |
+| 40 (16 cars) | 1.44 | +3.80 | +2.385 | +1.066 | +1.915 | +1.496 |
+
+## Redesign: the camelback designed with the train's speed
+
+Point design: crest 30.00 m above the entry, 62.1 m (horizontally) after the start of the pull-up, airtime span 50.7 m, crest speed 15.47 m/s, exit pitch 0.00 deg.
+
+A. Same forces and durations as the point design; the shape follows. Numbers in brackets: change from the point design.
+
+| train | design aims at | repetitions | crest height (m) | crest distance from pull-up (m) | airtime span (m) | exit pitch (deg) | exit height change (m) |
+|---|---|---|---|---|---|---|---|
+| long | middle | 6 | 30.36 (+0.36) | 62.4 (+0.3) | 51.0 (+0.3) | +2.04 | +3.26 |
+| long | front | 4 | 32.13 (+2.13) | 66.8 (+4.8) | 49.7 (-1.1) | +10.62 | +15.55 |
+| long | rear | 6 | 29.99 (-0.01) | 58.5 (-3.5) | 51.9 (+1.2) | +7.31 | +9.07 |
+| extreme | middle | 7 | 30.80 (+0.80) | 62.7 (+0.6) | 51.3 (+0.6) | +4.85 | +7.29 |
+| extreme | front | 3 | 33.49 (+3.49) | 69.5 (+7.5) | 51.0 (+0.2) | +30.91 | +31.16 |
+| extreme | rear | 10 | 31.35 (+1.35) | 56.3 (-5.8) | 49.7 (-1.1) | +25.86 | +23.28 |
+
+B. Durations re-solved for the same goals (crest 30 m, symmetric crest, level exit): the fall to the crest force, the crest hold and the hold at the valley force after the drop. Point design: 0.489 / 3.131 / 0.400 s.
+
+| train | design aims at | repetitions | durations (s) | crest height (m) | crest distance from pull-up (m) | airtime span (m) | crest speed of the design car (m/s) |
+|---|---|---|---|---|---|---|---|
+| long | middle | 3 | 0.472 / 3.176 / 0.395 | 30.00 | 62.5 (+0.4) | 52.4 (+1.6) | 15.90 (+0.43) |
+| long | front | 4 | 0.400 / 3.199 / 0.331 | 30.00 | 67.0 (+4.9) | 54.2 (+3.5) | 16.70 (+1.23) |
+| extreme | middle | 6 | 0.452 / 3.227 / 0.389 | 30.00 | 63.0 (+0.9) | 54.2 (+3.5) | 16.37 (+0.90) |
+| extreme | front | 4 | 0.353 / 3.278 / 0.275 | 30.00 | 69.5 (+7.4) | 57.9 (+7.2) | 17.75 (+2.28) |
+
+What each car feels on the re-solved designs (lowest g, seconds below 0 g):
+
+| train | design | front car | middle car | rear car |
+|---|---|---|---|---|
+| long | aimed at the middle | -0.54 g, 2.54 s | -0.20 g, 3.28 s | -0.53 g, 2.29 s |
+| long | aimed at the front | -0.20 g, 3.29 s | -0.48 g, 2.11 s | -0.88 g, 1.61 s |
+| long | point design | -0.60 g, 2.64 s | -0.27 g, 3.19 s | -0.58 g, 2.37 s |
+| extreme | aimed at the middle | -0.72 g, 2.29 s | -0.25 g, 3.33 s | -0.69 g, 2.17 s |
+| extreme | aimed at the front | -0.20 g, 3.37 s | -0.63 g, 1.52 s | -1.09 g, 1.56 s |
+| extreme | point design | -0.88 g, 2.33 s | -0.37 g, 3.13 s | -0.84 g, 2.20 s |
+
