@@ -35,25 +35,33 @@ undoHandler::~undoHandler()
 }
 
 // An undone append or a redone delete has one section (or transition) fewer,
-// so the one before it is selected. The step's label starts with the name of
-// its main action (undoAction.cpp); a step made some other way has no such
-// name and is selected as it says.
-commandTarget undoHandler::selectionAfter(const historyStep& step, bool undone) const
+// so the one before it is selected. The step is recognised by the name of its
+// main action (the start of its label, undoAction.cpp) or, for a step made by
+// a command, by the name of the command. The command names for the section
+// and transition cases (section.add, section.delete, transition.add,
+// transition.delete) are the ones the conversion units are to use; any other
+// step is selected as its selection says.
+bool undoHandler::selectionAfter(const historyStep& step, bool undone, commandTarget* out) const
 {
     commandTarget sel = step.selection;
-    if(sel.section < 0) return sel;
+    if(sel.section < 0) return false;
 
-    int type = undoActionTypeFromName(step.label.section('+', 0, 0));
+    QString name = step.calls.isEmpty() ? step.label.section('+', 0, 0) : step.calls.first().name;
+    bool addsSection = name == undoActionTypeName(appendSegment) || name == "section.add";
+    bool deletesSection = name == undoActionTypeName(removeSegment) || name == "section.delete";
+    bool addsTransition = name == undoActionTypeName(appendSubFunction) || name == "transition.add";
+    bool deletesTransition = name == undoActionTypeName(removeSubFunction) || name == "transition.delete";
     int sec = sel.section;
     int sub = sel.transition;
-    if(type == appendSegment && undone) --sec;
-    if(type == removeSegment && !undone) --sec;
-    if(type == appendSubFunction && undone && sub > 0) --sub;
-    if(type == removeSubFunction && !undone && sub > 0) --sub;
+    if(addsSection && undone) --sec;
+    if(deletesSection && !undone) --sec;
+    if(addsTransition && undone && sub > 0) --sub;
+    if(deletesTransition && !undone && sub > 0) --sub;
 
     // a transition is only kept on the section it was edited on
     int func = sec == sel.section ? sel.function : -1;
-    return commandTarget(sel.track, sec, func, sub);
+    *out = commandTarget(sel.track, sec, func, sub);
+    return true;
 }
 
 void undoHandler::putBack(bool undo)
@@ -61,13 +69,14 @@ void undoHandler::putBack(bool undo)
     // the step that is undone is the newest applied one, the one redone the
     // first after it
     int index = undo ? mHistory->position()-1 : mHistory->position();
-    commandTarget sel = selectionAfter(mHistory->steps()[index], undo);
+    commandTarget sel;
+    bool hasSelection = selectionAfter(mHistory->steps()[index], undo, &sel);
 
     gloParent->setUpdatesEnabled(false);
     busy = true;
     // the panel selects the step's section and transition again once the
     // track is rebuilt (trackHandler::trackReset())
-    hTrack->selectAfterReset(&sel);
+    hTrack->selectAfterReset(hasSelection ? &sel : NULL);
     if(undo) mHistory->undo();
     else mHistory->redo();
     hTrack->selectAfterReset(NULL);

@@ -64,6 +64,10 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
     trackData->display.colors[2] = QColor(51, 255, 51);
 
 
+    // The steps are capped by number (maxUndoChanges) and also by the bytes
+    // they hold (trackHistory's default, 128 MB; decision record 0011): the
+    // oldest steps are dropped when either limit is passed. States share the
+    // bytes of sections that did not change.
     mHistory = new trackHistory(trackData);
     mHistory->setMaxSteps(_maxUndoChanges);
     mHistory->setListener(this);
@@ -193,7 +197,8 @@ void trackHandler::trackReset(track* which)
     if(tabId >= 0) gloParent->renameTab(this);
 
     // the step's selection (anchor and track edits have none: what was selected stays)
-    if(resetHasSelection && resetSelection.section >= 0) {
+    // (section -1 is the anchor: undoing the only section's add selects it)
+    if(resetHasSelection) {
         selectInPanel(resetSelection.section, resetSelection.function, resetSelection.transition);
     } else {
         selectInPanel(resetSection, resetFunc, resetSubfunc);

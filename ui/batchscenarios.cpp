@@ -1509,7 +1509,13 @@ int batchScenarios::undoDepth(trackHandler* h)
     return h ? h->mHistory->steps().size() : 0;
 }
 
-QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& types)
+QString batchScenarios::stepName(const historyStep& step)
+{
+    if(!step.calls.isEmpty()) return step.calls.first().name;
+    return step.label.section('+', 0, 0);
+}
+
+QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& types, QStringList* commands)
 {
     QStringList list;
     if(!h) return QString();
@@ -1517,11 +1523,19 @@ QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& 
     const QList<historyStep>& recorded = h->mHistory->steps();
     for(int k = steps-1; k >= 0; --k) {
         if(k >= recorded.size()) continue;
-        const QString& label = recorded[recorded.size()-1-k].label;
-        QStringList chain = label.split("+");
-        for(int c = 0; c < chain.size(); ++c) {
-            int type = undoActionTypeFromName(chain[c]);
-            if(type >= 0) types.append(type);
+        const historyStep& step = recorded[recorded.size()-1-k];
+        QStringList chain;
+        if(!step.calls.isEmpty()) {
+            for(int c = 0; c < step.calls.size(); ++c) {
+                chain.append(step.calls[c].name);
+                if(commands != NULL) commands->append(step.calls[c].name);
+            }
+        } else {
+            chain = step.label.split("+");
+            for(int c = 0; c < chain.size(); ++c) {
+                int type = undoActionTypeFromName(chain[c]);
+                if(type >= 0) types.append(type);
+            }
         }
         list.append(chain.join("+"));
     }

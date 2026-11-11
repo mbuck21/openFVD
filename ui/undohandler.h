@@ -63,8 +63,10 @@ public:
 
 private:
     // what to select after the step is undone or redone: the step's own
-    // selection, moved off a section or transition the undo made vanish
-    commandTarget selectionAfter(const historyStep& step, bool undone) const;
+    // selection, moved off a section or transition the undo made vanish.
+    // False when the step selects nothing (an anchor or track edit); a
+    // section of -1 in the result with true means the anchor.
+    bool selectionAfter(const historyStep& step, bool undone, commandTarget* out) const;
     void putBack(bool undo);
 
     trackHandler* hTrack;
