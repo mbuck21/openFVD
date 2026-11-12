@@ -107,7 +107,7 @@ Judged harmless and so not limited beyond being finite: positions, angles (roll,
 
 | Key | Type | Unit | What |
 |---|---|---|---|
-| `position` | [x, y, z] | m | start position (y is up) |
+| `position` | [x, y, z] | m | the stored start point (y is up), `track::startPos`. It is not the point the window's anchor boxes show and the `anchor.setPositionX`, `anchor.setPositionY` and `anchor.setPositionZ` commands take: `track::anchorStartPos()` moves that point by the heartline offset, `fHeart` along the anchor's up direction (given by its pitch and roll, and the yaw). For a level, upright anchor `x` and `z` are the typed ones and `y` is the typed height plus `fHeart`. |
 | `roll` | number | degrees | start roll |
 | `pitch` | number | degrees | start pitch |
 | `yaw` | number | degrees | start direction |
@@ -274,4 +274,4 @@ The program writes every list and object one item per line; the example is folde
 
 ## How reading builds the model
 
-The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in, then every `from` and `to` set to the text's values as they are), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions (the ones the undo list uses).
+The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in, then every `from` and `to` set to the text's values as they are), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions.
