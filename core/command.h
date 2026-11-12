@@ -189,6 +189,10 @@ struct commandSpec
                             // section, or the first roll transition of the first
                             // section that has one
     bool exampleMayChangeNothing;   // the example can leave some tracks as they were
+    bool settlesItself;     // the apply function ends in the state saving and reopening
+                            // gives on its own (track::updateFromAnchor()), so run()
+                            // does not recompute the whole track after it (decision
+                            // record 0013); false for almost every command
     commandApplyFn apply;
 
     commandSpec();
@@ -229,7 +233,10 @@ public:
 
     // Runs one command on history's track: checks the name, the arguments and
     // the target, opens a step labelled with the spec's label and with target
-    // as its selection, applies, and closes the step: committed on success
+    // as its selection, applies, recomputes the whole track as a load does
+    // (track::updateFromAnchor(); not for a spec that settlesItself), so that
+    // the track is the one saving and reopening gives (decision record 0013),
+    // and closes the step: committed on success
     // (nothing is recorded when nothing changed), rolled back on failure, so
     // a failed run leaves the track as it was. Inside an open scope the run
     // joins that scope's step. False with a text in error on any failure.

@@ -70,16 +70,21 @@ void smoothNow(track* t)
 }
 
 // "apply" of the other commands: the same refresh and switch, then the whole
-// track recomputed and smoothed (track::updateTrack(0, 0), which re-applies
-// the smoothing because bAutoSmooth is on), as restoreTrackState() does for
-// an undo or a redo. Applying the smoothing again over a track that is
-// smoothed already (smoothNow()) can end a last digit away from that.
+// track recomputed from the anchor and smoothed (track::updateFromAnchor(),
+// whose updateTrack(0, 0) re-applies the smoothing because bAutoSmooth is
+// on), as a load computes it, so the track is the one saving and reopening
+// gives (decision record 0013). Applying the smoothing again over a track that
+// is smoothed already (smoothNow()) can end a last digit away from that; so
+// smoothing.apply is followed by the recompute every command ends with.
+// With "apply" false these commands leave the track as it is, on purpose: the
+// smoothing dialog smooths once, at OK, and its step ends in the reopened
+// state then (setEntry, addRegion and removeRegion are marked settlesItself).
 void recomputeSmoothed(track* t)
 {
     t->bAutoSmooth = true;
     char customChar;
     t->updateSmoothEntries(&customChar);
-    t->updateTrack(0, 0);
+    t->updateFromAnchor();
 }
 
 // The dialog's edits of one entry, each its own slot there: the length box,
@@ -226,6 +231,7 @@ QList<commandSpec> smoothingCommands()
         s.example.insert("to", 1.0);
         s.example.insert("name", QString("not used for entry 0"));
         s.example.insert("apply", true);
+        s.settlesItself = true;   // recomputeSmoothed() with apply; untouched without
         s.apply = applySetEntry;
         list << s;
     }
@@ -254,6 +260,7 @@ QList<commandSpec> smoothingCommands()
         s.example.insert("on", true);
         s.example.insert("name", QString("custom Region"));
         s.example.insert("apply", true);
+        s.settlesItself = true;
         s.apply = applyAddRegion;
         list << s;
     }
@@ -270,6 +277,7 @@ QList<commandSpec> smoothingCommands()
         s.example.insert("region", 1);
         s.example.insert("apply", true);
         s.exampleTarget = hasCustomRegion;
+        s.settlesItself = true;
         s.apply = applyRemoveRegion;
         list << s;
     }

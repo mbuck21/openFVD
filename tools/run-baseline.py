@@ -38,6 +38,8 @@ Tolerances: exact, unless tolerances.json next to the references lists the file.
               samples/baseline/: scripted edits through the windows, undo all,
               redo all; each must report OK (the files after undoing equal the
               files before the edits, byte for byte, and the same after redoing).
+              It runs with --each: every edit is also undone and redone on its
+              own right after it is made, and must restore the files exactly.
 --fixtures    then runs FVD.exe --batch-make-fixtures and compares each generated
               project with the committed samples/baseline/gen-<name>.fvd, byte
               for byte. Until the generated projects are committed it says so and
@@ -288,7 +290,7 @@ def undo_check(exe: Path, project: Path, keep: Optional[Path]) -> bool:
     with tempfile.TemporaryDirectory(prefix="fvd-undo-") as tmp:
         work = Path(tmp)
         out = work / "out"
-        code = run_batch(exe, ["--batch-undo-check", str(project), str(out)], work, UNDO_TIME_LIMIT_S)
+        code = run_batch(exe, ["--batch-undo-check", str(project), str(out), "--each"], work, UNDO_TIME_LIMIT_S)
         report = out / f"{stem}.undo.batch.txt"
         if keep is not None and report.is_file():
             keep.mkdir(parents=True, exist_ok=True)

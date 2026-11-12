@@ -323,7 +323,7 @@ commandParam commandParam::textParam(const QString& name, const QString& descrip
 // ---- commandSpec ------------------------------------------------------------
 
 commandSpec::commandSpec()
-    : target(targetTrack), merges(false), exampleMayChangeNothing(false)
+    : target(targetTrack), merges(false), exampleMayChangeNothing(false), settlesItself(false)
 {
 }
 
@@ -579,7 +579,32 @@ bool commandRegistry::runSpec(trackHistory* history, const commandSpec& spec, co
     call.args = valid;
     history->recordCall(call);
     why.clear();
-    bool ok = spec.apply(history->getTrack(), target, valid, &why);
+    track* t = history->getTrack();
+    // The apply function makes the window slot's model steps and its
+    // recompute from the edited point onward. Unless it settles the track
+    // itself, the whole track is computed from the anchor right after it
+    // (below), so that recompute would be thrown away: the track skips it
+    // (track::bDeferUpdate), and each command computes the track once.
+    t->bDeferUpdate = !spec.settlesItself;
+    bool ok = spec.apply(t, target, valid, &why);
+    t->bDeferUpdate = false;
+    if(ok) {
+        // The track as saving and reopening gives it (decision record 0013).
+        if(!spec.settlesItself) {
+            // A recompute from the edited point onward, as the window's slot
+            // made, can leave the track a little (with roll smoothing,
+            // metres) away from the one its settings give. The transitions as
+            // a load reads them back, then the whole track from the anchor, as
+            // a load computes it.
+            t->settleTransitions();
+            t->updateFromAnchor();
+        }
+        // The smoothing entries' names and node ranges, which a load takes
+        // from the track (smoothHandler::update()); the custom regions are
+        // labelled again a, b, ... as the smoothing dialog shows them.
+        char customChar;
+        t->updateSmoothEntries(&customChar);
+    }
     history->endStep(ok);
     if(!ok) {
         if(error) *error = name + " (" + target.toText() + "): " + (why.isEmpty() ? QString("failed") : why);

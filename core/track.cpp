@@ -32,7 +32,7 @@ using namespace std;
 
 track::track()
 {
-
+    bDeferUpdate = false;
 }
 
 track::track(glm::vec3 startPos, float startYaw, float heartLine)
@@ -48,6 +48,7 @@ track::track(glm::vec3 startPos, float startYaw, float heartLine)
     fFriction = 0.03f;
     fResistance = 2e-5;
     hasChanged = true;
+    bDeferUpdate = false;
     drawTrack = true;
     drawHeartline = 0;
     mListener = NULL;
@@ -377,6 +378,12 @@ bool track::smoothingActive()
 void track::updateTrack(int index, int iNode)
 {
     //qDebug("called updateTrack(%d, %d)", index, iNode);
+    if(bDeferUpdate)
+    {
+        // the whole track is computed from the anchor right after (see track.h)
+        hasChanged = true;
+        return;
+    }
     if(index < 0) index = 0;
     if(lSections.size() <= index)
     {
@@ -595,6 +602,58 @@ void track::updateFromAnchor()
         lSections[0]->lNodes[0] = *anchorNode;
     }
     updateTrack(0, 0);
+}
+
+// See track.h. A load reads piece 0, then for each further piece i appends a
+// placeholder after piece i-1 (func::appendSubFunction(1, i-1)), whose loop
+// links pieces 1 to i-1 again and then the placeholder, and reads piece i
+// over the placeholder. So piece j (0 < j < n-1) is linked once at each later
+// append, after the pieces before it, and the last piece keeps what was read.
+// The same updates in the same order, on the pieces as they are, give the
+// arguments the load gives from their saved bytes. (The placeholder's own
+// update and the start values the updates translate are overwritten: by the
+// next piece read, and by the section's recompute from its first node.)
+// Only for the sections whose functions a file holds.
+//
+// One pass is not always a fixed point of those sums: in single precision
+// (prev.max + cur.max) - cur.min can move an end by a last digit on the
+// first pass and again on the second (issue 63, item 7). A load applies the
+// sums once more to what was saved, so the passes repeat until no piece's
+// start or end moves, bit for bit: then a load of the saved track changes
+// nothing more. If eight passes do not settle, it says so (qWarning; the
+// tests fail on it) and returns false.
+bool track::settleTransitions()
+{
+    for(int pass = 0; pass < 8; ++pass)
+    {
+        bool moved = false;
+        for(int s = 0; s < lSections.size(); ++s)
+        {
+            section* sec = lSections[s];
+            if(sec->type != straight && sec->type != curved && sec->type != forced && sec->type != geometric) continue;
+            func* funcs[3] = { sec->rollFunc, sec->normForce, sec->latForce };
+            for(int f = 0; f < 3; ++f)
+            {
+                func* cur = funcs[f];
+                if(cur == NULL || (f > 0 && sec->type != forced && sec->type != geometric)) continue;
+                for(int i = 2; i < cur->funcList.size(); ++i)
+                {
+                    for(int j = 1; j < i; ++j)
+                    {
+                        subfunc* prev = cur->funcList[j-1];
+                        subfunc* piece = cur->funcList[j];
+                        const float wasMin = piece->minArgument, wasMax = piece->maxArgument;
+                        piece->update(prev->maxArgument, prev->maxArgument + piece->maxArgument - piece->minArgument, piece->symArg);
+                        if(memcmp(&wasMin, &piece->minArgument, sizeof(float)) != 0
+                                || memcmp(&wasMax, &piece->maxArgument, sizeof(float)) != 0) moved = true;
+                    }
+                }
+            }
+        }
+        if(!moved) return true;
+    }
+    qWarning("track::settleTransitions: the transitions' starts and ends did not settle in 8 passes; a reopen may move them");
+    return false;
 }
 
 // See track.h. The node track::track() makes, then the steps loadTrackHeader()
