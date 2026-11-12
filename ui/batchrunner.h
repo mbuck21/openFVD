@@ -36,6 +36,7 @@ class track;
 //   FVD.exe --batch-export <project.fvd> <outdir>
 //   FVD.exe --batch-make-fixtures <outdir>
 //   FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...] [--each]
+//   FVD.exe --batch-merge-check <project.fvd> <outdir>
 //   FVD.exe --batch-import <nltrack|txt|csv> <input file> <outdir>
 //   FVD.exe --batch-ride-sheet <project.fvd> <outdir>
 //
@@ -66,6 +67,7 @@ private:
     int runExport();
     int runMakeFixtures();
     int runUndoCheck();
+    int runMergeCheck();
     int runImport();
     int runRideSheet();
 

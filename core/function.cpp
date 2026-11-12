@@ -186,30 +186,6 @@ void func::legacyLoadFunction(std::iostream& file)
     }
 }
 
-void func::saveFunction(std::stringstream& file)
-{
-    file << "FUNC";
-    int size = funcList.size();
-    writeBytes(&file, (const char*)&size, sizeof(int));
-    for(int i = 0; i < funcList.size(); ++i) {
-        funcList[i]->saveSubFunc(file);
-    }
-}
-
-void func::loadFunction(std::stringstream& file)
-{
-    if(readString(&file, 4) != "FUNC") {
-        lenAssert(0 && "Error Loading Function");
-        return;
-    }
-    int size = readInt(&file);
-    funcList[0]->loadSubFunc(file);
-    for(int i = 1; i < size; ++i) {
-        appendSubFunction(1, i-1);
-        funcList[i]->loadSubFunc(file);
-    }
-}
-
 int func::getSubfuncNumber(subfunc *_sub)
 {
     int number = 0;

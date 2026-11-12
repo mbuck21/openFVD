@@ -404,10 +404,10 @@ bool textWriter::writeSection(section* s, smoothHandler* smooth, const QString& 
     }
     case nolimitscsv: {
         // The points are private to secnlcsv; its own save function (the
-        // stringstream one the undo list uses) hands them over: "CSV", the
-        // count, then position, direction and lateral, nine floats a point.
+        // project file's) hands them over: "CSV", the count, then position,
+        // direction and lateral, nine floats a point.
         std::stringstream ss;
-        s->saveSection(ss);
+        s->saveSection(static_cast<std::iostream&>(ss));
         readString(&ss, 3);
         int count = readInt(&ss);
         QJsonArray points;
@@ -1287,25 +1287,12 @@ static QString checkProjectText(const QByteArray& text)
 // Reading, step 2: the plain data into the model, as a binary load does it
 // ---------------------------------------------------------------------------
 
-// readVec3() (core/exportfuncs.cpp) builds the vector from three readFloat()
-// calls given as constructor arguments, and C++ leaves the order in which
-// they run to the compiler. Ask once which float lands in x.
-static bool readVec3ReadsInOrder()
-{
-    std::stringstream ss;
-    float a = 1.f, b = 2.f, c = 3.f;
-    writeBytes(&ss, (const char*)&a, sizeof(float));
-    writeBytes(&ss, (const char*)&b, sizeof(float));
-    writeBytes(&ss, (const char*)&c, sizeof(float));
-    glm::vec3 v = readVec3(&ss);
-    return v.x == 1.f;
-}
-
-static void writeVec3ForReadVec3(std::stringstream& ss, const glm::vec3& v, bool inOrder)
+// x, y and z as three floats, in the order secnlcsv::loadSection() reads them
+static void writeVec3InOrder(std::iostream& io, const glm::vec3& v)
 {
     float f[3] = { v.x, v.y, v.z };
     for(int k = 0; k < 3; ++k) {
-        writeBytes(&ss, (const char*)&f[inOrder ? k : 2-k], sizeof(float));
+        writeBytes(&io, (const char*)&f[k], sizeof(float));
     }
 }
 
@@ -1389,7 +1376,6 @@ static void buildTrack(track* t, const trackData& d, projectFileClient* client)
     // the anchor node from these values, as track::loadTrack() builds it
     t->rebuildAnchor();
 
-    const bool inOrder = readVec3ReadsInOrder();
     for(int i = 0; i < d.sections.size(); ++i) {
         const sectionData& sd = d.sections[i];
         t->appendSectionFromFile(sd.type);
@@ -1443,16 +1429,18 @@ static void buildTrack(track* t, const trackData& d, projectFileClient* client)
             break;
         case nolimitscsv: {
             // secnlcsv keeps its points private; hand them over through its
-            // own (stringstream) load function, in the layout it reads.
+            // own load function (the project file's), in the layout it reads:
+            // the count, then x, y and z of each vector as three floats.
             std::stringstream ss;
+            std::iostream& io = ss;
             int count = sd.csvPoints.size();
-            writeBytes(&ss, (const char*)&count, sizeof(int));
+            writeBytes(&io, (const char*)&count, sizeof(int));
             for(int k = 0; k < count; ++k) {
-                writeVec3ForReadVec3(ss, sd.csvPoints[k].position, inOrder);
-                writeVec3ForReadVec3(ss, sd.csvPoints[k].direction, inOrder);
-                writeVec3ForReadVec3(ss, sd.csvPoints[k].lateral, inOrder);
+                writeVec3InOrder(io, sd.csvPoints[k].position);
+                writeVec3InOrder(io, sd.csvPoints[k].direction);
+                writeVec3InOrder(io, sd.csvPoints[k].lateral);
             }
-            s->loadSection(ss);
+            s->loadSection(io);
             break;
         }
         default:

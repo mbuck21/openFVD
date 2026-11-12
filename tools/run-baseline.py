@@ -303,8 +303,8 @@ def undo_check(exe: Path, project: Path, keep: Optional[Path]) -> bool:
             return False
         lines = report_lines(report)
         last = lines[-1] if lines else "no result file"
-        summary = next((line for line in lines if line.startswith("undo action types exercised")), "")
-        summary = summary.split(":")[0].replace("undo action types exercised", "action types exercised")
+        summary = next((line for line in lines if line.startswith("commands exercised")), "")
+        summary = summary.split(":")[0]
         if code != 0 or last != "OK":
             print(f"UNDO FAIL {project.name}: {describe_exit_code(code)}, {last}")
             if code != 0 and not lines:

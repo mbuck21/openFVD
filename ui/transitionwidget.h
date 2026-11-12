@@ -28,7 +28,8 @@ class transitionWidget;
 
 // The transition editor: the boxes (length, change, shape, centre, tension) for the
 // selected subfunc. Part of graphWidget (reached as graphWidget::transitionHandler).
-// Each edit pushes an undoAction, changes the subfunc and updates the track.
+// Each edit runs a named transition command (core/commands_transition.cpp), which
+// changes the subfunc, computes the track and records one undo step.
 class transitionWidget : public QWidget
 {
     Q_OBJECT

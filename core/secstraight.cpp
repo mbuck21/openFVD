@@ -174,35 +174,6 @@ void secstraight::legacyLoadSection(std::iostream& file)
     rollFunc->legacyLoadFunction(file);
 }
 
-void secstraight::saveSection(std::stringstream& file)
-{
-    file << "STR";
-    writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
-
-    int namelength = sName.toUtf8().length(); // bytes, as written below
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&fVel, sizeof(float));
-    writeBytes(&file, (const char*)&fHLength, sizeof(float));
-    rollFunc->saveFunction(file);
-}
-
-void secstraight::loadSection(std::stringstream& file)
-{
-    bSpeed = readBool(&file);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-
-    fVel = readFloat(&file);
-    fHLength = readFloat(&file);
-    rollFunc->loadFunction(file);
-}
-
 bool secstraight::isInFunction(int index, subfunc* func)
 {
     if(func == NULL) return false;

@@ -47,8 +47,8 @@ class graphWidget;
 //     graphWidget::selectionChanged(), which is what clicking its curve does.
 //   - Undo and redo go through the Edit menu's actions.
 //   - The model (core/) is only READ: to find which transition to pick, and for
-//     the reports. Nothing here constructs an undoAction, writes a model field,
-//     or touches a private member.
+//     the reports. Nothing here runs a command, writes a model field, or
+//     touches a private member.
 // The refactor of Stage 1 changes the plumbing under the widgets; these
 // scenarios must keep passing unchanged. A change that breaks them has changed
 // what a person's input does.
@@ -85,6 +85,7 @@ public:
     void addSection(secType type);
     void selectSection(int s);          // -1 is the anchor
     void deleteSection(int s);
+    void renameSection(int s, const QString& name);
     void setPanelValue(const char* name, double value);
     void setPanelIndex(const char* name, int index);
     void setPanelChecked(const char* name, bool on);
@@ -153,26 +154,17 @@ namespace batchScenarios
     // the scripted edits of --batch-undo-check
     int editCount();
     // Applies edit i to the open track. Returns false when the project has no
-    // target for it (the reason goes to note). The undo action types the edit
-    // is expected to record go to expected.
+    // target for it (the reason goes to note). The name of the command
+    // (core/command.h) the edit must record goes to expected.
     bool applyEdit(int i, batchDriver& d, QString& description, QString& expected, QString& note);
-    // true for an edit left out of the default list on this project (KNOWN_BROKEN in the .cpp)
-    bool editIsKnownBroken(int i, batchDriver& d, QString& reason, int& type);
 
-    // names of the undo action types (ui/undoaction.h), for the coverage list
-    QString actionTypeName(int type);
-    int actionTypeCount();
-    bool actionTypeHandled(int type);
-    // READ ONLY, for the report: how many steps the undo list holds, and the
-    // action types of the newest steps (adapt these two when undo moves, seam S8)
+    // READ ONLY, for the report: how many steps the undo list holds
     int undoDepth(trackHandler* h);
-    // The newest steps, newest first, as text. A step made by an old slot is
-    // its action names joined by "+"; a step made by named commands is their
-    // names joined by "+". types gets the action types of the first kind;
-    // commands (when given) the command names of the second.
-    QString recordedActions(trackHandler* h, int steps, QList<int>& types, QStringList* commands = NULL);
-    // How the reports name a step: the command's name for a step made by
-    // commands, else the main action name of its label.
+    // The newest steps, oldest of them first, as text: each step is the names
+    // of its commands joined by "+". commands gets every name.
+    QString recordedCommands(trackHandler* h, int steps, QStringList& commands);
+    // How the reports name a step: the name of its first command (its label
+    // when it has none).
     QString stepName(const historyStep& step);
 }
 

@@ -24,8 +24,6 @@
 #include "trackhandler.h"
 #include "trackwidget.h"
 #include "graphwidget.h"
-#include "undohandler.h"
-#include "undoaction.h"
 #include "qcustomplot.h"
 #include "track.h"
 #include "elementfile.h"
@@ -48,6 +46,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -77,6 +76,10 @@ bool batchRunner::isBatchCommand(int argc, char *argv[])
 
 int batchRunner::run()
 {
+    // No merging of typed values in batch mode: every scripted edit is a step
+    // of its own (decision record 0011, point 7). --batch-merge-check sets it.
+    trackHandler::mergeWindowMs = 0;
+
     // One entry per command. A new command gets its own runXxx() function.
     if(lArgs.at(0) == "--batch-export") {
         return runExport();
@@ -86,6 +89,9 @@ int batchRunner::run()
     }
     if(lArgs.at(0) == "--batch-undo-check") {
         return runUndoCheck();
+    }
+    if(lArgs.at(0) == "--batch-merge-check") {
+        return runMergeCheck();
     }
     if(lArgs.at(0) == "--batch-import") {
         return runImport();
@@ -387,9 +393,12 @@ QStringList batchRunner::panelState(MainWindow* w)
     QStringList lines;
     QAction* undoMenu = w->findChild<QAction*>("actionUndo");
     QAction* redoMenu = w->findChild<QAction*>("actionRedo");
-    lines.append(QString("state: menu Undo %1, Redo %2")
-                 .arg(undoMenu ? onOff(undoMenu->isEnabled()) : QString("missing"))
-                 .arg(redoMenu ? onOff(redoMenu->isEnabled()) : QString("missing")));
+    // an entry that names a step shows its text ("Undo Change start speed")
+    QString undoText = undoMenu && undoMenu->text() != "Undo" ? QString(" (\"%1\")").arg(undoMenu->text()) : QString();
+    QString redoText = redoMenu && redoMenu->text() != "Redo" ? QString(" (\"%1\")").arg(redoMenu->text()) : QString();
+    lines.append(QString("state: menu Undo %1%2, Redo %3%4")
+                 .arg(undoMenu ? onOff(undoMenu->isEnabled()) : QString("missing")).arg(undoText)
+                 .arg(redoMenu ? onOff(redoMenu->isEnabled()) : QString("missing")).arg(redoText));
 
     QList<trackHandler*>& trackList = w->project->trackList;
     for(int i = 0; i < trackList.size(); ++i) {
@@ -421,7 +430,7 @@ QStringList batchRunner::panelState(MainWindow* w)
         }
 
         QStringList types;
-        // newest first; the first name of a step's label is its main action
+        // newest first; each step by the name of its first command
         const QList<historyStep>& actions = h->mHistory->steps();
         for(int a = actions.size()-1; a >= 0; --a) {
             types.append(batchScenarios::stepName(actions[a]));
@@ -659,16 +668,18 @@ static QString sameOrNot(const QStringList& diff)
 // edit is in addition undone and redone on its own right after it is made,
 // and each must restore the files exactly (decision record 0013: every edit
 // ends in the state a save and reopen gives); a failure names the edit.
-// --edits runs only the listed edits, plus the first and the last.
+// --edits runs only the listed edits, plus the first and the last. Each edit
+// must record a step made by the command it names; a step of another command,
+// or none, fails the check.
 int batchRunner::runUndoCheck()
 {
-    // --all-edits: include the edits known to fail today
+    // --all-edits: accepted and ignored; no edit is left out any more (it
+    //     included the edits once known to fail, and older command lines use it)
     // --edits 3,17,20: only these edits (numbered as in the report) and the first
     //     and last, which recompute the whole track; to find which edit fails
     // --each: also undo and redo every edit on its own right after making it;
     //     an edit whose undo or redo does not restore the files fails the check
-    bool allEdits = lArgs.contains("--all-edits");
-    if(allEdits) lArgs.removeAll("--all-edits");
+    lArgs.removeAll("--all-edits");
     bool each = lArgs.contains("--each");
     if(each) lArgs.removeAll("--each");
     QList<int> onlyEdits;
@@ -734,18 +745,11 @@ int batchRunner::runUndoCheck()
 
     bool allOk = true;
     int totalSteps = 0;
-    QList<int> covered, leftOut, nowCommand;
     QStringList commandsSeen;
     for(int i = 0; i < batchScenarios::editCount(); ++i) {
-        QString reason, desc, expected, note;
+        QString desc, expected, note;
         bool bookend = i == 0 || i == batchScenarios::editCount()-1;
         if(!onlyEdits.isEmpty() && !onlyEdits.contains(i+1) && !bookend) {
-            continue;
-        }
-        int leftOutType = -1;
-        if(!allEdits && batchScenarios::editIsKnownBroken(i, d, reason, leftOutType)) {
-            leftOut.append(leftOutType);
-            lReport.append(QString("edit %1: LEFT OUT (known to fail today, --all-edits includes it): %2").arg(i+1).arg(reason));
             continue;
         }
         int before = batchScenarios::undoDepth(h);
@@ -758,23 +762,19 @@ int batchRunner::runUndoCheck()
             continue;
         }
         int steps = batchScenarios::undoDepth(h) - before;
-        QList<int> types;
         QStringList commandNames;
-        QString recorded = batchScenarios::recordedActions(h, steps, types, &commandNames);
+        QString recorded = batchScenarios::recordedCommands(h, steps, commandNames);
         if(steps <= 0) {
             lReport.append(QString("edit %1: %2: FAILED, no undo step was recorded (expected %3)").arg(i+1).arg(desc).arg(expected));
             allOk = false;
             continue;
         }
-        covered += types;
         commandsSeen += commandNames;
-        if(!commandNames.isEmpty()) {
-            // the action types this edit used to record, now made by a command
-            QStringList wanted = expected.split("+");
-            for(int w = 0; w < wanted.size(); ++w) {
-                int type = undoActionTypeFromName(wanted[w]);
-                if(type >= 0 && !types.contains(type)) nowCommand.append(type);
-            }
+        if(!commandNames.contains(expected)) {
+            // the edit went through another command (or none): the control is
+            // wired to the wrong one
+            lReport.append(QString("edit %1: %2: FAILED, recorded %3, not %4").arg(i+1).arg(desc).arg(recorded).arg(expected));
+            allOk = false;
         }
         totalSteps += steps;
         if(!each) {
@@ -864,22 +864,6 @@ int batchRunner::runUndoCheck()
     lReport.append(QString("B2 against B, after redoing %1 steps: %2").arg(totalSteps).arg(sameOrNot(b2)));
     allOk = allOk && a2.isEmpty() && b2.isEmpty();
 
-    // coverage of the undo action types
-    QStringList exercised, notExercised;
-    for(int type = 0; type < batchScenarios::actionTypeCount(); ++type) {
-        if(covered.contains(type)) {
-            exercised.append(batchScenarios::actionTypeName(type));
-        } else if(!batchScenarios::actionTypeHandled(type)) {
-            notExercised.append(batchScenarios::actionTypeName(type) + " (undo has no case for it)");
-        } else {
-            notExercised.append(batchScenarios::actionTypeName(type) + (leftOut.contains(type)
-                                ? " (its edits are left out: known to fail today)"
-                                : nowCommand.contains(type) ? " (now a command)" : " (no edit reached it in this project)"));
-        }
-    }
-    lReport.append(QString("undo action types exercised (%1): %2").arg(exercised.size()).arg(exercised.join(", ")));
-    lReport.append(QString("undo action types not exercised (%1): %2").arg(notExercised.size()).arg(notExercised.join(", ")));
-
     // coverage of the named commands (core/command.h): those that made a step
     QStringList cmdExercised, cmdNot;
     const QList<commandSpec>& specs = commandRegistry::all();
@@ -895,6 +879,246 @@ int batchRunner::runUndoCheck()
     }
     if(!allOk) {
         return finish(false, "the undo and redo round trip failed (see the lines above)");
+    }
+    return finish(true, QString());
+}
+
+// FVD.exe --batch-merge-check <project.fvd> <outdir>
+// Merging as the windows have it (trackHandler::mergeWindowMs, one second;
+// decision record 0011, point 7), on track 1, through the boxes a person
+// types into. A value typed digit by digit ("12.5": the box goes 1, 12, 12.5)
+// into a transition's length, the start speed and a section's own box must
+// each be one undo step, whose undo gives the files of before the first digit
+// exactly and whose redo the files after the last. Two values of the same
+// section, the same box on two sections, and the same box before and after
+// another selection must stay separate steps. At the end every step is
+// undone and the files must be those the load gave. Focus loss, which also
+// ends a run, is not checked here: the batch mode never takes the focus.
+int batchRunner::runMergeCheck()
+{
+    if(lArgs.size() != 3) {
+        qWarning("usage: FVD.exe --batch-merge-check <project.fvd> <outdir>");
+        return 1;
+    }
+    QString projectFile = lArgs.at(1);
+    QString outDir = lArgs.at(2);
+    QString stem = QFileInfo(projectFile).fileName();
+    if(stem.endsWith(".fvd", Qt::CaseInsensitive)) {
+        stem.chop(4);
+    }
+    if(!QDir().mkpath(outDir)) {
+        qWarning("batch mode: cannot create %s", qPrintable(outDir));
+        return 1;
+    }
+    QDir dir(outDir);
+    sReportFile = dir.filePath(stem + ".merge.batch.txt");
+    QString workDir = dir.filePath(stem + ".merge-work");
+    if(!QDir().mkpath(workDir)) {
+        return finish(false, QString("cannot create ") + workDir);
+    }
+    if(!QFileInfo(projectFile).isFile()) {
+        return finish(false, QString("project file not found: ") + projectFile);
+    }
+
+    // the windows' setting, before any track handler is made
+    trackHandler::mergeWindowMs = 1000;
+    MainWindow* w = createHiddenWindow();
+    if(!w) {
+        return finish(false, QString("could not set up OpenGL"));
+    }
+    QString loadResult = w->project->loadProject(projectFile);
+    if(loadResult.contains("Error")) {
+        return finish(false, QString("loading ") + projectFile + ": " + loadResult);
+    }
+    if(w->project->trackList.isEmpty() || w->project->trackList[0]->trackData->lSections.isEmpty()) {
+        return finish(false, QString("track 1 has no sections"));
+    }
+    batchDriver d(w);
+    d.openTrack(0);
+    if(!d.ok()) return finish(false, d.error());
+    trackHandler* h = d.openHandler();
+    if(h->mHistory->mergeWindow() != 1000) {
+        return finish(false, QString("the track's history does not merge (window %1 ms)").arg(h->mHistory->mergeWindow()));
+    }
+
+    QString error;
+    bool allOk = true;
+    batchState stateA;
+    if(!writeState(workDir, "A", stateA, error)) return finish(false, error);
+    int depthA = batchScenarios::undoDepth(h);
+
+    // the force (else geometric) sections, and a transition of the first whose length can be typed
+    QList<int> transitionSections;
+    for(int s = 0; s < d.sectionCount(); ++s) {
+        if(d.sectionType(s) == forced || d.sectionType(s) == geometric) transitionSections.append(s);
+    }
+    const eFunctype forceOrder[] = { funcNormal, funcRoll, funcLateral };
+    const eFunctype geoOrder[] = { funcPitch, funcYaw, funcRoll };
+    // selects section s and the first of its transitions whose length can be typed
+    auto pickLength = [&](int s) -> bool {
+        d.selectSection(s);
+        const eFunctype* order = d.sectionType(s) == forced ? forceOrder : geoOrder;
+        for(int k = 0; k < 3; ++k) {
+            d.selectTransition(order[k], 0);
+            if(d.transitionEnabled("lengthSpin")) return true;
+        }
+        return false;
+    };
+
+    // One typed run: the values the box shows digit by digit. Must make one
+    // step that undoes to the files before and redoes to the files after.
+    auto typedRun = [&](const QString& what, std::function<void(double)> type, std::function<double()> shown,
+                        const QList<double>& typed) {
+        batchState before, after, undone, redone;
+        if(!writeState(workDir, "state", before, error)) return false;
+        int depth = batchScenarios::undoDepth(h);
+        QList<double> values = typed;
+        if(values.contains(shown())) {
+            // the first digit must change the box (and typing back to the
+            // value the run started from would take the step away)
+            for(int k = 0; k < values.size(); ++k) values[k] += 1;
+        }
+        for(int k = 0; k < values.size(); ++k) type(values[k]);
+        if(!d.ok()) return false;
+        int steps = batchScenarios::undoDepth(h) - depth;
+        int calls = steps > 0 ? h->mHistory->steps().last().calls.size() : 0;
+        if(!writeState(workDir, "state", after, error)) return false;
+        d.undo();
+        if(!writeState(workDir, "state", undone, error)) return false;
+        d.redo();
+        if(!writeState(workDir, "state", redone, error)) return false;
+        if(!d.ok()) return false;
+        QStringList undoDiff = differences(before, undone);
+        QStringList redoDiff = differences(after, redone);
+        bool ok = steps == 1 && calls >= 2 && undoDiff.isEmpty() && redoDiff.isEmpty();
+        lReport.append(QString("%1: typed %2 values, recorded %3 step(s) of %4 commands; undo %5; redo %6%7")
+                       .arg(what).arg(values.size()).arg(steps).arg(calls)
+                       .arg(undoDiff.isEmpty() ? QString("restores the files before the first digit") : QString("DOES NOT RESTORE ") + undoDiff.join(", "))
+                       .arg(redoDiff.isEmpty() ? QString("restores") : QString("DOES NOT RESTORE ") + redoDiff.join(", "))
+                       .arg(ok ? QString() : QString(": FAILED")));
+        allOk = allOk && ok;
+        return true;
+    };
+    // Two edits that must stay two steps.
+    auto twoSteps = [&](const QString& what, std::function<void()> edits) {
+        int depth = batchScenarios::undoDepth(h);
+        edits();
+        if(!d.ok()) return false;
+        int steps = batchScenarios::undoDepth(h) - depth;
+        lReport.append(QString("%1: recorded %2 steps%3").arg(what).arg(steps).arg(steps == 2 ? QString() : QString(", not 2: FAILED")));
+        allOk = allOk && steps == 2;
+        return true;
+    };
+    auto typeTransition = [&](const char* box) {
+        return std::function<void(double)>([&d, box](double v) { d.setTransitionValue(box, v); });
+    };
+    auto shownTransition = [&](const char* box) {
+        return std::function<double()>([&d, box]() { return d.transitionValue(box); });
+    };
+    auto typePanel = [&](const char* box) {
+        return std::function<void(double)>([&d, box](double v) { d.setPanelValue(box, v); });
+    };
+    auto shownPanel = [&](const char* box) {
+        return std::function<double()>([&d, box]() { return d.panelValue(box); });
+    };
+
+    // 1. a transition's length, typed "12.5"
+    int s1 = -1;
+    for(int k = 0; k < transitionSections.size() && s1 < 0; ++k) {
+        if(pickLength(transitionSections[k])) s1 = transitionSections[k];
+    }
+    if(s1 < 0) {
+        lReport.append("transition length: skipped, no force or geometric section with a transition whose length can be typed");
+    } else {
+        pickLength(s1);
+        if(!typedRun(QString("transition length (section %1)").arg(s1+1), typeTransition("lengthSpin"),
+                     shownTransition("lengthSpin"), QList<double>() << 1 << 12 << 12.5)) {
+            return finish(false, d.ok() ? error : d.error());
+        }
+    }
+
+    // 2. the start speed, typed "35" (in the box's unit)
+    d.selectSection(-1);
+    if(!typedRun("start speed", typePanel("anchorSpeedBox"), shownPanel("anchorSpeedBox"), QList<double>() << 3 << 35)) {
+        return finish(false, d.ok() ? error : d.error());
+    }
+
+    // 3. a section's own box, typed "45": a straight's length or a curve's radius
+    int s3 = -1;
+    const char* box3 = NULL;
+    for(int s = 0; s < d.sectionCount() && s3 < 0; ++s) {
+        if(d.sectionType(s) == straight) { s3 = s; box3 = "straightLengthBox"; }
+        else if(d.sectionType(s) == curved) { s3 = s; box3 = "curvedRadiusBox"; }
+    }
+    if(s3 < 0) {
+        lReport.append("section box: skipped, no straight or curved section");
+    } else {
+        d.selectSection(s3);
+        if(!typedRun(QString("%1 (section %2)").arg(box3).arg(s3+1), typePanel(box3), shownPanel(box3),
+                     QList<double>() << d.len(4) << d.len(45))) {
+            return finish(false, d.ok() ? error : d.error());
+        }
+    }
+
+    if(s1 >= 0) {
+        // 4. two values of the same transition: length, then change
+        pickLength(s1);
+        double length = d.transitionValue("lengthSpin");
+        double change = d.transitionValue("changeSpin");
+        if(!twoSteps(QString("length then change of one transition (section %1)").arg(s1+1), [&]() {
+                d.setTransitionValue("lengthSpin", length + 0.5);
+                d.setTransitionValue("changeSpin", change + 0.25);
+            })) return finish(false, d.error());
+
+        // 5. the same box before and after another selection
+        int other = s1 == 0 ? (d.sectionCount() > 1 ? 1 : -1) : 0;
+        if(!twoSteps(QString("length of one transition, another section selected in between (section %1)").arg(s1+1), [&]() {
+                d.setTransitionValue("lengthSpin", d.transitionValue("lengthSpin") + 0.5);
+                d.selectSection(other);
+                pickLength(s1);
+                d.setTransitionValue("lengthSpin", d.transitionValue("lengthSpin") + 0.5);
+            })) return finish(false, d.error());
+
+        // 6. the same box on two sections
+        int s2 = -1;
+        for(int k = 0; k < transitionSections.size() && s2 < 0; ++k) {
+            if(transitionSections[k] != s1) s2 = transitionSections[k];
+        }
+        if(s2 < 0) {
+            lReport.append("length on two sections: skipped, only one force or geometric section");
+        } else {
+            if(!pickLength(s2)) {
+                lReport.append("length on two sections: skipped, no transition of the second section can be typed");
+            } else {
+                // from one section's box to the other's, as fast as a script
+                // can (a person selects the other section in between, which
+                // ends the run as well; the targets differ too)
+                pickLength(s1);
+                if(!twoSteps(QString("length on sections %1 and %2").arg(s1+1).arg(s2+1), [&]() {
+                        d.setTransitionValue("lengthSpin", d.transitionValue("lengthSpin") + 0.5);
+                        pickLength(s2);
+                        d.setTransitionValue("lengthSpin", d.transitionValue("lengthSpin") + 0.5);
+                    })) return finish(false, d.error());
+            }
+        }
+    }
+
+    // every step undone: the files the load gave
+    int extra = batchScenarios::undoDepth(h) - depthA;
+    for(int k = 0; k < extra; ++k) d.undo();
+    if(!d.ok()) return finish(false, d.error());
+    batchState stateA2;
+    if(!writeState(workDir, "A2", stateA2, error)) return finish(false, error);
+    QStringList a2 = differences(stateA, stateA2);
+    lReport.append(QString("after undoing all %1 steps: %2").arg(extra).arg(sameOrNot(a2)));
+    allOk = allOk && a2.isEmpty() && extra > 0;
+
+    QDir(workDir).removeRecursively();
+    if(!windowsStayedHidden(error)) {
+        return finish(false, error);
+    }
+    if(!allOk) {
+        return finish(false, "merging of typed values failed (see the lines above)");
     }
     return finish(true, QString());
 }

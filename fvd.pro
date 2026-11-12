@@ -45,8 +45,6 @@ TARGET = FVD
 TEMPLATE = app
 
 SOURCES += main.cpp\
-    ui/undohandler.cpp \
-    ui/undoaction.cpp \
     ui/trackhandler.cpp \
     osx/common.cpp \
     renderer/trackmesh.cpp \
@@ -74,9 +72,7 @@ SOURCES += main.cpp\
     ui/draglabel.cpp \
     ui/conversionpanel.cpp
 
-HEADERS  += ui/undohandler.h \
-    ui/undoaction.h \
-    ui/trackhandler.h \
+HEADERS  += ui/trackhandler.h \
     osx/common.h \
     renderer/trackmesh.h \
     renderer/mytexture.h \

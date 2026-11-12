@@ -419,41 +419,6 @@ void secforced::legacyLoadSection(std::iostream& file)
     latForce->legacyLoadFunction(file);
 }
 
-void secforced::saveSection(std::stringstream& file)
-{
-    file << "FRC";
-    writeNulls(&file, 1);
-
-    int namelength = sName.toUtf8().length(); // bytes, as written below
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&iTime, sizeof(int));
-    writeBytes(&file, (const char*)&bOrientation, sizeof(bool));
-    writeBytes(&file, (const char*)&bArgument, sizeof(bool));
-    rollFunc->saveFunction(file);
-    normForce->saveFunction(file);
-    latForce->saveFunction(file);
-}
-
-void secforced::loadSection(std::stringstream& file)
-{
-    readNulls(&file, 1);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-    bSpeed = true;
-    iTime = readInt(&file);
-    bOrientation = readBool(&file);
-    bArgument = readBool(&file);
-    rollFunc->loadFunction(file);
-    normForce->loadFunction(file);
-    latForce->loadFunction(file);
-}
-
 bool secforced::isInFunction(int index, subfunc* func)
 {
     if(func == NULL) return false;

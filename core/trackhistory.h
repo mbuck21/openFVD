@@ -71,15 +71,13 @@ public:
 // restoreTrackState(), which fires the track's own trackAboutToReset and
 // trackReset notices. Successive states share the bytes of unchanged sections.
 //
-// Changes are recorded in one of two ways:
-// - a scope (beginStep() ... endStep(), or historyScope): the state is taken
-//   at the start and at the end; commandRegistry::run() opens one per command.
-// - noteEdit(), after the model was already changed (the window's edit slots
-//   until they are converted to commands).
-// The head state is the state after the last recorded step (or after
-// rebase()): noteEdit() takes it as the state before. A change made outside
-// any step and not noted is folded into the next step's state before and can
-// never be undone on its own; beginStep() warns (qWarning) when it finds one.
+// Changes are recorded in scopes (beginStep() ... endStep(), or historyScope):
+// the state is taken at the start and at the end; commandRegistry::run()
+// opens one per command. The head state is the state after the last recorded
+// step (or after rebase()). A change made outside any step is folded into the
+// next step's state before and can never be undone on its own; beginStep()
+// warns (qWarning) when it finds one. A change that is deliberately not a
+// step calls foldOutsideChange() at once.
 //
 // Pointers do not survive a restore. A rollback, an undo and a redo all go
 // through restoreTrackState(), which deletes and rebuilds every section,
@@ -130,11 +128,6 @@ public:
     int scopeDepth() const { return mScopes.size(); }
 
     // ---- outside edits ----
-    // The model was changed already: records a step from the head state to
-    // the state now. Nothing when nothing changed. Ignored inside a scope (the
-    // scope records the change).
-    void noteEdit(const QString& label, const commandTarget& selection = commandTarget(),
-                  const QString& mergeKey = QString());
     // The track changed outside the history (a load, an import): take its
     // state as the head state without recording a step. Ends a merge run.
     void rebase();

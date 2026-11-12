@@ -200,45 +200,6 @@ void secnlcsv::legacyLoadSection(std::iostream &file)
     }
 }
 
-void secnlcsv::saveSection(stringstream &file)
-{
-    int size = csvNodes.size();
-
-    file << "CSV";
-
-    writeBytes(&file, (const char*)&size, sizeof(int));
-
-    for(int i=0; i < csvNodes.size(); i++) {
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.z, sizeof(float));
-
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.z, sizeof(float));
-
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.z, sizeof(float));
-    }
-}
-
-void secnlcsv::loadSection(stringstream &file)
-{
-    csvNodes.clear();
-
-    int size = readInt(&file);
-
-    for(int i=0; i < size; i++) {
-        mnode node;
-        node.vPos = readVec3(&file);
-        node.vDir = readVec3(&file);
-        node.vLat = readVec3(&file);
-
-        csvNodes.append(node);
-    }
-}
-
 float secnlcsv::getMaxArgument()
 {
     return 0.f;

@@ -22,10 +22,8 @@
 #include "trackhandler.h"
 #include "exportfuncs.h"
 #include "importui.h"
-#include "undohandler.h"
 #include "nolimitsimporter.h"
 #include "mainwindow.h"
-#include "undoaction.h"
 #include "trackmesh.h"
 #include "trackproperties.h"
 #include "lenassert.h"
@@ -221,7 +219,7 @@ void projectWidget::importNLTrackFile(QString fileName)
         return;
     }
     delete importer;
-    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importNoLimitsCSV()
@@ -264,7 +262,7 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
         return;
     }
     delete importer;
-    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importPointList()
@@ -304,7 +302,7 @@ void projectWidget::importPointListFile(QString fileName)
         return;
     }
     delete importer;
-    newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::appendTracks(QList<trackHandler *> &_list)
@@ -389,7 +387,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
         } else {
             trackList[index]->trackData->drawTrack = false;
         }
-        trackList[index]->mUndoHandler->takeOutsideChange();
+        trackList[index]->takeOutsideChange();
         return;
     default:
         lenAssert(0 && "unexpected default case");
@@ -488,7 +486,7 @@ void projectWidget::projectTrackLoaded(track* which)
 {
     trackHandler* handler = handlerFor(which);
     handler->listItem->setText(1, handler->trackData->name);
-    handler->mUndoHandler->clearActions();
+    handler->clearHistory();
 }
 
 void projectWidget::projectLoadFinished()

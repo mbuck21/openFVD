@@ -250,45 +250,6 @@ void seccurved::legacyLoadSection(std::iostream& file)
     rollFunc->legacyLoadFunction(file);
 }
 
-void seccurved::saveSection(std::stringstream& file)
-{
-    file << "CUR";
-    writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
-
-    int namelength = sName.toUtf8().length(); // bytes, as written below
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&fVel, sizeof(float));
-    writeBytes(&file, (const char*)&fAngle, sizeof(float));
-    writeBytes(&file, (const char*)&fRadius, sizeof(float));
-    writeBytes(&file, (const char*)&fDirection, sizeof(float));
-    writeBytes(&file, (const char*)&fLeadIn, sizeof(float));
-    writeBytes(&file, (const char*)&fLeadOut, sizeof(float));
-    writeBytes(&file, (const char*)&bOrientation, sizeof(bool));
-    rollFunc->saveFunction(file);
-}
-
-void seccurved::loadSection(std::stringstream& file)
-{
-    bSpeed = readBool(&file);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-
-    fVel = readFloat(&file);
-    fAngle = readFloat(&file);
-    fRadius = readFloat(&file);
-    fDirection = readFloat(&file);
-    fLeadIn = readFloat(&file);
-    fLeadOut = readFloat(&file);
-    bOrientation = readBool(&file);
-    rollFunc->loadFunction(file);
-}
-
 bool seccurved::isInFunction(int index, subfunc* func)
 {
     if(func == NULL) return false;
