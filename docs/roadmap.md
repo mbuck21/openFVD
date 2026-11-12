@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is in progress** on the integration branch `claude/stage-2`, started 2026-11-11 at the owner's word (decision records 0011 and 0012).
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is finished** (2026-11-12, on the integration branch `claude/stage-2`; decision records 0011, 0012 and 0013) and reaches `master` when the owner merges pull request #46. Stage 3 is next.
 
 The roadmap says what has to come before what, and what can run side by side. Rewrite a stage's section when its plan changes; move a finished stage to a short summary. Each stage runs on its own integration branch (decision record 0004). The order of the requests is the owner's to change; the last section lists what is asked of the owner and by when.
 
@@ -10,31 +10,31 @@ The roadmap says what has to come before what, and what can run side by side. Re
 |---|---|---|
 | FR-1 Heartline per train type | D2, D3 | done (Stage 1) |
 | FR-2 No macOS build | none | a non-goal |
-| FR-3 Minimum radius check | A1, then A2 | 2, 3 |
+| FR-3 Minimum radius check | A1 (done), then A2 | 2, 3 |
 | FR-4 Ride-force limits, every seat | A3 at the heartline; A4 at every seat | 3; 6 |
-| FR-5 Tooling for Claude | F2, T1, F3; T2; T3 | 2; 3; 5 |
+| FR-5 Tooling for Claude | F2, T1, F3 (done); T2; T3 | 2; 3; 5 |
 | FR-6 Throughput and blocks | O1, O2, O3 | 7 |
 | FR-7 Better force vector design | W1, G1; G2, G3, G4; then E3, D4, T3 | 3; 4; 5 |
 | FR-8 Refactor for agents | F1 | done (Stage 1); large files are split as they are touched |
 | FR-9 More train types | data entries | any time |
-| FR-10 Parametric elements | E1 trials; E2 design; E3 build | 2; 4; 5 |
-| FR-11 The train as a train | R7 experiment; P1; P2 | 2; 3; 6 |
-| FR-12 Close the circuit | E1 trial; G2 | 2; 4 |
-| FR-13 Energy margin | R8; P1 and A6 | 2; 3 |
+| FR-10 Parametric elements | E1 trials (done); E2 design; E3 build | 2; 4; 5 |
+| FR-11 The train as a train | R7 experiment (done); P1; P2 | 2; 3; 6 (R7 recommends P2's first step right after 3) |
+| FR-12 Close the circuit | E1 trial (done); G2 | 2; 4 |
+| FR-13 Energy margin | R8 (done); P1 and A6 | 2; 3 |
 | FR-14 Ride rules | D4 | 5 |
 | FR-15 Import and convert | I1 analyse; R11 experiment; I2 segment and fit | 3; before 6; 6 |
-| FR-16 Launches, lifts, brakes, switches, swing launches | R9; P3 lifts, launches, brakes; P4 swing launches, P5 switches | 2; 4; 7 |
-| FR-17 Comfort beyond the standard | R10; A7 | 2; 3 |
-| FR-18 Ride sheet | A5 | 2 |
+| FR-16 Launches, lifts, brakes, switches, swing launches | R9 (done); P3 lifts, launches, brakes; P4 swing launches, P5 switches | 2; 4; 7 |
+| FR-17 Comfort beyond the standard | R10 (done); A7 | 2; 3 |
+| FR-18 Ride sheet | A5 | done (Stage 2) |
 
 ## The shape of it
 
-Eighteen requests rest on seven shared pieces. Each is built once, before the features that stand on it. Two exist since Stage 1; the rework of 2026-11-10 named the other five.
+Eighteen requests rest on seven shared pieces. Each is built once, before the features that stand on it. Two exist since Stage 1 and two more since Stage 2 (the command list, and measures and findings); the rework of 2026-11-10 named the last five.
 
 1. **A core that runs without a window** (F1, done). Everything automated stands on it.
 2. **Train types as data** (D2, done). Heartlines, limits, seats and car lengths are fields of one train definition.
-3. **The command list** (T1). Every edit a person can make is one named command with its own undo. The solver, elements, ride rules and the agent tooling all change a track through it, so a solve or a rule change is one undo step and the tooling cannot drift from the program.
-4. **Measures and findings** (A1, wider than first planned). A *measure* is a number at every point of the track that the program works out beside the design without changing it: the along-track force, the curve radius, the jerk, the roll rate. A *finding* is a place where a measure breaks a limit. The radius check, the force limits, comfort, the energy margin, the ride sheet and the read-out of every solver result are all measures and findings.
+3. **The command list** (T1, done). Every edit a person can make is one named command with its own undo. The solver, elements, ride rules and the agent tooling all change a track through it, so a solve or a rule change is one undo step and the tooling cannot drift from the program.
+4. **Measures and findings** (A1, done; wider than first planned). A *measure* is a number at every point of the track that the program works out beside the design without changing it: the along-track force, the curve radius, the jerk, the roll rate. A *finding* is a place where a measure breaks a limit. The radius check, the force limits, comfort, the energy margin, the ride sheet and the read-out of every solver result are all measures and findings.
 5. **The solver** (G1). It changes the values the designer frees until a goal is met. Aiming a section at a height, pinned points, closing the circuit, parametric elements and fitting an imported track are the same engine with different goals.
 6. **Riding the finished track** (P1, then P2). Today the program only *designs*: it shapes the track from the forces asked for, at the one speed the design assumes. A second computation takes the finished shape as given and moves a point, later a whole train, over it. That is what answers "does it still clear this hill with more friction", "what forces does an imported NoLimits track have", "what does the rear car feel", and it is what swing launches and several trains on a circuit need.
 7. **One way to add to the saved file** (F4). Pins, elements, ride rules, launches and end-at-a-value transitions each need new fields in the project file. They get one mechanism, designed once, instead of a new file version per feature.
@@ -46,7 +46,7 @@ flowchart TD
         D2[D2 Train types as data, D3 heartline picker]
         R[R1 to R6 Research]
     end
-    subgraph S2[Stage 2: reach and measure]
+    subgraph S2[Stage 2, done: reach and measure]
         F2[F2 Command line]
         T1[T1 Command list, replaces undo]
         F3[F3 Project as text]
@@ -121,7 +121,7 @@ flowchart TD
 
 **Serial (each waits for the one before):**
 
-- **T1 is Stage 2's bottleneck,** as F1 was Stage 1's. It rewrites how every control in the windows applies an edit. While T1 is open, no other piece changes the editing code of the widgets; pieces that only add a new panel or a new file are safe beside it.
+- **T1 was Stage 2's bottleneck,** as F1 was Stage 1's, and is done: every edit of a track is a named command. A new kind of edit is added as a command first (`core/CLAUDE.md`), then given its control.
 - A1 before every check and measure (A2, A3, A5, A6, A7) and before P1, which reports through it.
 - E1 (trials by script) before G1 (the solver in the program) before G2 (pins) before E3 (elements).
 - P1 before A6, I1, G3 and P2. P2 before A4, P4 and O2.
@@ -131,8 +131,6 @@ flowchart TD
 
 **Parallel (safe to run at the same time):**
 
-- The four research notes of the second pack, with each other and with everything in Stage 2. They produce documents and stand-alone experiments, not program code.
-- F2, F3 and A1 with each other and with T1 (they add files; A1 touches the plots and the 3D view, not the editing code).
 - In Stage 3, every piece with every other, except that A6 and I1 follow P1: each is a new measure, a new computation or a new panel.
 - In Stage 4, after F4: G4, P3 and G3 with each other; G2 after G4 and P3.
 - FR-9 (more train types) at any time: each type is a data entry.
@@ -161,27 +159,30 @@ Done on `claude/stage-1` in eighteen planned pieces and four that came up on the
 - **Parametric elements have their first findings (R6):** goals must be independent, an element can promise its exit height or its exit speed but not both, and the solver needs a search for a valid start.
 - **Float maths is pinned where it matters and listed where it is not** (N2).
 
-## Stage 2: reach and measure
+## Stage 2: reach and measure (finished 2026-11-12)
 
-**Goal.** The program can be driven and measured without a person, every edit is a command, and the open questions behind the new requests are answered by experiment before anything is designed around them.
+Done on `claude/stage-2` in 29 pull requests into the integration branch (#47 to #79): the planned pieces, three fixes that came up on the way, one piece added at the end (T1-U11) and the closing documents. Decision records 0011, 0012 and 0013; `STATUS.md` has what was verified.
 
-**What the owner gets:** the ride sheet on screen; undo that restores the design for every kind of edit, including the kinds that have no undo today; new curves on the plot and a colour-by-measure view; four research notes, one of them with numbers from an experiment (how much a whole train differs from a point); and the solver tried on the real program.
+| Piece | What it delivered |
+|---|---|
+| T1 (U1 to U11) | The command list: 45 named commands in the model, each with its parameters, units, ranges and a description. The windows' controls run them; a command records its own undo step, and undo and redo put back a snapshot of the whole track, exact to the last digit. The old undo classes are gone and issue #31 is fixed. Every command ends in the state that saving and reopening gives (decision record 0013). A number typed digit by digit is one undo step, and the Edit menu names the step. |
+| F2a, F2b | The command-line program `fvdcore`: export, a table of points, compare two versions of a project, the ride sheet, measures, checks, the three importers, and `session`, which holds a project open and runs commands for another program (`tools/fvdsession.py`). |
+| F3 | The project as text (JSON) and back, with a round trip that gives the same bytes (`docs/project-text-format.md`). The binary `.fvd` is unchanged. |
+| A1a to A1c | Measures and findings as a registry in the model (twelve measures, the along-track force the first new one), new curves on the plot, colour by measure on the 3D track. |
+| A5a, A5b | The ride sheet (FR-18): its numbers in the model, the panel that updates while editing, and `fvdcore summary`. |
+| E1 | The solver, parametric elements and pins with a slack piece tried on the real program by script (`docs/research/e1-solver-trials.md`). |
+| R7 to R10 | Research notes: the train against the point, friction and margins, special track, comfort. **R11 (import and convert) is deferred** until the owner has one or two NoLimits 2 tracks exported as CSV (issue #65); it is needed before I2 (Stage 6), not before I1. |
 
-**How it is built** is in decision records 0011 (undo by snapshot, named commands on top) and 0012 (measures as a registry, the command-line program in `cli/`, the ride sheet and its definitions). The integration pull request lists the units and their state.
+**What Stage 2 found that the later stages build on:**
 
-| Piece | What | Depends on | Who | Requests |
-|---|---|---|---|---|
-| **F2** | A command-line front end on the window-less core: load, summarise, export, run the checks, and compare two versions of a project section end by section. The one-command baseline moves onto it. | F1 | Sonnet | FR-5 |
-| **T1** | The command list: every edit a person can make becomes a core function and a named command with typed parameters, units and a description; the window's controls call the commands; undo and redo record them and replace today's `undoAction`. The eight undo defects of issue #31 are fixed here, command by command. Decision record 0009. | F1 | lead for the design, Opus to build, in small groups of commands each checked by the undo round trip | FR-5 |
-| **F3** | The project as text: a readable description of a project that can be written and read back, beside the binary `.fvd`. The binary format stays as it is. | F1 | Sonnet; Opus for the round-trip tests | FR-5 |
-| **A1** | Measures and findings. A measure is worked out from the nodes and never changes them, so no project computes differently. The first new measure is the along-track force, which the program does not store today. Measures show as plots and as colour on the 3D view; findings as marks on both and as a report from the command line. | F1 | Opus for the design, Sonnet to build | FR-3, FR-4, FR-13, FR-17 |
-| **A5** | The ride sheet: length, height, drop, duration, top speed, seconds of airtime, peak g in each direction, inversions, open findings. A panel that updates while editing, and the same sheet as text from F2. It is the first user of A1 and the proof that A1 works. | A1, F2 | Sonnet | FR-18 |
-| **E1** | Solver and element trials on the real core, by script; nothing changes in the program. R6's protocols (a solved camelback, the exit contract, limits as inputs, a second element that turns or rolls) and R5's two trials (aim one section at a height and a heading; re-close one of the owner's projects after an early edit, with a straight's length and a curve's angle as the slack). Measures how often a solve succeeds and how long it takes. | F2, R5, R6 | Opus | FR-7, FR-10, FR-12 |
-| **R7** | The train against the point: on exported track shapes, a train of several cars against one point over a camelback and a loop, for a short and a long train. How far the speed and the forces at the front, middle and rear differ. The size of the effect decides how early P2 is built. | F2 | Opus | FR-11 |
-| **R8** | Friction, resistance and margins: sensible ranges for steel and wooden coasters with sources, for an empty and a full train, and how the program's two numbers (`fFriction`, `fResistance`) relate to rolling and air resistance. | none | Sonnet | FR-13 |
-| **R9** | Special track: typical accelerations and speeds of LSM and hydraulic launches, lifts and brakes, with sources; how a swing launch is specified (passes, peak speed, the spike); how switches and transfer tracks are laid out; what NoLimits 2 can take from an export. | R4 | Sonnet | FR-16 |
-| **R10** | Comfort: which measures match what riders call rough (jerk, roll rate and roll acceleration, sideways movement of the head), and any published values for rides known as smooth or rough. | R3 | Sonnet | FR-17 |
-| **R11** | Import and convert, the feasibility experiment on a stand-in: the forces along a NoLimits 2 track, how noisy they are on a hand-built track, and how closely clean transitions can reproduce a stretch. Says whether I2 is worth building and what tolerance is useful. **Deferred on 2026-11-11 at the owner's word:** it waits for one or two NoLimits 2 tracks from the owner, exported as CSV, and is needed before I2 (Stage 6), not before I1. | NoLimits 2 tracks from the owner | Opus | FR-15 |
+- **A whole train differs from the point by enough to matter (R7).** The speed changes little; the forces at the front and rear cars change a lot: a camelback asked for -0.2 g gives about -0.45 g at the ends of a 20 m train, and the rear car over a slow lift crest can see -1.5 g where the program shows 0.6 g. R7 recommends building the first step of P2 (ride the finished track with a whole train and report every car) right after Stage 3, and aiming a design at the middle car. The move is the owner's call (the last section).
+- **The plan for the solver holds (E1).** A plain damped Newton solver working only through the named commands aimed a section at a height and a heading in 100 of 100 random reachable goals (about ten evaluations), and solved the camelback wherever a solution exists. **Solve is a button, not live:** an evaluation costs 1 to 2 ms per 1,000 nodes, so a solve takes about half a second on a normal ride and 3 to 6 s on a very long one. Finding a valid start is the costly part (hundreds of evaluations) and needs a cheaper first guess. Turning elements fail near the vertical at low speed and need a start search.
+- **Pins with a slack piece work, but the slack piece must bank (E1).** One connector force section re-closed a layout to under 2 cm after an early edit, but a 2 m change of the lift already needed 1.4 to 1.8 g of unbanked lateral force. G2 is designed with a banking connector or a small optimisation with a smoothness preference.
+- **The running track is the reopened track (decision record 0013).** In the original program an edit could leave the track on screen different from the one a reopen gives (up to 12.3 m, measured). Now every command ends in a whole-track recompute: about 13 ms on a normal ride, about 77 ms on a 150,000-node ride, wherever the edit is. The solver, the knock-on view and the automation interface can rely on what they read. Tracks with a Bezier section (a NoLimits 1 import) are the named exception until I1 (issue #63, item 16).
+- **Friction and drag (R8):** the default friction (0.03) is sensible, the default drag (2e-5) is 6 to 30 times lower than a rough figure for a real train. A6's band: friction at 0.67, 1.0 and 1.33 times the project's own, plus a drag set for an empty train in cold air. No published margin figure exists; the owner chooses the pass mark.
+- **Special track (R9):** proposed defaults for P3 (chain lift 3 m/s, launch 1.0 g average, block brake 0.5 g, trim 0.3 g). A launch's thrust falls with speed and a magnetic brake fades with speed; a trim is best given as "take off 5 m/s". No NoLimits 2 import format carries a section type, so special sections are built again by hand in NoLimits 2.
+- **Comfort (R10):** no published comfort limit exists for jerk, roll rate or roll acceleration; A7's scale is the designer's own and says so. Order: lateral jerk, sideways head acceleration from roll, normal-force jerk; jerk computed as the standards compute onset (5 Hz low-pass, slope over 0.1 s).
+- **Defects and quirks of the original program found on the way** are listed in issue #63 (21 items, none fixed in Stage 2). **Undo for adding, deleting and importing a track** needs a history for the project as a whole and is not planned yet (issue #64).
 
 ## Stage 3: see the ride, aim a section
 
@@ -253,7 +254,7 @@ Done on `claude/stage-1` in eighteen planned pieces and four that came up on the
 The stages follow the dependencies; inside them the order follows the owner's two biggest time sinks (an early change knocking on, and hitting a target). These can move without breaking anything:
 
 - **P3 (lifts, launches, brakes) into Stage 3,** if they are wanted sooner. F4 and the saved-file choice move with it.
-- **P2 (the train) to right after Stage 3,** if R7 shows that a whole train differs from a point by enough to matter. Its first step needs only P1 and car lengths.
+- **P2 (the train) to right after Stage 3.** R7 showed that a whole train differs from a point by enough to matter, and recommends exactly this for P2's first step (ride the finished track with a whole train and report every car). The lead recommends it too; it waits for the owner's word. The first step needs only P1 and car lengths.
 - **A6, A7 or I1 out of Stage 3 to later,** if the checks matter less than the solver. G1 needs none of them.
 - **Stage 7 before Stage 6,** except O2, which needs the train.
 
@@ -267,8 +268,9 @@ The stages follow the dependencies; inside them the order follows the owner's tw
 ## Risks the architect is watching
 
 - **T1 touches every control in the windows.** It is cut into small groups of commands, each checked by the undo round trip and the baseline, and it lands before any feature that would have to be rebased across it.
-- **The solver may fail on the elements the owner builds** (inversions, where heading and bank are poorly defined near vertical; R5). E1 measures this on the real core before G1 is designed; the fallback is a small optimisation with a smoothness preference.
-- **A slack piece may not absorb a typical early edit within rideable forces.** E1's re-close trial on one of the owner's projects shows it before G2 is built. If it cannot, pins are dropped and G3 and G4 carry the fight against knock-on.
+- **The solver may fail on the elements the owner builds** (inversions, where heading and bank are poorly defined near vertical; R5). E1 measured it: sections and the camelback solve reliably from a valid start, the zero-g roll in 31 of 32 cases, the overbanked turn in 11 of 16 and never at 20 m/s. G1 is designed with a search for a valid start, and the fallback is a small optimisation with a smoothness preference. None of it has been tried on one of the owner's own projects yet.
+- **A slack piece may not absorb a typical early edit within rideable forces.** E1 showed that it closes the gap but not yet within rideable forces: the connector must bank, or be solved as a small optimisation. G2's design starts there. If that fails too, pins are dropped and G3 and G4 carry the fight against knock-on.
+- **Every edit computes the whole track once** (decision record 0013): about 77 ms on a 150,000-node ride, against a limit of 150 ms set for typing. If a long ride feels slow to edit, the next step is to settle when typing stops (0013, point 4); it is not built.
 - **New physics must not move old projects.** P3, G4 and P2's second step change what a track computes. Each is off unless a project uses it, and the baseline against the 2016 binary keeps passing with no tolerance.
 - **The saved file collects many additions** (pins, elements, rules, launches, end-at-a-value transitions, frozen elements, switches). F4 comes before all of them so the format is extended once; old files always load (rule 4 in `CLAUDE.md`).
 - **Car lengths and seat positions are not published** (R1). P2 and A4 run on values the owner enters or on stated assumptions, and say so on screen.
@@ -289,5 +291,8 @@ Everything about how to build this is the architect's call. These are not; each 
 | 5 | R5's questions: the ranking of the directions; solve on a button or live; which values the program may change; what to do when a pin cannot be met. Recommendation: a button, and a result to accept. | before G2, Stage 4; G1 is built on the recommendation |
 | 6 | The saved file: may a project that uses a feature the 2016 program cannot compute stop opening in the 2016 program? Recommendation in F4 above. | before Stage 4 |
 | 7 | For elements (R6, section 4.4): which numbers define the camelback, whether elements hold position by default, which elements come first. | in E2, Stage 4 |
-| 8 | After R7: whether the train's physics becomes the default for new projects. | before P2, Stage 6 |
+| 8 | After R7: whether the train's physics becomes the default for new projects. | before P2's second step |
 | 9 | How much NoLimits 2 block-script compatibility is worth (R4 recommends the standard automatic behaviour). | before Stage 7 |
+| 10 | The word to start Stage 3, after merging pull request #46. | now |
+| 11 | Whether P2's first step (ride the finished track with a whole train, report every car) moves to right after Stage 3, as R7 recommends. Recommendation: yes. | before Stage 4 is cut |
+| 12 | Issue #72: a typed start rate comes back about 2 percent larger, as in the 2016 program. Leave it, or make the two conversions agree. Recommendation: leave it. | any time; no answer means it stays |
