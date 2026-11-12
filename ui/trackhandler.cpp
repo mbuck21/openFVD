@@ -18,12 +18,10 @@
 
 #include "trackhandler.h"
 #include "graphwidget.h"
-#include "undohandler.h"
 #include "mainwindow.h"
 #include "trackmesh.h"
 #include "trackwidget.h"
 #include "transitionwidget.h"
-#include "undoaction.h"
 #include "smoothui.h"
 #include "projectwidget.h"
 #include "glviewwidget.h"
@@ -32,9 +30,13 @@
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
 
+int trackHandler::mergeWindowMs = 1000;
+
 trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
 {
     id = _id;
+    restoring = false;
+    mHistory = NULL;    // made below, after the panels, which may ask for it (endMergeRun())
     mMesh = NULL;
     resetHasSelection = false;
     resetSection = -2;
@@ -71,7 +73,8 @@ trackHandler::trackHandler(QString _name, int _id, int _maxUndoChanges)
     mHistory = new trackHistory(trackData);
     mHistory->setMaxSteps(_maxUndoChanges);
     mHistory->setListener(this);
-    mUndoHandler = new undoHandler(this);
+    // a number typed digit by digit is one step (decision record 0011, point 7)
+    mHistory->setMergeWindow(mergeWindowMs);
     mMesh = new trackMesh(trackData);
 }
 
@@ -80,7 +83,6 @@ trackHandler::~trackHandler()
     delete trackWidgetItem;
     delete graphWidgetItem;
     delete listItem;
-    delete mUndoHandler;
     delete mHistory;
     delete trackData;
     delete mMesh;
@@ -235,6 +237,92 @@ void trackHandler::historyChanged(trackHistory* which)
 {
     Q_UNUSED(which);
     gloParent->setUndoButtons();
+}
+
+// An undone add or a redone delete has one section (or transition) fewer, so
+// the one before it is selected. The step is recognised by the name of its
+// first command; any other step is selected as its selection says.
+bool trackHandler::selectionAfter(const historyStep& step, bool undone, commandTarget* out) const
+{
+    commandTarget sel = step.selection;
+    QString name = step.calls.isEmpty() ? QString() : step.calls.first().name;
+    // section.add has the track as its target. The new section's 0-based place
+    // is its "after" argument: redone it is selected, undone the section before
+    // it (the anchor, -1, when it was first).
+    if(name == "section.add" && sel.track >= 0) {
+        int added = step.calls.first().args.value("after").toInt();
+        *out = commandTarget::forSection(sel.track, undone ? added-1 : added);
+        return true;
+    }
+    if(sel.section < 0) return false;
+
+    bool addsSection = name == "section.add";
+    bool deletesSection = name == "section.delete";
+    bool addsTransition = name == "transition.add";
+    bool deletesTransition = name == "transition.delete";
+    int sec = sel.section;
+    int sub = sel.transition;
+    // transition.add "after" has the transition it started from as its target;
+    // the window selects the new one after it (one further on)
+    if(addsTransition && step.calls.first().args.value("where").toString() == "after") ++sub;
+    if(addsSection && undone) --sec;
+    if(deletesSection && !undone) --sec;
+    if(addsTransition && undone && sub > 0) --sub;
+    if(deletesTransition && !undone && sub > 0) --sub;
+
+    // a transition is only kept on the section it was edited on
+    int func = sec == sel.section ? sel.function : -1;
+    *out = commandTarget(sel.track, sec, func, sub);
+    return true;
+}
+
+void trackHandler::putBack(bool undo)
+{
+    // the step that is undone is the newest applied one, the one redone the
+    // first after it
+    int index = undo ? mHistory->position()-1 : mHistory->position();
+    commandTarget sel;
+    bool hasSelection = selectionAfter(mHistory->steps()[index], undo, &sel);
+
+    gloParent->setUpdatesEnabled(false);
+    restoring = true;
+    // the panel selects the step's section and transition again once the
+    // track is rebuilt (trackReset())
+    selectAfterReset(hasSelection ? &sel : NULL);
+    if(undo) mHistory->undo();
+    else mHistory->redo();
+    selectAfterReset(NULL);
+    restoring = false;
+    gloParent->setUpdatesEnabled(true);
+}
+
+// The bounds are checked here, not only by the menu entries (issue 31).
+void trackHandler::undo()
+{
+    if(restoring || !mHistory->canUndo()) return;
+    putBack(true);
+}
+
+void trackHandler::redo()
+{
+    if(restoring || !mHistory->canRedo()) return;
+    putBack(false);
+}
+
+void trackHandler::clearHistory()
+{
+    mHistory->clear();
+}
+
+void trackHandler::takeOutsideChange()
+{
+    if(restoring) return;   // a restore in progress is not an edit
+    mHistory->foldOutsideChange();
+}
+
+void trackHandler::endMergeRun()
+{
+    if(mHistory != NULL) mHistory->endMergeRun();
 }
 
 void trackHandler::selectAfterReset(const commandTarget* selection)

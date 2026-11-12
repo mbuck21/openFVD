@@ -43,24 +43,6 @@ bool readBool(std::iostream *file);
 void readBytes(std::iostream *file, void* _ptr, size_t length);
 
 
-void writeBytes(std::stringstream *file, const char* data, size_t length );
-
-void writeNulls(std::stringstream *file , size_t length );
-
-std::string readString(std::stringstream *file, size_t length);
-
-bool readNulls(std::stringstream *file, size_t length);
-
-glm::vec3 readVec3(std::stringstream *file);
-
-float readFloat(std::stringstream *file);
-
-int readInt(std::stringstream *file);
-
-bool readBool(std::stringstream *file);
-
-void readBytes(std::stringstream *file, void* _ptr, size_t length);
-
 void writeToExportFile(std::fstream *file, QList<bezier_t*> &bezList);
 
 

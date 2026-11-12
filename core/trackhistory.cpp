@@ -65,7 +65,8 @@ void trackHistory::beginStep(const QString& label, const commandTarget& selectio
         } else {
             // Changed outside any step and not noted: the change becomes part
             // of this step's state before and can never be undone on its own.
-            // Kept as it is, but said, so that a missing noteEdit() shows.
+            // Kept as it is, but said, so that an edit made without a
+            // command (or a missing foldOutsideChange()) shows.
             qWarning("trackHistory: the track changed outside the history before step \"%s\"; "
                      "that change is folded into this step and cannot be undone on its own",
                      label.toUtf8().constData());
@@ -147,14 +148,6 @@ void trackHistory::recordCall(const commandCall& call)
 }
 
 // ---- outside edits ----------------------------------------------------------
-
-void trackHistory::noteEdit(const QString& label, const commandTarget& selection, const QString& mergeKey)
-{
-    if(inScope() || mRestoring) return;
-    trackState after = captureTrackState(mTrack, &mHead);
-    if(after == mHead) return;
-    record(label, selection, mergeKey, QList<commandCall>(), mHead, after);
-}
 
 void trackHistory::rebase()
 {

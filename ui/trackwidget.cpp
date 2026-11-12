@@ -20,7 +20,6 @@
 #include "graphwidget.h"
 #include "ui_trackwidget.h"
 #include "optionsmenu.h"
-#include "undohandler.h"
 #include "mainwindow.h"
 #include "trackmesh.h"
 #include "command.h"
@@ -90,12 +89,19 @@ trackWidget::trackWidget(QWidget *parent, trackHandler* _track) :
 
     // The project stores the start forces, not these rates: a typed rate
     // becomes the two forces, and the box then shows the rate the stored forces
-    // give (about 2 percent more; core/commands_anchor.cpp). It is rewritten
-    // once editing ends, not while it is being typed in.
-    QString rateTip("The project stores the start forces, not this rate. A typed rate sets the forces; "
-                    "when you leave the box it shows the rate those forces give, as after reopening.");
-    ui->pitchChangeBox->setToolTip(rateTip);
-    ui->yawChangeBox->setToolTip(rateTip);
+    // give (about 2 percent more, as the 2016 program converts with two values
+    // of g; issue 72; core/commands_anchor.cpp, forcesFromRates()). A typed
+    // yaw rate is in addition multiplied by the cosine of the start pitch. The
+    // box is rewritten once editing ends, not while it is being typed in.
+    QString storedTip("The project stores the start forces, not this rate: a typed rate sets the forces, and "
+                      "when you leave the box it shows the rate those forces give, as after reopening. ");
+    QString gTip("Both rate boxes come back about 2 percent larger, because the original program turns a rate "
+                 "into forces with g = 9.80665 and the forces back into a rate with g = 10.");
+    ui->pitchChangeBox->setToolTip(QString("How fast the track pitches at its start, in degrees per second. ")
+                                   + storedTip + gTip);
+    ui->yawChangeBox->setToolTip(QString("How fast the track turns left or right at its start, in degrees per second. ")
+                                 + storedTip + "The typed yaw rate is multiplied by the cosine of the start pitch "
+                                 "before it becomes the forces, and comes back multiplied by it. " + gTip);
     connect(ui->pitchChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
     connect(ui->yawChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
 
@@ -133,11 +139,6 @@ void trackWidget::on_addButton_released()
 
 void trackWidget::addStraightSec()
 {
-    /*undoAction* temp = new undoAction(inTrack, appendSegment);
-    temp->sectionNumber++;
-    gloParent->project->trackWorker->queueAction(temp);*/
-
-
     addSection(straight);
 }
 
@@ -336,6 +337,8 @@ void trackWidget::writeNames()
 
 void trackWidget::on_sectionListWidget_itemSelectionChanged()
 {
+    // another selection: the next typed value is a step of its own
+    inTrack->endMergeRun();
     if(!ui->sectionListWidget->selectedItems().size()) {
         selSection = NULL;
         inTrack->trackData->activeSection = NULL;
@@ -988,11 +991,6 @@ void trackWidget::on_lateralBox_valueChanged(double arg1)
     inTrack->graphWidgetItem->redrawGraphs();
 }
 
-void trackWidget::updateAnchorGeometrics()
-{
-    inTrack->trackData->updateAnchorGeometrics();
-}
-
 void trackWidget::on_smoothButton_released()
 {
     if(!smoothScreen) {
@@ -1000,7 +998,7 @@ void trackWidget::on_smoothButton_released()
         // "a smoothing dialog exists" (track::bAutoSmooth): not saved and not
         // a step; it stays when the dialog is cancelled, as the dialog does
         inTrack->trackData->bAutoSmooth = true;
-        inTrack->mUndoHandler->takeOutsideChange();
+        inTrack->takeOutsideChange();
     }
 
     // the dialog's step: the entries are brought up to date inside it

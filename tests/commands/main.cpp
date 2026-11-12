@@ -30,7 +30,7 @@
 //    A command exercised on no project fails the test.
 //    Every anchor command also gives the same exports live as after the
 //    project is saved and loaded again (checkAnchorReload()).
-// 3. The history: scopes, rollback, nesting, noteEdit, rebase, undo and redo,
+// 3. The history: scopes, rollback, nesting, rebase, undo and redo,
 //    merging with a fake clock, the two caps, the listener, selections.
 // 4. Commands: validation errors name the parameter, unknown commands and
 //    targets, rollback of a failing apply, JSON round trip of arguments.
@@ -629,6 +629,15 @@ public:
 // and nothing needs recomputing.
 static void rename(track* t, const QString& name) { t->name = name; }
 
+// One step that renames the track (as section.setName or track.setName would).
+static void renameStep(trackHistory& h, track* t, const QString& name, const QString& label,
+                       const commandTarget& selection = commandTarget(), const QString& mergeKey = QString())
+{
+    h.beginStep(label, selection, mergeKey);
+    rename(t, name);
+    h.endStep(true);
+}
+
 // What trackHistory::bytes() should be, from the steps' states.
 static qint64 expectedBytes(const trackHistory& h)
 {
@@ -733,22 +742,20 @@ static void checkHistory(const QString& repo)
         check(listener.calls == callsBefore + 6, QString("history: the listener heard every undo and redo (%1 calls)").arg(listener.calls - callsBefore));
 
         // a new step drops the redo branch
-        rename(t, "E");
-        h.noteEdit("Rename E", commandTarget::forSection(0, 3));
+        renameStep(h, t, "E", "Rename E", commandTarget::forSection(0, 3));
         check(h.steps().size() == 3 && h.position() == 3 && !h.canRedo() && h.undoLabel() == "Rename E"
               && h.labels() == (QStringList() << "Rename A" << "Rename B" << "Rename E"),
               "history: a new step after two undos drops the redo branch (" + h.labels().join(", ") + ")");
 
-        // noteEdit with no change, and rebase
-        h.noteEdit("No change");
-        check(h.steps().size() == 3, "history: noteEdit with nothing changed records nothing");
+        // a step with no change, and rebase
+        h.beginStep("No change"); h.endStep(true);
+        check(h.steps().size() == 3, "history: a step with nothing changed records nothing");
         rename(t, "loaded from elsewhere");
         h.rebase();
-        h.noteEdit("After rebase");
+        h.beginStep("After rebase"); h.endStep(true);
         check(h.steps().size() == 3 && h.headState() == captureTrackState(t),
               "history: rebase takes the track as it is without a step");
-        rename(t, "F");
-        h.noteEdit("Rename F");
+        renameStep(h, t, "F", "Rename F");
         check(h.undo() && t->name == "loaded from elsewhere", "history: a step after rebase undoes to the rebased state");
         check(h.redo() && t->name == "F", "history: and redoes");
 
@@ -781,55 +788,43 @@ static void checkHistory(const QString& repo)
         h.setClock(fakeClock);
         check(h.mergeWindow() == 0, "merge: the window is 0 (never merge) by default");
         fakeNow = 0;
-        rename(t, "m1");
-        h.noteEdit("Type", commandTarget(), "key");
+        renameStep(h, t, "m1", "Type", commandTarget(), "key");
         fakeNow = 100;
-        rename(t, "m2");
-        h.noteEdit("Type", commandTarget(), "key");
+        renameStep(h, t, "m2", "Type", commandTarget(), "key");
         check(h.steps().size() == 2, "merge: with window 0, the same key twice is two steps");
 
         h.clear();
         h.setMergeWindow(1000);
         const QByteArray start = savedBytes(t);
         fakeNow = 10000;
-        rename(t, "a1");
-        h.noteEdit("Type", commandTarget::forSection(0, 0), "key");
+        renameStep(h, t, "a1", "Type", commandTarget::forSection(0, 0), "key");
         fakeNow = 10900;
-        rename(t, "a12");
-        h.noteEdit("Type", commandTarget::forSection(0, 0), "key");
+        renameStep(h, t, "a12", "Type", commandTarget::forSection(0, 0), "key");
         fakeNow = 11800;
-        rename(t, "a123");
-        h.noteEdit("Type", commandTarget::forSection(0, 0), "key");
+        renameStep(h, t, "a123", "Type", commandTarget::forSection(0, 0), "key");
         check(h.steps().size() == 1, "merge: the same key within the window (900 ms apart, twice) extends the step");
         fakeNow = 12801;
-        rename(t, "a1234");
-        h.noteEdit("Type", commandTarget::forSection(0, 0), "key");
+        renameStep(h, t, "a1234", "Type", commandTarget::forSection(0, 0), "key");
         check(h.steps().size() == 2, "merge: the same key 1001 ms after the last change is a new step");
         fakeNow = 12900;
-        rename(t, "other");
-        h.noteEdit("Other", commandTarget(), "other key");
+        renameStep(h, t, "other", "Other", commandTarget(), "other key");
         check(h.steps().size() == 3, "merge: another key is a new step");
         fakeNow = 13000;
-        rename(t, "other2");
         h.endMergeRun();
-        h.noteEdit("Other", commandTarget(), "other key");
+        renameStep(h, t, "other2", "Other", commandTarget(), "other key");
         check(h.steps().size() == 4, "merge: after endMergeRun the same key is a new step");
         fakeNow = 13100;
-        rename(t, "other3");
-        h.noteEdit("Other", commandTarget(), "other key");
+        renameStep(h, t, "other3", "Other", commandTarget(), "other key");
         check(h.steps().size() == 4, "merge: and the next one within the window joins that one");
         h.undo();
         fakeNow = 13200;
-        rename(t, "after undo");
-        h.noteEdit("Other", commandTarget(), "other key");
+        renameStep(h, t, "after undo", "Other", commandTarget(), "other key");
         check(h.steps().size() == 4 && h.undoLabel() == "Other" && !h.canRedo(),
               "merge: an undo ends the run (the next edit is a new step replacing the redo branch)");
         fakeNow = 13300;
-        rename(t, "after undo 2");
-        h.noteEdit("Plain");
+        renameStep(h, t, "after undo 2", "Plain");
         fakeNow = 13350;
-        rename(t, "after undo 3");
-        h.noteEdit("Plain");
+        renameStep(h, t, "after undo 3", "Plain");
         check(h.steps().size() == 6, "merge: steps with no key never merge");
         while(h.undo()) {}
         check(savedBytes(t) == start, "merge: undoing everything brings back the start exactly (a merged step keeps its first state before)");
@@ -841,10 +836,8 @@ static void checkHistory(const QString& repo)
     {
         rename(t, original);
         trackHistory h(t);
-        rename(t, "f1");
-        h.noteEdit("S1");
-        rename(t, "f2");
-        h.noteEdit("S2");
+        renameStep(h, t, "f1", "S1");
+        renameStep(h, t, "f2", "S2");
         rename(t, "outside");
         h.foldOutsideChange();
         check(h.steps().size() == 2 && h.position() == 2 && h.headState() == captureTrackState(t),
@@ -860,8 +853,7 @@ static void checkHistory(const QString& repo)
               "fold: with nothing applied it ends Redo and becomes the start");
         h.foldOutsideChange();
         check(h.steps().isEmpty(), "fold: nothing changed, nothing done");
-        rename(t, "g1");
-        h.noteEdit("G1");
+        renameStep(h, t, "g1", "G1");
         check(h.undo() && t->name == "outside 2", "fold: the next step undoes to the folded state");
     }
 
@@ -874,8 +866,7 @@ static void checkHistory(const QString& repo)
         h.setMaxSteps(3);
         QList<QByteArray> after;
         for(int i = 1; i <= 5; ++i) {
-            rename(t, QString("cap %1").arg(i));
-            h.noteEdit(QString("Step %1").arg(i));
+            renameStep(h, t, QString("cap %1").arg(i), QString("Step %1").arg(i));
             after << savedBytes(t);
         }
         check(h.steps().size() == 3 && h.labels() == (QStringList() << "Step 3" << "Step 4" << "Step 5"),
@@ -888,8 +879,7 @@ static void checkHistory(const QString& repo)
         h.setMaxSteps(50000);
         h.clear();
         for(int i = 1; i <= 6; ++i) {
-            rename(t, QString("bytes %1").arg(i));
-            h.noteEdit(QString("Bytes %1").arg(i));
+            renameStep(h, t, QString("bytes %1").arg(i), QString("Bytes %1").arg(i));
         }
         qint64 full = 0;
         for(int i = 0; i < h.steps().size(); ++i) full += h.steps()[i].before.byteSize() + h.steps()[i].after.byteSize();
@@ -1319,6 +1309,111 @@ static void checkTransitionCommands(const QString& repo)
     } else {
         check(false, "transition commands: four-sections has a transition that can be locked");
     }
+}
+
+// Merging of real commands, as the windows have it (a window of one second,
+// trackHandler::mergeWindowMs; decision record 0011, point 7): a transition's
+// length typed digit by digit ("12.5": 1, 12, 12.5) is one step, and since
+// every command ends in the whole track computed from the anchor (decision
+// record 0013) its undo must still give the saved bytes and the exports of
+// before the first digit exactly, its redo those after the last. Another
+// value of the same transition, the same value of another section's
+// transition, and the same one after endMergeRun() stay steps of their own.
+static double lengthNow(track* t, const commandTarget& target)
+{
+    resolvedTarget r;
+    if(!resolveTarget(t, target, targetTransition, &r, NULL)) return 0.;
+    return r.transition->maxArgument - r.transition->minArgument;
+}
+
+static double changeNow(track* t, const commandTarget& target)
+{
+    resolvedTarget r;
+    if(!resolveTarget(t, target, targetTransition, &r, NULL)) return 0.;
+    return r.transition->symArg;
+}
+
+static void checkMergedCommands(const QStringList& projects)
+{
+    const commandSpec* spec = commandRegistry::find("transition.setLength");
+    check(spec != NULL && spec->merges, "merged commands: transition.setLength merges");
+    if(spec == NULL) return;
+    int tried = 0;
+    for(int p = 0; p < projects.size(); ++p) {
+        testProject project;
+        loadProjectFile(projects[p], &project);
+        QString name = QFileInfo(projects[p]).fileName();
+        for(int ti = 0; ti < project.tracks.size(); ++ti) {
+            track* t = project.tracks[ti];
+            commandTarget first;
+            if(!spec->findExampleTarget(t, ti, &first)) continue;
+            // a roll transition of another section, for "the same box on two sections"
+            commandTarget second;
+            for(int s = 0; s < t->lSections.size() && second.section < 0; ++s) {
+                // a force or geometric section's unlocked roll transition, whose
+                // length the command changes (a curve's or a locked one may not)
+                commandTarget c = commandTarget::forTransition(ti, s, funcRoll, 0);
+                resolvedTarget r;
+                if(s != first.section && (t->lSections[s]->type == forced || t->lSections[s]->type == geometric)
+                        && resolveTarget(t, c, targetTransition, &r, NULL) && !r.transition->locked) second = c;
+            }
+            ++tried;
+            QString where = QString("%1 track %2").arg(name).arg(ti+1);
+            trackHistory h(t);
+            h.setClock(fakeClock);
+            h.setMergeWindow(1000);
+            const QByteArray bytes0 = savedBytes(t);
+            const QList<QByteArray> exports0 = exportsOf(t);
+            QString error;
+            bool ok = true;
+            // three values typed one after the other (as "12.5" is 1, 12, 12.5),
+            // each changing the length a little, so that the train never stalls
+            const double L = lengthNow(t, first);
+            const double typed[] = { L + 0.1, L + 0.12, L + 0.125 };
+            for(int k = 0; k < 3; ++k) {
+                fakeNow = 50000 + 300*k;
+                ok = commandRegistry::run(&h, spec->name, first, commandArgs{{"length", typed[k]}}, &error) && ok;
+            }
+            const QByteArray bytes1 = savedBytes(t);
+            const QList<QByteArray> exports1 = exportsOf(t);
+            check(ok && h.steps().size() == 1 && h.steps()[0].calls.size() == 3,
+                  QString("merged commands, %1: \"12.5\" typed into a transition's length is one step of %2 commands (%3 steps) %4")
+                  .arg(where).arg(h.steps().isEmpty() ? 0 : h.steps()[0].calls.size()).arg(h.steps().size()).arg(error));
+            h.undo();
+            check(savedBytes(t) == bytes0 && exportsOf(t) == exports0,
+                  QString("merged commands, %1: its undo gives the saved bytes and exports of before the first digit (%2)")
+                  .arg(where).arg(exportDiff(exports0, exportsOf(t))));
+            h.redo();
+            check(savedBytes(t) == bytes1 && exportsOf(t) == exports1,
+                  QString("merged commands, %1: its redo gives those after the last digit (%2)").arg(where).arg(exportDiff(exports1, exportsOf(t))));
+
+            // after a redo the run is over: a new step
+            fakeNow = 60000;
+            commandRegistry::run(&h, spec->name, first, commandArgs{{"length", lengthNow(t, first) + 0.05}}, &error);
+            fakeNow = 60100;
+            commandRegistry::run(&h, "transition.setChange", first, commandArgs{{"change", changeNow(t, first) + 0.05}}, &error);
+            check(h.steps().size() == 3, QString("merged commands, %1: length then change of one transition are two steps (%2 in all)").arg(where).arg(h.steps().size()));
+            if(second.section >= 0) {
+                fakeNow = 60200;
+                commandRegistry::run(&h, spec->name, first, commandArgs{{"length", lengthNow(t, first) + 0.075}}, &error);
+                fakeNow = 60300;
+                commandRegistry::run(&h, spec->name, second, commandArgs{{"length", lengthNow(t, second) + 0.075}}, &error);
+                check(h.steps().size() == 5, QString("merged commands, %1: the same length on two sections is two steps (%2 in all)").arg(where).arg(h.steps().size()));
+            }
+            h.endMergeRun();    // a run of its own, whatever the edits above recorded
+            int before = h.steps().size();
+            fakeNow = 60400;
+            commandRegistry::run(&h, spec->name, first, commandArgs{{"length", lengthNow(t, first) + 0.05}}, &error);
+            h.endMergeRun();    // the box lost focus, or the selection changed
+            fakeNow = 60500;
+            commandRegistry::run(&h, spec->name, first, commandArgs{{"length", lengthNow(t, first) + 0.05}}, &error);
+            check(h.steps().size() == before + 2, QString("merged commands, %1: after endMergeRun the same box is a new step").arg(where));
+            while(h.undo()) {}
+            check(savedBytes(t) == bytes0 && exportsOf(t) == exports0,
+                  QString("merged commands, %1: undoing everything gives the loaded track exactly").arg(where));
+        }
+    }
+    check(tried > 0, QString("merged commands: run on %1 tracks").arg(tried));
 }
 
 // section.add then section.delete of the new section, for each kind and place;
@@ -2350,6 +2445,7 @@ int main(int argc, char *argv[])
     checkOutsideChangeWarning(repo);
     checkCommands(repo);
     checkTransitionCommands(repo);
+    checkMergedCommands(projects);
     checkSectionCommands(repo);
     checkDialogSteps(repo);
     checkRunningEqualsReopened(projects, false);

@@ -35,8 +35,9 @@ class trackWidget;
 
 // The panel of one track: the anchor fields, the section list and the fields of the
 // selected section. Created and owned by trackHandler; creates the sectionHandlers
-// (one per list row) and the smoothUi. Most edit slots live here: each pushes an
-// undoAction, changes the model, then calls track::updateTrack().
+// (one per list row) and the smoothUi. Most edit slots live here: each runs a
+// named command (core/command.h), which changes the model, computes the track
+// and records one undo step.
 class trackWidget : public QWidget
 {
     Q_OBJECT
@@ -61,7 +62,6 @@ public:
     void updateSectionFrame();
     void updateOptionsFrame();
 
-    void updateAnchorGeometrics();
     void setSelection(int index);
 
     void showAddedSection(int index);

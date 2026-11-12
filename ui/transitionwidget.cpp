@@ -19,7 +19,6 @@
 #include "transitionwidget.h"
 #include "optionsmenu.h"
 #include "ui_transitionwidget.h"
-#include "undohandler.h"
 #include "mainwindow.h"
 #include "lenassert.h"
 #include "trackwidget.h"
@@ -270,6 +269,10 @@ static bool runTransitionCommand(trackHandler* inTrack, const char* name, const 
     QString error;
     if(commandRegistry::run(inTrack->mHistory, name, target, args, &error)) return true;
     qWarning("Transition command %s failed: %s", name, qPrintable(error));
+    // refused: the editor's boxes show the model's values again (a rollback
+    // that rebuilt the track has selected the transition anew, trackReset())
+    transitionWidget* editor = inTrack->graphWidgetItem->transitionHandler;
+    editor->changeSubfunc(editor->getSelectedFunc());
     return false;
 }
 

@@ -29,8 +29,6 @@
 #include <sstream>
 #include "trackwidget.h"
 #include <QTimer>
-#include "undohandler.h"
-#include "undoaction.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QCloseEvent>
@@ -38,6 +36,9 @@
 #include "measure.h"
 #include "ridesheet.h"
 #include <QTreeWidget>
+#include <QApplication>
+#include "projectwidget.h"
+#include "trackhandler.h"
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -176,6 +177,19 @@ MainWindow::MainWindow(QWidget *parent) :
     autosave->start(1000*60);
 
     connect(this, SIGNAL(emitMessage(QString,int)), ui->statusBar, SLOT(showMessage(QString,int)));
+
+    // a run of digits typed into one box is one undo step until the box loses
+    // focus (decision record 0011, point 7)
+    connect(qApp, SIGNAL(focusChanged(QWidget*,QWidget*)), this, SLOT(focusMoved(QWidget*,QWidget*)));
+}
+
+void MainWindow::focusMoved(QWidget* old, QWidget* now)
+{
+    Q_UNUSED(now);
+    if(old == NULL || project == NULL) return;
+    for(int i = 0; i < project->trackList.size(); ++i) {
+        project->trackList[i]->endMergeRun();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -390,7 +404,7 @@ void MainWindow::on_actionUndo_triggered()
     } else {
         mWidget = (trackWidget*)ui->tabChooser->currentWidget();
     }
-    mWidget->inTrack->mUndoHandler->doUndo();
+    mWidget->inTrack->undo();
     setUndoButtons();
 }
 
@@ -408,7 +422,7 @@ void MainWindow::on_actionRedo_triggered()
     } else {
         mWidget = (trackWidget*)ui->tabChooser->currentWidget();
     }
-    mWidget->inTrack->mUndoHandler->doRedo();
+    mWidget->inTrack->redo();
     setUndoButtons();
 }
 
@@ -677,6 +691,10 @@ void MainWindow::updateInfoPanel(mnode* lastnode)
 
 void MainWindow::setUndoButtons()
 {
+    // the entries name the step they undo or redo ("Undo Change start speed")
+    ui->actionRedo->setText(QString("Redo"));
+    ui->actionUndo->setText(QString("Undo"));
+
     trackWidget* mWidget;
     if(ui->tabChooser->currentIndex() == 0) {
         if(ui->projectTab->selTrack) {
@@ -697,8 +715,11 @@ void MainWindow::setUndoButtons()
     }
 
     // read from the track's history, whoever changed it
-    ui->actionRedo->setEnabled(mWidget->inTrack->mHistory->canRedo());
-    ui->actionUndo->setEnabled(mWidget->inTrack->mHistory->canUndo());
+    trackHistory* history = mWidget->inTrack->mHistory;
+    ui->actionRedo->setEnabled(history->canRedo());
+    ui->actionUndo->setEnabled(history->canUndo());
+    if(history->canRedo()) ui->actionRedo->setText(QString("Redo ") + history->redoLabel());
+    if(history->canUndo()) ui->actionUndo->setText(QString("Undo ") + history->undoLabel());
 }
 
 void MainWindow::displayStatusMessage(QString message)
@@ -731,7 +752,7 @@ void MainWindow::openTab(trackHandler* _track)
     // A track opened with nothing to undo starts its undo list from what it
     // is now, whatever reached it without a step.
     if(_track->mHistory->steps().isEmpty()) {
-        _track->mUndoHandler->clearActions();
+        _track->clearHistory();
     }
     this->setUpdatesEnabled(false);
     _track->trackWidgetItem->on_sectionListWidget_itemSelectionChanged();

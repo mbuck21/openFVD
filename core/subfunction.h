@@ -70,8 +70,6 @@ public:
     void saveSubFunc(std::iostream& file);
     void loadSubFunc(std::iostream& file);
     void legacyLoadSubFunc(std::iostream& file);
-    void saveSubFunc(std::stringstream& file);
-    void loadSubFunc(std::stringstream& file);
 
     float minArgument;
     float maxArgument;

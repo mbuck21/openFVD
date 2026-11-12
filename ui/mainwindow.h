@@ -64,7 +64,6 @@
 
 
 class exportUi;
-class undoHandler;
 class optionsMenu;
 class conversionPanel;
 class graphWidget;
@@ -133,6 +132,10 @@ signals:
 
 public slots:
     void showCurInfoPanel();
+
+    // The keyboard focus moved (QApplication::focusChanged): a box was left,
+    // so the next value typed anywhere is an undo step of its own.
+    void focusMoved(QWidget* old, QWidget* now);
 
     void on_actionNew_triggered();
 

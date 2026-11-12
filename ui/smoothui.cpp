@@ -146,6 +146,9 @@ bool smoothUi::runCommand(const QString& name, const QVariantMap& args)
     if(!bStepOpen) qWarning("smoothing dialog: %s runs with no step open", qPrintable(name));
     if(!commandRegistry::run(m_handler->mHistory, name, commandTarget::forTrack(m_handler->getID()-1), args, &error)) {
         qWarning("smoothing dialog: %s", qPrintable(error));
+        // refused: the boxes show the selected entry's values again, not the
+        // number the model did not take
+        on_smoothUnitTree_itemSelectionChanged();
         return false;
     }
     return true;

@@ -677,6 +677,8 @@ void graphWidget::deactivateGraph(graphHandler *curGraph)
 
 void graphWidget::selectionChanged()
 {
+    // another transition selected: the next typed value is a step of its own
+    selTrack->endMergeRun();
     QList<QCPGraph*> selected = ui->plotter->selectedGraphs();
     for(int i = 0; i<4; ++i) {
         yAxes[i]->grid()->setVisible(false);

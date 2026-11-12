@@ -463,7 +463,7 @@ QList<commandSpec> sectionCommands()
         s.description = "Chooses whether a straight, curve, force or geometric section runs at a speed you give (true) or at the speed the physics gives (false); the track is recomputed from it.";
         s.target = targetSection;
         s.params << commandParam::boolParam("fixed", "true for the fixed speed (see section.setSpeed), false for the speed from the physics (friction and gravity).");
-        s.label = "Change fixed speed";
+        s.label = "Switch fixed speed on or off";
         s.example.insert("fixed", true);
         s.exampleTarget = physicsSpeed;
         s.apply = applySetSpeedFixed;

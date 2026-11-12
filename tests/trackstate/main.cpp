@@ -144,8 +144,7 @@ static QByteArray readFile(const QString& fileName)
     return file.readAll();
 }
 
-// What track::saveTrack() writes, through a plain std::iostream (never a
-// std::stringstream, whose overloads write the old undo's format).
+// What track::saveTrack() writes, through a plain std::iostream.
 static QByteArray savedBytes(track* t)
 {
     std::stringbuf buf(ios::in | ios::out | ios::binary);

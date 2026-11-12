@@ -352,7 +352,7 @@ QList<commandSpec> transitionCommands()
         s.description = "Locks a transition so that it always stretches to the end of its section, or unlocks it; the section must allow it (at most two of its three functions may have a locked transition).";
         s.target = targetTransition;
         s.params << commandParam::boolParam("locked", "true to lock the transition, false to unlock it.");
-        s.label = "Lock transition";
+        s.label = "Lock or unlock transition";
         s.example.insert("locked", true);
         s.exampleTarget = unlockedLockable;
         s.apply = applySetLocked;

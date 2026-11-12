@@ -254,6 +254,11 @@ void rateForces(track* t, bool pitchTyped, double rate)
 {
     mnode* anchor = t->anchorNode;
     const float target = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+    // std::cos and std::sin of a float on purpose, not the double C functions
+    // the static_asserts above are about: F_PI is a float, so this is the
+    // float cos and sin that track::updateAnchorGeometrics() (track.cpp, which
+    // has "using namespace std") calls on the same expression when a load
+    // turns the forces into rates. c and s must be the load's.
     const float c = (float)std::cos(anchor->fRoll*F_PI/180);
     const float s = (float)std::sin(anchor->fRoll*F_PI/180);
 

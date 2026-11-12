@@ -20,6 +20,7 @@
 #include "command.h"
 #include "trackhistory.h"
 #include "track.h"
+#include "lenassert.h"
 
 #include <QJsonDocument>
 #include <QJsonValue>
@@ -596,7 +597,11 @@ bool commandRegistry::runSpec(trackHistory* history, const commandSpec& spec, co
             // metres) away from the one its settings give. The transitions as
             // a load reads them back, then the whole track from the anchor, as
             // a load computes it.
-            t->settleTransitions();
+            // false when eight passes did not settle the transitions: loud
+            // (an assert in a debug build, a qCritical in release), the run
+            // goes on as before
+            bool settled = t->settleTransitions();
+            lenAssert(settled && "the transitions did not settle");
             t->updateFromAnchor();
         }
         // The smoothing entries' names and node ranges, which a load takes

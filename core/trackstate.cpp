@@ -50,11 +50,11 @@ void putNode(mnode* node, const QByteArray& bytes)
     }
 }
 
-// A plain std::iostream over a string buffer. Deliberately not a
-// std::stringstream: several save and load functions have a second overload
-// taking std::stringstream& that writes the old undo's private format, not
-// the file format (secforced's drops fVel and bSpeed). Through this stream
-// the std::iostream& overloads, the file format, are always the ones called.
+// A plain std::iostream over a binary string buffer: the save and load
+// functions take a std::iostream& and write and read the file format. (The
+// std::stringstream& overloads of the 2016 undo, which wrote a private format
+// that dropped a force section's fVel and bSpeed, are gone; a std::stringstream
+// would now reach the same functions.)
 class byteStream
 {
 public:

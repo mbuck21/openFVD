@@ -357,60 +357,6 @@ void secbezier::legacyLoadSection(std::iostream& file)
     }
 }
 
-void secbezier::saveSection(std::stringstream& file)
-{
-    file << "BEZ";
-    int namelength = sName.toUtf8().length(); // bytes, as written below
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    int bezcount = bezList.size();
-    writeBytes(&file, (const char*)&bezcount, sizeof(int));
-    for(int i = 0; i < bezcount; ++i)
-    {
-		writeBytes(&file, (const char*)&bezList[i]->P1, sizeof(glm::vec3));
-		writeBytes(&file, (const char*)&bezList[i]->Kp1, sizeof(glm::vec3));
-		writeBytes(&file, (const char*)&bezList[i]->Kp2, sizeof(glm::vec3));
-		writeBytes(&file, (const char*)&bezList[i]->contRoll, sizeof(bool));
-		writeBytes(&file, (const char*)&bezList[i]->relRoll, sizeof(bool));
-		writeBytes(&file, (const char*)&bezList[i]->roll, sizeof(float));
-    }
-
-    int supcount = supList.size();
-    writeBytes(&file, (const char*)&supcount, sizeof(int));
-    for(int i = 0; i < supcount; ++i)
-    {
-        writeBytes(&file, (const char*)&supList[i], sizeof(glm::vec3));
-    }
-}
-
-void secbezier::loadSection(std::stringstream& file)
-{
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-    int bezcount = readInt(&file);
-    for(int i = 0; i < bezcount; ++i)
-    {
-        bezList.append(new bezier_t);
-		bezList[i]->P1 = readVec3(&file);
-		bezList[i]->Kp1 = readVec3(&file);
-		bezList[i]->Kp2 = readVec3(&file);
-		bezList[i]->contRoll = readBool(&file);
-		bezList[i]->relRoll = readBool(&file);
-		bezList[i]->roll = readFloat(&file);
-		bezList[i]->fVel = 0;
-    }
-
-    int supcount = readInt(&file);
-    for(int i = 0; i < supcount; ++i)
-    {
-        supList.append(readVec3(&file));
-    }
-}
-
 float secbezier::getMaxArgument()
 {
     return 0.f;

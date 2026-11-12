@@ -28,10 +28,17 @@ Each method sends one request line and reads one reply line. A reply with
 names end in _raw return the reply instead. Run as a script it does a short
 demonstration on samples/baseline/four-sections.fvd and ends with a line OK.
 The operations are in cli/README.md.
+
+The program writes messages to its standard error (a lenAssert line when the
+train stalls, for example). A thread reads them as they come, so a long
+session never fills that pipe and hangs; the last lines are kept
+(stderr_lines()), and stderr_log= (a path) keeps every one in a file.
 """
+import collections
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -48,9 +55,12 @@ class SessionError(Exception):
 
 
 class Session:
-    def __init__(self, project, track: int = 1, exe=None, log=None):
+    KEPT_STDERR_LINES = 200
+
+    def __init__(self, project, track: int = 1, exe=None, log=None, stderr_log=None):
         """Starts `fvdcore session <project> --track <track>`. exe defaults to build/dist/fvdcore.exe
-        beside this script's repository; log (a path) keeps the program's debug output."""
+        beside this script's repository; log (a path) keeps the program's debug output; stderr_log
+        (a path) keeps everything the program writes to its standard error."""
         exe = Path(exe) if exe is not None else DEFAULT_EXE
         if not exe.is_file():
             raise FileNotFoundError(f"{exe} not found: build first (docs/building.md) or give exe=")
@@ -59,6 +69,22 @@ class Session:
             command += ["--log", str(log)]
         self._proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE, cwd=str(exe.parent))
+        # standard error is read all the time (see the module text)
+        self._stderr_kept = collections.deque(maxlen=self.KEPT_STDERR_LINES)
+        self._stderr_file = open(stderr_log, "ab") if stderr_log is not None else None
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, args=(self._proc.stderr,), daemon=True)
+        self._stderr_thread.start()
+
+    def _drain_stderr(self, pipe) -> None:
+        for raw in iter(pipe.readline, b""):
+            if self._stderr_file is not None:
+                self._stderr_file.write(raw)
+                self._stderr_file.flush()
+            self._stderr_kept.append(raw.decode("utf-8", "replace").rstrip("\r\n"))
+
+    def stderr_lines(self) -> list:
+        """The last lines (up to KEPT_STDERR_LINES) the program wrote to its standard error."""
+        return list(self._stderr_kept)
 
     # ---- the wire -------------------------------------------------------------------------
     def request_raw(self, **request) -> dict:
@@ -85,9 +111,10 @@ class Session:
     def _stderr(self) -> str:
         try:
             self._proc.wait(timeout=2)
-            text = self._proc.stderr.read().decode("utf-8", "replace").strip()
+            self._stderr_thread.join(timeout=2)
         except Exception:
-            text = ""
+            pass
+        text = "\n".join(self._stderr_kept).strip()
         return f": {text}" if text else ""
 
     # ---- the operations ---------------------------------------------------------------------
@@ -180,11 +207,15 @@ class Session:
             self._proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self._proc.kill()
+        self._stderr_thread.join(timeout=2)
         for pipe in (self._proc.stdout, self._proc.stderr):
             try:
                 pipe.close()
             except OSError:
                 pass
+        if self._stderr_file is not None:
+            self._stderr_file.close()
+            self._stderr_file = None
         self._proc = None
 
     def __enter__(self):

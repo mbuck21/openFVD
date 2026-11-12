@@ -20,7 +20,6 @@
 #include "ui_optionsmenu.h"
 #include "qcolordialog.h"
 #include <fstream>
-#include "undohandler.h"
 #include "osx/common.h"
 #include "glviewwidget.h"
 #include "mainwindow.h"
