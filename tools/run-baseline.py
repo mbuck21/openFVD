@@ -47,14 +47,23 @@ Tolerances: exact, unless tolerances.json next to the references lists the file.
               <stem>.ref.<kind> files there, byte for byte (references recorded
               with a rebuilt program, not the 2016 binary; see the README there).
 
---core        runs every comparison above with the console program fvdcore
+--core        runs every comparison above, except the undo check and the fixtures,
+              with the console program fvdcore
               (cli/, built from core/ alone; build/dist/fvdcore.exe, else the one
               tools/run-tests.sh builds into build/tests/coreonly/) in place of
               FVD.exe --batch-export:
                   fvdcore export <project> <temporary folder>
               It writes the same files, so the same references apply. --core-exe
-              names another fvdcore. It does not combine with --undo-check,
-              --fixtures or --imports, which need the windows.
+              names another fvdcore. It does not combine with --undo-check or
+              --fixtures, which need the windows. With --imports each input of
+              samples/import/ goes through `fvdcore import --window-project
+              --export-dir`, and the re-saved project and the exports are
+              compared with the <stem>.ref.* files there (not the .ref.batch.txt
+              report, which describes the windows).
+
+When a run of the program dies (a non-zero exit code and no result file) the
+folder it worked in is kept, with its fvd.log, as build/crash-<date>-<name>/
+and its path is printed, so a crash that happens once leaves evidence.
 
 Prints one line per comparison and ends with PASS or FAIL (exit code 0 or 1).
 See docs/testing.md.
@@ -69,6 +78,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -94,6 +104,31 @@ TIME_LIMIT_S = 60
 # of them); on gen-geometric-distance, whose scripted edits leave long sections
 # without a valid speed, one run takes about 50 s.
 UNDO_TIME_LIMIT_S = 180
+ACCESS_VIOLATION = 0xC0000005   # Windows' exit code for a read or write of memory the program does not own
+
+
+def describe_exit_code(code) -> str:
+    """The exit code, and what it means when it is a known crash."""
+    if code is None:
+        return "no exit code"
+    unsigned = code & 0xFFFFFFFF
+    if unsigned == ACCESS_VIOLATION:
+        return f"exit code {code} (0x{unsigned:08X}): an access violation, the program touched memory it does not own"
+    return f"exit code {code}"
+
+
+def keep_crash_evidence(work: Path, name: str, code) -> Optional[Path]:
+    """Copies the folder a run worked in (its output and fvd.log) to build/crash-<date>-<name>/
+    before the temporary folder is deleted. Returns the folder, or None when it could not."""
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
+    target = ROOT / "build" / f"crash-{time.strftime('%Y%m%d-%H%M%S')}-{safe}"
+    try:
+        shutil.copytree(work, target, dirs_exist_ok=True)
+    except OSError as error:
+        print(f"            could not keep the folder of the crashed run: {error}")
+        return None
+    print(f"            kept the crashed run's folder (output and fvd.log): {target}")
+    return target
 FIXTURE_PREFIX = "gen-"
 SHOWN_DIFFERENCES = 6
 
@@ -186,7 +221,9 @@ def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
         lines = report.read_text(encoding="utf-8").splitlines() if report.is_file() else []
         if not lines or lines[-1] != "OK" or code != 0:
             last = lines[-1] if lines else "no result file"
-            print(f"FAILED    {project.name}: exit code {code}, {last}")
+            print(f"FAILED    {project.name}: {describe_exit_code(code)}, {last}")
+            if code != 0 and not lines:
+                keep_crash_evidence(work, project.name, code)
             return False
         for line in lines[:-1]:
             if not line.startswith("wrote "):
@@ -267,7 +304,9 @@ def undo_check(exe: Path, project: Path, keep: Optional[Path]) -> bool:
         summary = next((line for line in lines if line.startswith("undo action types exercised")), "")
         summary = summary.split(":")[0].replace("undo action types exercised", "action types exercised")
         if code != 0 or last != "OK":
-            print(f"UNDO FAIL {project.name}: exit code {code}, {last}")
+            print(f"UNDO FAIL {project.name}: {describe_exit_code(code)}, {last}")
+            if code != 0 and not lines:
+                keep_crash_evidence(work, "undo-" + project.name, code)
             for line in lines:
                 if line.startswith("A2 ") or line.startswith("B2 ") or "FAILED" in line or "not available" in line:
                     print(f"            {line}")
@@ -297,7 +336,9 @@ def fixtures_check(exe: Path, keep: Optional[Path]) -> bool:
         lines = report_lines(report)
         last = lines[-1] if lines else "no result file"
         if code != 0 or last != "OK":
-            print(f"FIXTURES FAIL: exit code {code}, {last}")
+            print(f"FIXTURES FAIL: {describe_exit_code(code)}, {last}")
+            if code != 0 and not lines:
+                keep_crash_evidence(work, "fixtures", code)
             return False
         generated = sorted(out.glob(f"{FIXTURE_PREFIX}*.fvd"))
         print(f"generated {len(generated)} projects: {', '.join(p.name for p in generated)}")
@@ -343,12 +384,72 @@ def import_check(exe: Path, source: Path, keep: Optional[Path]) -> bool:
         lines = report_lines(report)
         last = lines[-1] if lines else "no result file"
         if code != 0 or last != "OK":
-            print(f"IMPORT FAIL {source.name}: exit code {code}, {last}")
+            print(f"IMPORT FAIL {source.name}: {describe_exit_code(code)}, {last}")
+            if code != 0 and not lines:
+                keep_crash_evidence(work, "import-" + source.name, code)
             return False
         if source.name in UNSTABLE_IMPORTS:
             print(f"IMPORT OK {source.name}: imported; not compared ({UNSTABLE_IMPORTS[source.name]})")
             return True
         names = [line[len("wrote "):] for line in lines if line.startswith("wrote ")] + [report.name]
+        all_ok = True
+        for name in names:
+            ref_name = stem + ".ref" + name[len(stem):]
+            reference = IMPORTS / ref_name
+            label = f"{name} against {ref_name}"
+            if not reference.is_file():
+                print(f"NO REFERENCE {label}")
+                all_ok = False
+                continue
+            ok, details = compare(reference, out / name, {})
+            summary = details[-1] if details else ""
+            print(f"{'MATCH' if ok else 'NO MATCH':9} {label} (exact): {summary}")
+            if not ok:
+                for detail in details[:-1][:SHOWN_DIFFERENCES]:
+                    print(f"            {detail}")
+            all_ok = all_ok and ok
+        return all_ok
+
+
+def core_import_check(exe: Path, source: Path, keep: Optional[Path]) -> bool:
+    """The same import through the console program: `fvdcore import` into a project that starts as the
+    windowed program's does (one empty track), writing the exports and the project from memory as
+    --batch-import does (a saved import opened again does not come back the same, so `fvdcore export`
+    of the saved file would not match). The re-saved project and the exports are compared with the
+    <stem>.ref.* files; the .ref.batch.txt report describes the windows and is not compared.
+    True when all match."""
+    kind = IMPORT_KINDS[source.suffix.lower()]
+    stem = source.stem
+    with tempfile.TemporaryDirectory(prefix="fvd-import-core-") as tmp:
+        work = Path(tmp)
+        out = work / "out"
+        out.mkdir()
+        project = work / f"{stem}.fvd"
+        env = core_environment()
+        try:
+            first = subprocess.run([str(exe), "import", kind, str(source), str(project), "--window-project",
+                                    "--export-dir", str(out)],
+                                   cwd=work, env=env, timeout=TIME_LIMIT_S, capture_output=True)
+            if first.returncode != 0:
+                text = first.stderr.decode("utf-8", "replace").strip()
+                print(f"IMPORT FAIL {source.name}: fvdcore import: {describe_exit_code(first.returncode)}, {text}")
+                if not text:
+                    keep_crash_evidence(work, "core-import-" + source.name, first.returncode)
+                return False
+            if source.name in UNSTABLE_IMPORTS:
+                print(f"IMPORT OK {source.name}: imported; not compared ({UNSTABLE_IMPORTS[source.name]})")
+                return True
+        except subprocess.TimeoutExpired:
+            print(f"IMPORT FAIL {source.name}: no result after {TIME_LIMIT_S} s, the program was stopped")
+            return False
+        if keep is not None and out.is_dir():
+            keep.mkdir(parents=True, exist_ok=True)
+            for produced in out.iterdir():
+                shutil.copy2(produced, keep / produced.name)
+        names = sorted(produced.name for produced in out.iterdir()) if out.is_dir() else []
+        if not names:
+            print(f"IMPORT FAIL {source.name}: fvdcore import wrote no files")
+            return False
         all_ok = True
         for name in names:
             ref_name = stem + ".ref" + name[len(stem):]
@@ -402,8 +503,8 @@ def main() -> int:
                         help="the fvdcore to test (default: where tools/run-tests.sh builds it)")
     args = parser.parse_args()
 
-    if args.core and (args.undo_check or args.fixtures or args.imports):
-        print("--core does not combine with --undo-check, --fixtures or --imports: "
+    if args.core and (args.undo_check or args.fixtures):
+        print("--core does not combine with --undo-check or --fixtures: "
               "those drive the windows, which fvdcore does not have")
         print("FAIL")
         return 1
@@ -456,13 +557,16 @@ def main() -> int:
         passed = fixtures_check(exe, keep) and passed
 
     if args.imports:
-        print("--- imports (--batch-import)")
+        print("--- imports (fvdcore import)" if args.core else "--- imports (--batch-import)")
         inputs = import_inputs()
         if not inputs:
             print(f"IMPORT FAIL no inputs found in {IMPORTS}")
             passed = False
         for source in inputs:
-            passed = import_check(exe, source.resolve(), keep) and passed
+            if args.core:
+                passed = core_import_check(exe, source.resolve(), keep) and passed
+            else:
+                passed = import_check(exe, source.resolve(), keep) and passed
 
     print("PASS" if passed else "FAIL")
     return 0 if passed else 1

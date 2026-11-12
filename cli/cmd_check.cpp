@@ -50,6 +50,40 @@ static QJsonValue rounded(double v)
     return std::isfinite(v) ? QJsonValue(std::floor(v*10000.0 + 0.5)/10000.0) : QJsonValue(QJsonValue::Null);
 }
 
+// The findings as one JSON object, shared with the session's "check".
+QJsonObject checkFindingsJson(track* t, const QList<finding>& found)
+{
+    int counts[3] = { 0, 0, 0 };
+    for(int i = 0; i < found.size(); ++i) counts[found.at(i).severity]++;
+    QJsonObject top;
+    QJsonArray list;
+    for(int i = 0; i < found.size(); ++i) {
+        const finding& f = found.at(i);
+        QJsonObject o;
+        o["check"] = f.checkId;
+        o["measure"] = f.measureId;
+        o["severity"] = severityWord(f.severity);
+        o["from_node"] = f.fromNode;
+        o["to_node"] = f.toNode;
+        o["from_time_s"] = rounded(f.fromNode/F_HZ);
+        o["to_time_s"] = rounded(f.toNode/F_HZ);
+        o["from_dist_m"] = rounded(t->getPoint(f.fromNode)->fTotalLength);
+        o["to_dist_m"] = rounded(t->getPoint(f.toNode)->fTotalLength);
+        o["worst_node"] = f.worstNode;
+        o["worst_value"] = num(f.worstValue);
+        o["limit"] = num(f.limit);
+        o["below"] = f.below;
+        o["non_finite"] = f.nonFinite;
+        o["text"] = f.text;
+        list.append(o);
+    }
+    top["findings"] = list;
+    top["problems"] = counts[findingProblem];
+    top["warnings"] = counts[findingWarning];
+    top["information"] = counts[findingInformation];
+    return top;
+}
+
 static int runCheck(const QStringList& args)
 {
     QStringList positional, flags;
@@ -115,32 +149,7 @@ static int runCheck(const QStringList& args)
 
     QString text;
     if(flags.contains("--json")) {
-        QJsonObject top;
-        QJsonArray list;
-        for(int i = 0; i < found.size(); ++i) {
-            const finding& f = found.at(i);
-            QJsonObject o;
-            o["check"] = f.checkId;
-            o["measure"] = f.measureId;
-            o["severity"] = severityWord(f.severity);
-            o["from_node"] = f.fromNode;
-            o["to_node"] = f.toNode;
-            o["from_time_s"] = rounded(f.fromNode/F_HZ);
-            o["to_time_s"] = rounded(f.toNode/F_HZ);
-            o["from_dist_m"] = rounded(t->getPoint(f.fromNode)->fTotalLength);
-            o["to_dist_m"] = rounded(t->getPoint(f.toNode)->fTotalLength);
-            o["worst_node"] = f.worstNode;
-            o["worst_value"] = num(f.worstValue);
-            o["limit"] = num(f.limit);
-            o["below"] = f.below;
-            o["non_finite"] = f.nonFinite;
-            o["text"] = f.text;
-            list.append(o);
-        }
-        top["findings"] = list;
-        top["problems"] = counts[findingProblem];
-        top["warnings"] = counts[findingWarning];
-        top["information"] = counts[findingInformation];
+        QJsonObject top = checkFindingsJson(t, found);
         text = QString::fromUtf8(QJsonDocument(top).toJson(QJsonDocument::Indented));
     } else {
         for(int i = 0; i < found.size(); ++i) {

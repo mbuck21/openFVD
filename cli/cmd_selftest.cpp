@@ -26,6 +26,10 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <cstdio>
 #ifdef _WIN32
@@ -34,8 +38,10 @@
 #include <unistd.h>
 #endif
 
+#include "../core/command.h"
 #include "../core/measure.h"
 #include "../core/finding.h"
+#include "../core/nolimitsimporter.h"
 #include "../core/ridesummary.h"
 
 static QByteArray readAll(const QString& fileName)
@@ -84,6 +90,152 @@ static int runCaptured(const command& cmd, const QStringList& args, const QStrin
     fclose(redirected);
     out = readAll(file);
     return code;
+}
+
+// ---- the session ------------------------------------------------------------
+
+static QByteArray requestLine(const QString& json)
+{
+    return json.toUtf8() + "\n";
+}
+
+static QList<QJsonObject> replies(const QByteArray& output)
+{
+    QList<QJsonObject> list;
+    QList<QByteArray> lines = output.split('\n');
+    for(int i = 0; i < lines.size(); ++i) {
+        if(lines.at(i).trimmed().isEmpty()) continue;
+        list.append(QJsonDocument::fromJson(lines.at(i)).object());
+    }
+    return list;
+}
+
+static QString q(const QString& path)
+{
+    QString p = path;
+    p.replace('\\', '/');
+    return "\"" + p + "\"";
+}
+
+// The session (cli/cmd_session.cpp) driven on text, and the three importers.
+static void checkSessionAndImport(bool& allOk, const QString& repo, const QString& tmp, const QString& project)
+{
+    QString error;
+    QString a = QDir(tmp).filePath("session-start.fvd"), b = QDir(tmp).filePath("session-undone.fvd");
+    QString c = QDir(tmp).filePath("session-rolled.fvd"), d = QDir(tmp).filePath("session-changed.fvd");
+    QByteArray in;
+    in += requestLine("{\"op\":\"describe\"}");                                                             // 0
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(a) + "}");                                          // 1
+    in += requestLine("{\"op\":\"summary\"}");                                                              // 2
+    in += requestLine("{\"op\":\"run\",\"name\":\"track.setFriction\",\"args\":{\"friction\":0.2}}");          // 3
+    in += requestLine("{\"op\":\"summary\"}");                                                              // 4
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(d) + "}");                                          // 5
+    in += requestLine("{\"op\":\"undo\"}");                                                                 // 6
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(b) + "}");                                          // 7
+    in += requestLine("{\"op\":\"begin\",\"label\":\"two\"}");                                              // 8
+    in += requestLine("{\"op\":\"run\",\"name\":\"track.setFriction\",\"args\":{\"friction\":0.3}}");          // 9
+    in += requestLine("{\"op\":\"run\",\"name\":\"track.setFriction\",\"args\":{\"friction\":0.4}}");          // 10
+    in += requestLine("{\"op\":\"end\",\"commit\":false}");                                                  // 11
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(c) + "}");                                          // 12
+    in += requestLine("{\"op\":\"history\"}");                                                              // 13
+    in += requestLine("this is not json");                                                                  // 14
+    in += requestLine("{\"op\":\"summary\",\"sections\":true}");                                            // 15
+    in += requestLine("{\"op\":\"sectionEnd\",\"section\":3}");                                              // 16
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(a) + "}");                                          // 17 refused
+    in += requestLine("{\"op\":\"save\",\"path\":" + q(a) + ",\"force\":true}");                            // 18
+    in += requestLine("{\"op\":\"run\",\"name\":\"track.setFriction\",\"args\":{\"friction\":9}}");            // 19 out of range
+    in += requestLine("{\"op\":\"recompute\"}");                                                            // 20
+    in += requestLine("{\"op\":\"measures\",\"ids\":[\"speed\"],\"node\":0}");                              // 21
+    in += requestLine("{\"op\":\"quit\"}");                                                                 // 22
+    QByteArray out = sessionRunText(project, 1, in, &error);
+    QList<QJsonObject> r = replies(out);
+    report(allOk, r.size() == 23, QString("the session answers every request line with one line (%1 replies for 23 requests) %2").arg(r.size()).arg(error));
+    if(r.size() != 23) return;
+
+    const QList<commandSpec>& registered = commandRegistry::all();
+    QJsonArray listed = r.at(0).value("commands").toArray();
+    bool every = r.at(0).value("ok").toBool() && listed.size() == registered.size();
+    for(int i = 0; i < registered.size() && every; ++i) {
+        bool found = false;
+        for(int k = 0; k < listed.size(); ++k) {
+            if(listed.at(k).toObject().value("name").toString() == registered.at(i).name) found = true;
+        }
+        if(!found) every = false;
+    }
+    report(allOk, every, QString("describe lists all %1 registered commands").arg(registered.size()));
+
+    double length0 = r.at(2).value("summary").toObject().value("duration_s").toDouble();
+    double length1 = r.at(4).value("summary").toObject().value("duration_s").toDouble();
+    double top0 = r.at(2).value("summary").toObject().value("top_speed").toObject().value("value").toDouble();
+    double top1 = r.at(4).value("summary").toObject().value("top_speed").toObject().value("value").toDouble();
+    report(allOk, r.at(3).value("ok").toBool() && (length0 != length1 || top0 != top1),
+           QString("run track.setFriction changes the summary (duration %1 s to %2 s, top speed %3 to %4 m/s)").arg(length0).arg(length1).arg(top0).arg(top1));
+    report(allOk, r.at(6).value("ok").toBool() && r.at(6).value("done").toBool() && r.at(6).value("label").toString() == "Change friction",
+           "undo reports that it happened, with the step's label");
+    checkSame(allOk, "after undo the saved bytes equal the start", b, a);
+    report(allOk, readAll(d) != readAll(QDir(tmp).filePath("session-start.fvd")), "the changed project saves differently from the start");
+    report(allOk, r.at(11).value("ok").toBool() && !r.at(11).value("recorded").toBool(),
+           "end with commit false leaves no step");
+    checkSame(allOk, "begin, two runs, end (rolled back): the saved bytes equal the start", c, QDir(tmp).filePath("session-undone.fvd"));
+    report(allOk, r.at(13).value("steps").toArray().size() == 1 && r.at(13).value("position").toInt() == 0,
+           "the history holds the one undone step and nothing from the rolled-back scope");
+    report(allOk, !r.at(14).value("ok").toBool() && !r.at(14).value("error").toString().isEmpty() && r.at(15).value("ok").toBool(),
+           QString("a bad line gets an error reply (\"%1\") and the next request works").arg(r.at(14).value("error").toString()));
+
+    QJsonArray sections = r.at(15).value("summary").toObject().value("section_list").toArray();
+    QJsonObject end = r.at(16);
+    QJsonObject sheet = sections.size() >= 3 ? sections.at(2).toObject() : QJsonObject();
+    bool same = end.value("ok").toBool() && end.value("x").toDouble() == sheet.value("end_x").toDouble()
+            && end.value("y").toDouble() == sheet.value("end_y").toDouble() && end.value("z").toDouble() == sheet.value("end_z").toDouble()
+            && end.value("heading_deg").toDouble() == sheet.value("end_heading_deg").toDouble()
+            && end.value("pitch_deg").toDouble() == sheet.value("end_pitch_deg").toDouble()
+            && end.value("bank_deg").toDouble() == sheet.value("end_bank_deg").toDouble()
+            && end.value("speed_mps").toDouble() == sheet.value("end_speed_mps").toDouble();
+    report(allOk, same, "sectionEnd of section 3 equals the matching entry of summary with sections");
+    report(allOk, !r.at(17).value("ok").toBool() && r.at(17).value("error").toString().contains("already exists") && r.at(18).value("ok").toBool(),
+           "save refuses to overwrite without force and writes with it");
+    report(allOk, !r.at(19).value("ok").toBool() && !r.at(19).value("error").toString().isEmpty() && r.at(20).value("ok").toBool()
+           && r.at(21).value("ok").toBool() && r.at(22).value("ok").toBool(),
+           "a command refused by its range answers with the reason; recompute, measures and quit work");
+
+    // the importers: the three samples import, broken input is refused with a message
+    QString imports = QDir(repo).filePath("samples/import");
+    QStringList kinds, files;
+    kinds << "nltrack" << "txt" << "csv";
+    files << "nl1.nltrack" << "pointlist.txt" << "nl2.csv";
+    for(int i = 0; i < 3; ++i) {
+        QString outFile = QDir(tmp).filePath(QString("import-%1.fvd").arg(kinds.at(i)));
+        int code = cmdImport.run(QStringList() << kinds.at(i) << QDir(imports).filePath(files.at(i)) << outFile);
+        coreProject again;
+        bool loadedBack = loadProject(outFile, again, error) && !again.tracks.isEmpty() && !again.tracks.at(0)->lSections.isEmpty();
+        report(allOk, code == 0 && loadedBack, QString("import of %1 succeeds and the project loads back (exit code %2)").arg(files.at(i)).arg(code));
+    }
+    QByteArray nl1 = readAll(QDir(imports).filePath("nl1.nltrack"));
+    QByteArray csv = readAll(QDir(imports).filePath("nl2.csv"));
+    struct bad { const char* kind; QString file; QByteArray data; const char* what; };
+    QList<bad> broken;
+    broken.append(bad{"txt", QDir(tmp).filePath("empty-points.txt"), QByteArray(), "an empty point list"});
+    broken.append(bad{"txt", QDir(tmp).filePath("one-point.txt"), QByteArray("1.0 2.0 3.0"), "a point list with one point"});
+    broken.append(bad{"txt", QDir(tmp).filePath("words.txt"), QByteArray("not numbers at all"), "a point list of words"});
+    broken.append(bad{"csv", QDir(tmp).filePath("short-line.csv"), csv.left(csv.indexOf('\n') + 1) + "1\t2\t3\n", "a CSV with a short line"});
+    broken.append(bad{"csv", QDir(tmp).filePath("header-only.csv"), csv.left(csv.indexOf('\n') + 1), "a CSV without data"});
+    broken.append(bad{"nltrack", QDir(tmp).filePath("cut.nltrack"), nl1.left(nl1.size()/2), "a truncated nltrack"});
+    broken.append(bad{"nltrack", QDir(tmp).filePath("tiny.nltrack"), QByteArray("BEZR"), "an nltrack that is only a tag"});
+    for(int i = 0; i < broken.size(); ++i) {
+        QFile f(broken.at(i).file);
+        f.open(QIODevice::WriteOnly);
+        f.write(broken.at(i).data);
+        f.close();
+        coreProject scratch;
+        track* t = scratch.projectNewTrack();
+        noLimitsImporter importer(t, broken.at(i).file);
+        QString kind = broken.at(i).kind;
+        bool ok = kind == "nltrack" ? importer.importAsNlTrack() : (kind == "txt" ? importer.importAsTxt() : importer.importAsCsv());
+        QString outFile = QDir(tmp).filePath(QString("refused-%1.fvd").arg(i));
+        int code = cmdImport.run(QStringList() << kind << broken.at(i).file << outFile);
+        report(allOk, !ok && !importer.error().isEmpty() && code == 1 && !QFileInfo(outFile).exists(),
+               QString("%1 is refused with a message: %2").arg(broken.at(i).what).arg(importer.error()));
+    }
 }
 
 // Exports samples/baseline/four-sections.fvd and compares the Spline export
@@ -215,6 +367,9 @@ static int runSelftest(const QStringList& args)
     report(allOk, code == 0, QString("check --fail-on information exits 0 when there is no finding (exit code %1)").arg(code));
     code = cmdCheck.run(QStringList() << QDir(baseline).filePath("no-such-project.fvd"));
     report(allOk, code == 1, QString("check of a missing project exits 1 (exit code %1)").arg(code));
+
+    // (gen-normal-shapes.fvd: its sections do not hold the speed, so friction changes the ride sheet)
+    checkSessionAndImport(allOk, repo, tmp.path(), QDir(baseline).filePath("gen-normal-shapes.fvd"));
 
     // angle changes go the short way round: -179 to +179 degrees is 2, not 358
     double turn = wrap180(179.0 - (-179.0));

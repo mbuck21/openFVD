@@ -20,12 +20,19 @@
 #ifndef CLI_COMMANDS_H
 #define CLI_COMMANDS_H
 
+#include <QByteArray>
+#include <QDir>
+#include <QJsonObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
 #include <cstdio>
 
+#include "../core/finding.h"
+#include "../core/ridesummary.h"
+
 class track;
+class coreProject;
 
 // One command of fvdcore: its name, the usage line and one-line description
 // that `fvdcore help` prints, and the function that runs it. args holds
@@ -49,6 +56,9 @@ extern const command cmdMeasures;
 extern const command cmdCheck;
 extern const command cmdToText;
 extern const command cmdFromText;
+extern const command cmdImport;
+extern const command cmdSession;
+extern const command cmdCommands;
 extern const command cmdSelftest;
 extern const command cmdHelp;
 
@@ -57,6 +67,22 @@ extern const command cmdHelp;
 // to errOut (nothing when errOut is NULL) and returns 1.
 const command* const* commandTable(int* count);
 int runCommand(const QStringList& args, FILE* errOut);
+
+// Code several commands share (one copy, defined in the command's file).
+// The ride sheet as the JSON object `summary --json` prints per track
+// (cmd_summary.cpp); withSections false leaves out the table of section ends.
+QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QString& trackName, bool withSections);
+// The findings as the JSON object `check --json` prints (cmd_check.cpp).
+QJsonObject checkFindingsJson(track* t, const QList<finding>& found);
+// The three exports of every track with sections and the re-saved project, into
+// dir as <stem>.* (cmd_export.cpp); the names written are appended to report.
+bool writeProjectExports(coreProject& project, const QDir& dir, const QString& stem, QStringList& report, QString& error);
+// The session's loop on text streams (cmd_session.cpp): reads one request per
+// line from in and writes one reply per line to out until `quit` or the end.
+// The project is loaded from file; trackNumber is the default track (1-based).
+int runSession(const QString& projectFile, int trackNumber, FILE* in, FILE* out, QString* error);
+// The same on text in memory: the replies (one line each) to the requests in input.
+QByteArray sessionRunText(const QString& projectFile, int trackNumber, const QByteArray& input, QString* error);
 
 // What `compare` computes, shared with the self-test.
 struct compareRow

@@ -210,7 +210,9 @@ void projectWidget::importNLTrackFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsNlTrack();
+    if(!importer->importAsNlTrack()) {
+        QMessageBox::warning(gloParent, tr("Import NoLimits 1 Track"), importer->error());
+    }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
@@ -241,10 +243,13 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
 
-    newTrack->trackData->fHeart = 0.0f;
-    newTrack->trackWidgetItem->addSection(nolimitscsv);
-
-    dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+    // the model steps (heartline, the section, the file) are the importer's;
+    // the section's row in the panel comes through the track's notice
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
+    if(!importer->importAsCsv()) {
+        QMessageBox::warning(gloParent, tr("Import NoLimits 2 CSV"), importer->error());
+    }
+    delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
 
@@ -274,7 +279,9 @@ void projectWidget::importPointListFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsTxt();
+    if(!importer->importAsTxt()) {
+        QMessageBox::warning(gloParent, tr("Import from Pointlist"), importer->error());
+    }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }

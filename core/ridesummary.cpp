@@ -203,7 +203,7 @@ QVector<double> rideNodeTimes(const measureNodes& n)
 
 rideSummary::rideSummary()
     : sectionCount(0), nodeCount(0), empty(true), nonFinite(false), length_m(0.0), heartLength_m(0.0),
-      duration_s(0.0), heightRange_m(0.0), floaterAirtime_s(0.0), ejectorAirtime_s(0.0), totalAirtime_s(0.0),
+      lengthStopsAtStall(false), duration_s(0.0), heightRange_m(0.0), floaterAirtime_s(0.0), ejectorAirtime_s(0.0), totalAirtime_s(0.0),
       inversions(0)
 {
     findingCount[0] = findingCount[1] = findingCount[2] = 0;
@@ -263,10 +263,16 @@ rideSummary computeRideSummary(const track* t, const rideSummaryOptions& options
     QVector<double> times = rideNodeTimes(n);
     int last = n.size() - 1;
 
-    // Lengths and duration. A length that is not a number is reported as 0.
-    double len = n.nodes.at(last)->fTotalLength, hlen = n.nodes.at(last)->fTotalHeartLength;
-    r.length_m = std::isfinite(len) ? len : 0.0;
-    r.heartLength_m = std::isfinite(hlen) ? hlen : 0.0;
+    // Lengths and duration. On a stalled train the last node's length is not
+    // a number; the length is then that of the last node whose length is one
+    // (0 when none is), and lengthStopsAtStall says so.
+    for(int i = last; i >= 0; --i) {
+        if(std::isfinite(n.nodes.at(i)->fTotalLength)) { r.length_m = n.nodes.at(i)->fTotalLength; break; }
+    }
+    for(int i = last; i >= 0; --i) {
+        if(std::isfinite(n.nodes.at(i)->fTotalHeartLength)) { r.heartLength_m = n.nodes.at(i)->fTotalHeartLength; break; }
+    }
+    r.lengthStopsAtStall = !std::isfinite(n.nodes.at(last)->fTotalLength) || !std::isfinite(n.nodes.at(last)->fTotalHeartLength);
     r.duration_s = times.at(last);
 
     // The measures, in one pass.

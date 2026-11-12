@@ -20,7 +20,9 @@
 #include <fstream>
 #include "exportfuncs.h"
 #include "secbezier.h"
+#include "secnlcsv.h"
 #include "track.h"
+#include <QFile>
 
 using namespace std;
 
@@ -30,12 +32,119 @@ noLimitsImporter::noLimitsImporter(track* _track, QString _fileName)
     fileName = _fileName;
 }
 
+bool noLimitsImporter::fail(const QString& text)
+{
+    mError = text;
+    return false;
+}
+
+// The NoLimits 1 reader trusts the counts in the file: a vertex count larger
+// than the file, a segment block before the vertices or a tube that names a
+// vertex that is not there makes it read past the end of a list or loop for
+// ever. This walks the file as the reader does (a tag can be found at any byte)
+// and checks every count against the bytes that are left and every index
+// against the list it picks from, before the track is touched. A good file
+// passes unchanged.
+bool noLimitsImporter::checkNlTrack(const QByteArray& data)
+{
+    const int length = data.size();
+    const unsigned char* d = (const unsigned char*)data.constData();
+    #define NL_INT(at) ((int)(((unsigned)d[(at)] << 24) | ((unsigned)d[(at)+1] << 16) | ((unsigned)d[(at)+2] << 8) | (unsigned)d[(at)+3]))
+    qint64 bezTotal = 0, fundTotal = 0, freeTotal = 0;
+    int lineSize = 0;
+    bool sawBezier = false;
+
+    for(int i = 0; i + 4 <= length; ++i)
+    {
+        if(d[i] != 'S' && d[i] != 'B' && d[i] != 'F' && d[i] != 'T') continue;
+        QByteArray tag = data.mid(i, 4);
+        if(tag == "SEGM")
+        {
+            if(i + 29 > length) return fail("the file ends inside a segment block (SEGM)");
+            qint64 segCount = NL_INT(i+8);
+            if(segCount < 0 || segCount > bezTotal) {
+                return fail(QString("the segment block (SEGM) holds %1 segments but only %2 vertices were read before it").arg(segCount).arg(bezTotal));
+            }
+            qint64 pos = i + 29;
+            for(qint64 s = 0; s < segCount; ++s)
+            {
+                if(pos + 33 > length) return fail("the file ends inside a segment block (SEGM)");
+                int type = NL_INT(pos);
+                qint64 extra = 0;
+                if(type == 0) extra = 4;
+                else if(type == 1) extra = 54 + 4 + 72;
+                else if(type == 2) extra = 8 + 4 + 28;
+                else if(type == 3) extra = 4 + 4 + 24;
+                else if(type == 4) extra = 4 + 4 + 46;
+                pos += 33 + extra;
+                if(pos > length) return fail("the file ends inside a segment block (SEGM)");
+            }
+        }
+        else if(tag == "BEZR" || tag == "FUND" || tag == "FREN" || tag == "TUBE")
+        {
+            if(i + 28 > length) return fail(QString("the file ends inside a ") + QString(tag) + " block");
+            qint64 count = NL_INT(i+24);
+            qint64 record = tag == "BEZR" ? 60 : (tag == "FUND" ? 92 : (tag == "FREN" ? 28 : 48));
+            if(count < 0 || (qint64)i + 28 + count*record > length) {
+                return fail(QString("the %1 block says it holds %2 entries, which is more than the file has bytes for").arg(QString(tag)).arg(count));
+            }
+            if(tag == "BEZR") { bezTotal += count; sawBezier = true; }
+            else if(tag == "FUND") fundTotal += count;
+            else if(tag == "FREN") freeTotal += count;
+            else
+            {
+                qint64 pos = i + 28;
+                for(qint64 b = 0; b < count; ++b, pos += 48)
+                {
+                    int type = NL_INT(pos), index = NL_INT(pos+8);
+                    if(type != 3)
+                    {
+                        if((type != 1 && type != 2) || index < 0 || index >= (type == 1 ? fundTotal : freeTotal))
+                            return fail(QString("a tube names a support point (type %1, number %2) that the file does not have").arg(type).arg(index));
+                        ++lineSize;
+                    }
+                    type = NL_INT(pos+16);
+                    index = NL_INT(pos+24);
+                    if(type != 3 && lineSize%2)
+                    {
+                        if((type != 1 && type != 2) || index < 0 || index >= (type == 1 ? fundTotal : freeTotal))
+                            return fail(QString("a tube names a support point (type %1, number %2) that the file does not have").arg(type).arg(index));
+                        ++lineSize;
+                    }
+                    else if(type == 3 && lineSize%2)
+                    {
+                        --lineSize;
+                    }
+                }
+            }
+        }
+    }
+    #undef NL_INT
+    if(!sawBezier || bezTotal < 2) {
+        return fail("the file holds fewer than two track vertices (no usable BEZR block)");
+    }
+    return true;
+}
+
 bool noLimitsImporter::importAsNlTrack()
 {
+    QFile source(fileName);
+    if(!source.open(QIODevice::ReadOnly))
+    {
+        return fail(QString("cannot read ") + fileName);
+    }
+    QByteArray bytes = source.readAll();
+    source.close();
+    if(!checkNlTrack(bytes))
+    {
+        mError = fileName + ": " + mError;
+        return false;
+    }
+
     fstream fin(fileName.toLocal8Bit().data(), ios::in | ios::binary);
     if(!fin)
     {
-        return false;
+        return fail(QString("cannot read ") + fileName);
     }
 
     inTrack->fHeart = 0.f;
@@ -236,7 +345,7 @@ bool noLimitsImporter::importAsTxt()
     fstream fin(fileName.toLocal8Bit().data(), ios::in);
     if(!fin)
     {
-        return false;
+        return fail(QString("cannot read ") + fileName);
     }
 
     inTrack->fHeart = 0.f;
@@ -256,11 +365,21 @@ bool noLimitsImporter::importAsTxt()
         fin >> z;
         fin >> x;
         fin >> y;
+        if(fin.fail() && !fin.eof())
+        {
+            // not a number: the loop would never reach the end of the file
+            return fail(fileName + ": the point list holds something that is not a number (each line is three numbers: z x y)");
+        }
         bList->append(new bezier_t);
         bList->at(b)->P1.x = x;
         bList->at(b)->P1.y = y;
         bList->at(b)->P1.z = z;
         b++;
+    }
+
+    if(bList->size() < 2)
+    {
+        return fail(fileName + ": the point list needs at least two points (each line is three numbers: z x y)");
     }
 
     glm::vec3 anchor = bList->at(0)->P1;
@@ -293,5 +412,31 @@ bool noLimitsImporter::importAsTxt()
 
     inTrack->updateTrack(0, 0);
     fin.close();
+    return true;
+}
+
+// The NoLimits 2 CSV: the model steps the window's import entry used to do
+// itself (heartline 0, a NoLimits CSV section, the file loaded into it).
+bool noLimitsImporter::importAsCsv()
+{
+    // checked first, so that a refused file leaves the track as it was
+    QList<mnode> nodes;
+    QString problem;
+    if(!secnlcsv::readNodes(fileName, nodes, &problem))
+    {
+        return fail(problem);
+    }
+
+    inTrack->fHeart = 0.f;
+    section* added = inTrack->appendSectionFromFile(nolimitscsv);
+    secnlcsv* csv = dynamic_cast<secnlcsv*>(added);
+    if(!csv)
+    {
+        return fail("could not make a NoLimits 2 CSV section");
+    }
+    if(!csv->loadTrack(fileName, &problem))
+    {
+        return fail(problem);
+    }
     return true;
 }

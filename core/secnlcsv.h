@@ -19,7 +19,14 @@ public:
     virtual float getMaxArgument();
     virtual bool isLockable(func* _func);
     virtual bool isInFunction(int index, subfunc* func);
-    void loadTrack(QString filename);
+    // Reads the file and computes the track. False, with the reason in *error,
+    // when the file cannot be read or is not a NoLimits 2 CSV (nothing is
+    // changed then).
+    bool loadTrack(QString filename, QString* error = NULL);
+    // The reading alone: the nodes of the file (position, front, left). Checks
+    // the input: at least ten tab-separated columns in every line that is not
+    // blank, and at least two lines of data.
+    static bool readNodes(const QString& filename, QList<mnode>& nodes, QString* error);
 private:
     QList<mnode> csvNodes;
     void initDistances();
