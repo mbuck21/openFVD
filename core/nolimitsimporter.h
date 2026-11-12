@@ -34,7 +34,7 @@ public:
     // NoLimits 2 CSV section) of the track, with the heartline at 0, and
     // computes the track. False when the file cannot be used; error() then
     // says why in plain words. A file that is refused is checked before the
-    // track is touched, except that the point list is read as it is checked.
+    // track is touched.
     bool importAsNlTrack();
     bool importAsTxt();
     bool importAsCsv();

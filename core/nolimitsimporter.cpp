@@ -348,17 +348,10 @@ bool noLimitsImporter::importAsTxt()
         return fail(QString("cannot read ") + fileName);
     }
 
-    inTrack->fHeart = 0.f;
-    inTrack->appendSectionFromFile(bezier);
-
-    fin.seekg (0, ios::end);
-
-    QList<bezier_t*> *bList = &inTrack->activeSection->bezList;
-
-    fin.seekg(0);
-
+    // The points are read and checked first, so that a refused file leaves
+    // the track as it was.
+    QList<glm::vec3> points;
     float x, y, z;
-    int b = 0;
 
     while(!fin.eof())
     {
@@ -370,16 +363,26 @@ bool noLimitsImporter::importAsTxt()
             // not a number: the loop would never reach the end of the file
             return fail(fileName + ": the point list holds something that is not a number (each line is three numbers: z x y)");
         }
-        bList->append(new bezier_t);
-        bList->at(b)->P1.x = x;
-        bList->at(b)->P1.y = y;
-        bList->at(b)->P1.z = z;
-        b++;
+        points.append(glm::vec3(x, y, z));
     }
 
-    if(bList->size() < 2)
+    if(points.size() < 2)
     {
         return fail(fileName + ": the point list needs at least two points (each line is three numbers: z x y)");
+    }
+
+    inTrack->fHeart = 0.f;
+    inTrack->appendSectionFromFile(bezier);
+
+    QList<bezier_t*> *bList = &inTrack->activeSection->bezList;
+
+    int b;
+    for(b = 0; b < points.size(); ++b)
+    {
+        bList->append(new bezier_t);
+        bList->at(b)->P1.x = points.at(b).x;
+        bList->at(b)->P1.y = points.at(b).y;
+        bList->at(b)->P1.z = points.at(b).z;
     }
 
     glm::vec3 anchor = bList->at(0)->P1;

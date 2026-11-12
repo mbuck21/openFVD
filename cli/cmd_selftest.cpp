@@ -216,6 +216,7 @@ static void checkSessionAndImport(bool& allOk, const QString& repo, const QStrin
     QList<bad> broken;
     broken.append(bad{"txt", QDir(tmp).filePath("empty-points.txt"), QByteArray(), "an empty point list"});
     broken.append(bad{"txt", QDir(tmp).filePath("one-point.txt"), QByteArray("1.0 2.0 3.0"), "a point list with one point"});
+    broken.append(bad{"txt", QDir(tmp).filePath("bad-third-line.txt"), QByteArray("1 2 3\n4 5 6\nx y z\n7 8 9\n"), "a point list with a bad third line"});
     broken.append(bad{"txt", QDir(tmp).filePath("words.txt"), QByteArray("not numbers at all"), "a point list of words"});
     broken.append(bad{"csv", QDir(tmp).filePath("short-line.csv"), csv.left(csv.indexOf('\n') + 1) + "1\t2\t3\n", "a CSV with a short line"});
     broken.append(bad{"csv", QDir(tmp).filePath("header-only.csv"), csv.left(csv.indexOf('\n') + 1), "a CSV without data"});
@@ -233,8 +234,8 @@ static void checkSessionAndImport(bool& allOk, const QString& repo, const QStrin
         bool ok = kind == "nltrack" ? importer.importAsNlTrack() : (kind == "txt" ? importer.importAsTxt() : importer.importAsCsv());
         QString outFile = QDir(tmp).filePath(QString("refused-%1.fvd").arg(i));
         int code = cmdImport.run(QStringList() << kind << broken.at(i).file << outFile);
-        report(allOk, !ok && !importer.error().isEmpty() && code == 1 && !QFileInfo(outFile).exists(),
-               QString("%1 is refused with a message: %2").arg(broken.at(i).what).arg(importer.error()));
+        report(allOk, !ok && !importer.error().isEmpty() && code == 1 && !QFileInfo(outFile).exists() && t->lSections.isEmpty(),
+               QString("%1 is refused with a message, and the track has no section afterwards: %2").arg(broken.at(i).what).arg(importer.error()));
     }
 }
 

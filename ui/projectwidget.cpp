@@ -211,7 +211,14 @@ void projectWidget::importNLTrackFile(QString fileName)
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     if(!importer->importAsNlTrack()) {
-        QMessageBox::warning(gloParent, tr("Import NoLimits 1 Track"), importer->error());
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 1 Track"), why);
+        return;
     }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
@@ -247,7 +254,14 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
     // the section's row in the panel comes through the track's notice
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     if(!importer->importAsCsv()) {
-        QMessageBox::warning(gloParent, tr("Import NoLimits 2 CSV"), importer->error());
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 2 CSV"), why);
+        return;
     }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
@@ -280,7 +294,14 @@ void projectWidget::importPointListFile(QString fileName)
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
     if(!importer->importAsTxt()) {
-        QMessageBox::warning(gloParent, tr("Import from Pointlist"), importer->error());
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import from Pointlist"), why);
+        return;
     }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
