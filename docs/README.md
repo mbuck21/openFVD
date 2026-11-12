@@ -66,6 +66,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0010-the-plan-reworked-around-seven-shared-pieces.md` | The roadmap reworked for FR-10 to FR-18: seven shared pieces built once, the solver and the ride over a finished track as pieces of their own, no change to saved files before Stage 4. | accepted |
 | `docs/decisions/0011-undo-by-snapshot-commands-on-top.md` | Undo restores a snapshot of the track; named commands are built on top, group by group; what the owner will notice. | accepted |
 | `docs/decisions/0012-measures-the-command-line-program-the-ride-sheet.md` | Measures as a registry in core, the command-line program in `cli/`, the ride sheet and its definitions; R11 deferred. | accepted |
+| `docs/decisions/0013-every-command-ends-in-the-reopened-state.md` | After every command the running track is the one a save and a reopen give; a test proves it for every command; the measurements that led to it. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |
