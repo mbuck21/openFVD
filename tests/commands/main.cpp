@@ -1294,6 +1294,132 @@ static void checkTransitionCommands(const QString& repo)
     }
 }
 
+// section.add then section.delete of the new section, for each kind and place;
+// a deleted section's smoothing entry comes back with its settings; a name
+// that does not change records nothing.
+static void checkSectionCommands(const QString& repo)
+{
+    const QString fourSections = QDir(repo).filePath("samples/baseline/four-sections.fvd");
+    QString error;
+
+    const char* kinds[] = { "straight", "curved", "force", "geometric" };
+    for(int k = 0; k < 4; ++k) {
+        for(int place = 0; place < 3; ++place) {
+            testProject project;
+            loadProjectFile(fourSections, &project);
+            track* t = project.tracks[0];
+            trackHistory h(t);
+            const QByteArray start = savedBytes(t);
+            const int count = t->lSections.size();
+            const int after = place == 0 ? 0 : (place == 1 ? count/2 : count);
+            const QString label = QString("section commands: %1 added %2").arg(kinds[k]).arg(place == 0 ? "at the start" : (place == 1 ? "in the middle" : "at the end"));
+
+            bool ok = commandRegistry::run(&h, "section.add", commandTarget::forTrack(0),
+                                           commandArgs{{"type", QString(kinds[k])}, {"after", after}}, &error);
+            check(ok && t->lSections.size() == count+1 && t->lSections[after]->sName == "unnamed" && savedBytes(t) != start,
+                  label + ": adds one section, named unnamed (" + error + ")");
+            const QByteArray added = savedBytes(t);
+            ok = commandRegistry::run(&h, "section.delete", commandTarget::forSection(0, after), commandArgs(), &error);
+            check(ok && t->lSections.size() == count && savedBytes(t) == start,
+                  label + ": deleting the new section returns the saved bytes to the start (" + error + ")");
+            check(h.steps().size() == 2 && h.undo() && savedBytes(t) == added && h.undo() && savedBytes(t) == start,
+                  label + ": undo of the delete and the add");
+            check(h.redo() && h.redo() && savedBytes(t) == start, label + ": redo of both");
+        }
+    }
+
+    // a bad kind or place is refused and changes nothing
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        const QByteArray start = savedBytes(t);
+        check(!commandRegistry::run(&h, "section.add", commandTarget::forTrack(0),
+                                    commandArgs{{"type", QString("bezier")}, {"after", 0}}, &error),
+              "section commands: a Bezier section cannot be added");
+        check(!commandRegistry::run(&h, "section.add", commandTarget::forTrack(0),
+                                    commandArgs{{"type", QString("straight")}, {"after", t->lSections.size()+1}}, &error),
+              "section commands: a place past the end is refused");
+        check(savedBytes(t) == start && h.steps().isEmpty(), "section commands: refused adds change nothing and record nothing");
+    }
+
+    // the smoothing entry of a deleted section
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        commandArgs entry = entryArgs(t, 2);
+        entry.insert("length", 0.7);
+        entry.insert("passes", 3);
+        entry.insert("on", true);
+        bool ok = runIn(h, "smoothing.setEntry", entry, &error);
+        check(ok, "section commands: the entry of section 2 is set: " + error);
+        smoothHandler* e = t->smoothList[2];
+        const int length = e->getLength(), passes = e->getIterations();
+        const bool on = e->active;
+        check(passes == 3 && on, "section commands: the entry holds passes 3 and is on");
+        const int sections = t->smoothList.size();
+        h.clear();
+        const QByteArray before = savedBytes(t);
+        ok = commandRegistry::run(&h, "section.delete", commandTarget::forSection(0, 1), commandArgs(), &error);
+        check(ok && t->smoothList.size() == sections-1, "section commands: deleting the section removes its entry: " + error);
+        check(h.undo() && t->smoothList.size() == sections, "section commands: undo brings the entry back");
+        e = t->smoothList[2];
+        check(e->getLength() == length && e->getIterations() == passes && e->active == on && savedBytes(t) == before,
+              "section commands: the restored entry has its length, passes and on-state");
+    }
+
+    // the boxes limit the displayed number (a length or speed in the unit the
+    // options set); the slots divide by the unit factor, and the command must
+    // accept the smallest and the largest value the box can send under each
+    // unit setting (ui/optionsmenu.cpp: length factor 1 or 1/0.3048, speed factor
+    // 1, 3.6 or 2.2369356)
+    {
+        struct boxCase { const char* command; const char* param; double boxMin; double boxMax; bool length; };
+        const boxCase cases[] = {
+            { "straight.setLength", "length", 0.1, 500.0, true },
+            { "curve.setRadius", "radius", 1.0, 500.0, true },
+            { "section.setSpeed", "speed", 0.1, 500.0, false }
+        };
+        const double lengthFactors[] = { 1.0, 1.0/0.3048 };
+        const double speedFactors[] = { 1.0, 3.6, 2.2369356 };
+        for(int c = 0; c < 3; ++c) {
+            const commandSpec* spec = commandRegistry::find(cases[c].command);
+            if(!check(spec != NULL, QString("section commands: %1 exists").arg(cases[c].command))) continue;
+            const int count = cases[c].length ? 2 : 3;
+            for(int f = 0; f < count; ++f) {
+                double factor = cases[c].length ? lengthFactors[f] : speedFactors[f];
+                for(int end = 0; end < 2; ++end) {
+                    double value = (end == 0 ? cases[c].boxMin : cases[c].boxMax)/factor;
+                    commandArgs args;
+                    args.insert(cases[c].param, value);
+                    commandArgs valid;
+                    QString why;
+                    check(spec->validate(args, &valid, &why),
+                          QString("section commands: %1 accepts the box's %2 (%3) under unit factor %4: %5")
+                          .arg(cases[c].command, end == 0 ? "smallest" : "largest").arg(value, 0, 'g', 10).arg(factor, 0, 'g', 8).arg(why));
+                }
+            }
+        }
+    }
+
+    // a name that does not change records nothing
+    {
+        testProject project;
+        loadProjectFile(fourSections, &project);
+        track* t = project.tracks[0];
+        trackHistory h(t);
+        const QString name = t->lSections[0]->sName;
+        bool ok = commandRegistry::run(&h, "section.setName", commandTarget::forSection(0, 0), commandArgs{{"name", name}}, &error);
+        check(ok && h.steps().isEmpty(), "section commands: the same name records nothing");
+        ok = commandRegistry::run(&h, "section.setName", commandTarget::forSection(0, 0), commandArgs{{"name", name + "x"}}, &error);
+        check(ok && h.steps().size() == 1 && t->lSections[0]->sName == name + "x", "section commands: a new name is one step");
+        check(h.undo() && t->lSections[0]->sName == name, "section commands: undo gives the old name back");
+    }
+}
+
 static void timeLargest(const QStringList& projects)
 {
     QString largest;
@@ -1367,6 +1493,7 @@ int main(int argc, char *argv[])
     checkOutsideChangeWarning(repo);
     checkCommands(repo);
     checkTransitionCommands(repo);
+    checkSectionCommands(repo);
     checkDialogSteps(repo);
     timeLargest(projects);
 
