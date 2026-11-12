@@ -160,7 +160,7 @@ private slots:
 
 private:
     void updateSectionIDs();
-    void showNewSection(sectionHandler* newSec, secType _type, bool record);
+    void showNewSection(sectionHandler* newSec);
     Ui::trackWidget *ui;
     bool phantomChanges;
 };

@@ -44,9 +44,17 @@ undoHandler::~undoHandler()
 bool undoHandler::selectionAfter(const historyStep& step, bool undone, commandTarget* out) const
 {
     commandTarget sel = step.selection;
+    QString name = step.calls.isEmpty() ? step.label.section('+', 0, 0) : step.calls.first().name;
+    // section.add has the track as its target. The new section's 0-based place
+    // is its "after" argument: redone it is selected, undone the section before
+    // it (the anchor, -1, when it was first).
+    if(name == "section.add" && !step.calls.isEmpty() && sel.track >= 0) {
+        int added = step.calls.first().args.value("after").toInt();
+        *out = commandTarget::forSection(sel.track, undone ? added-1 : added);
+        return true;
+    }
     if(sel.section < 0) return false;
 
-    QString name = step.calls.isEmpty() ? step.label.section('+', 0, 0) : step.calls.first().name;
     bool addsSection = name == undoActionTypeName(appendSegment) || name == "section.add";
     bool deletesSection = name == undoActionTypeName(removeSegment) || name == "section.delete";
     bool addsTransition = name == undoActionTypeName(appendSubFunction) || name == "transition.add";

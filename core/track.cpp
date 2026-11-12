@@ -111,12 +111,10 @@ void track::removeSection(int index)
 
 void track::removeSection(section* fromSection)
 {
-    int i = 0;
-    if(lSections.size() == 0) return;
-    for(; i > lSections.size(); ++i)
-    {
-        if(lSections.at(i) == fromSection) break;
-    }
+    // the search ran backwards (i > size) and always removed section 0; now it
+    // removes the section it is given, and nothing when it is not in the track
+    int i = lSections.indexOf(fromSection);
+    if(i < 0) return;
     removeSection(i);
 }
 
