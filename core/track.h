@@ -80,6 +80,42 @@ public:
     section* appendSectionFromFile(enum secType type);
     void updateAnchorGeometrics();
 
+    // After a change to the anchor node: the first section starts again from
+    // the anchor as it is now (the whole node, the copy a load makes when it
+    // builds the section), then the whole track is computed with
+    // updateTrack(0, 0). Without the copy the first section kept the anchor
+    // it was made from until the project was saved and reopened.
+    void updateFromAnchor();
+
+    // Builds the anchor node from the values a save writes for it (its fRoll,
+    // fVel, forceNormal and forceLateral, and startPitch and fHeart) exactly
+    // as a load does: a fresh level node, the energy, pitch, roll and the
+    // change rates from the forces. Used by loadTrackHeader() and
+    // legacyLoadTrack(), and by every edit of an anchor value, so the node
+    // after an edit is the one saving and reopening gives. Changes no saved
+    // value but fRoll, which setRoll() derives again. Does not compute the
+    // track; updateFromAnchor() does.
+    void rebuildAnchor();
+
+    // rebuildAnchor() until the roll the node is built from is, bit for bit,
+    // the roll it then holds (setRoll() derives fRoll again, so 15 can become
+    // 15.0000019, then 15.0000029): a save then writes the values the node was
+    // built from, and a load builds the same node. A roll that alternates
+    // between two neighbouring floats (about 1 in 75) is moved to the nearest
+    // float roll a rebuild keeps, at most 256 floats away. Returns the number of
+    // rebuilds (1 when the node was already settled), or -1 when no roll was
+    // kept after maxPasses rebuilds and that search.
+    int settleAnchor(int maxPasses = 8);
+
+    // The startPos (the anchor's place in the scene) that puts the heartline
+    // point at the start of the track at holdX, holdY, holdZ (metres, as the
+    // anchor's X, Y and Z boxes show it), for an anchor turned by yaw a,
+    // pitch b and roll y (radians) with the heartline fHeart above the track.
+    // The anchor boxes' and Track Properties' expression, unchanged: the hold
+    // is a double, as the boxes give it, and each sum is narrowed to the float
+    // once. Defined in commands_anchor.cpp.
+    static glm::vec3 anchorStartPos(float a, float b, float y, float fHeart, double holdX, double holdY, double holdZ);
+
     int exportTrack3(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
     int exportTrack4(std::fstream* file, float mPerNode, int fromIndex, int toIndex, float fRollThresh);
 

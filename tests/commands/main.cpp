@@ -28,6 +28,8 @@
 //    bytes and the three exports exactly; redo brings back the saved bytes
 //    and the three exports exactly, on smoothed projects too.
 //    A command exercised on no project fails the test.
+//    Every anchor command also gives the same exports live as after the
+//    project is saved and loaded again (checkAnchorReload()).
 // 3. The history: scopes, rollback, nesting, noteEdit, rebase, undo and redo,
 //    merging with a fake clock, the two caps, the listener, selections.
 // 4. Commands: validation errors name the parameter, unknown commands and
@@ -62,6 +64,8 @@
 #include <QTemporaryDir>
 #include <cmath>
 #include <cstdio>
+#include <climits>
+#include <cstring>
 #include <sstream>
 
 using namespace std;
@@ -360,6 +364,225 @@ static void runHarness(const QStringList& projects)
               .arg(on.size() == 1 ? "" : "s").arg(on.isEmpty() ? QString() : QString(": ") + on.join(", ")));
     }
     printf("commands exercised: %s\n", QStringList(exercised.keys()).join(", ").toUtf8().constData());
+}
+
+// ---- 2b. an anchor edit reaches the track at once ---------------------------
+
+// The fields of two anchor nodes that differ, by name ("fRoll, vLat").
+static QString anchorFieldsDiffering(const mnode& a, const mnode& b)
+{
+    QStringList names;
+#define ANCHOR_FIELD(f) if(memcmp(&a.f, &b.f, sizeof(a.f)) != 0) names << #f;
+    ANCHOR_FIELD(vPos) ANCHOR_FIELD(vDir) ANCHOR_FIELD(vLat) ANCHOR_FIELD(vNorm) ANCHOR_FIELD(fRoll)
+    ANCHOR_FIELD(fVel) ANCHOR_FIELD(fEnergy) ANCHOR_FIELD(forceNormal) ANCHOR_FIELD(forceLateral)
+    ANCHOR_FIELD(fPitchFromLast) ANCHOR_FIELD(fYawFromLast)
+#undef ANCHOR_FIELD
+    if(names.isEmpty() && memcmp(static_cast<const void*>(&a), static_cast<const void*>(&b), sizeof(mnode)) != 0) names << "other fields";
+    return names.join(", ");
+}
+
+// Every anchor command on every track of every baseline project, against the
+// same project saved to a file and loaded into a fresh model: the reloaded
+// anchor node is the live one bit for bit, and the three exports are the live
+// ones byte for byte. What the track is after an anchor edit is what saving
+// and reopening gives. (Before track::updateFromAnchor() the first section
+// kept the anchor it was made from; before track::rebuildAnchor() the node
+// an edit left behind depended on the order of the edits, where a load builds
+// it from the saved values.) Then the same command again with the same
+// values: the runs where that changes the track are listed (information).
+// Undo and redo of the same runs are checked by runHarness().
+static void checkAnchorReload(const QStringList& projects)
+{
+    const QList<commandSpec>& all = commandRegistry::all();
+    int runs = 0, same = 0;
+    QStringList notIdempotent;
+    for(int c = 0; c < all.size(); ++c) {
+        const commandSpec& spec = all[c];
+        if(!spec.name.startsWith("anchor.")) continue;
+        for(int p = 0; p < projects.size(); ++p) {
+            QString stem = QFileInfo(projects[p]).fileName();
+            int trackCount;
+            {
+                testProject probe;
+                loadProjectFile(projects[p], &probe);
+                trackCount = probe.tracks.size();
+            }
+            for(int ti = 0; ti < trackCount; ++ti) {
+                testProject project;
+                loadProjectFile(projects[p], &project);
+                if(ti >= project.tracks.size()) continue;
+                track* t = project.tracks[ti];
+                QString label = QString("reload: %1 on %2 track %3").arg(spec.name, stem).arg(ti+1);
+
+                trackHistory history(t);
+                QString error;
+                if(!check(commandRegistry::run(&history, spec.name, commandTarget::forTrack(ti), spec.example, &error),
+                          label + ": runs " + error)) continue;
+                QList<QByteArray> liveExports = exportsOf(t);
+
+                QString file = QDir(tmpPath).filePath("reload.fvd");
+                QString saved = saveProjectFile(file, project.texPath, project.tracks, &project);
+                testProject reloaded;
+                QString loaded = loadProjectFile(file, &reloaded);
+                if(!check(!loaded.contains("Error") && ti < reloaded.tracks.size(),
+                          label + ": saves and loads again (" + saved + ", " + loaded + ")")) continue;
+                track* r = reloaded.tracks[ti];
+                ++runs;
+
+                bool sameAnchor = memcmp(static_cast<const void*>(t->anchorNode), static_cast<const void*>(r->anchorNode), sizeof(mnode)) == 0;
+                check(sameAnchor, label + ": the reloaded anchor node is the live one bit for bit"
+                      + (sameAnchor ? QString() : QString(" (differs in ") + anchorFieldsDiffering(*t->anchorNode, *r->anchorNode) + ")"));
+                QList<QByteArray> reloadedExports = exportsOf(r);
+                check(reloadedExports == liveExports, label + ": the live exports equal those after saving and reloading ("
+                      + exportDiff(liveExports, reloadedExports) + ")");
+                if(sameAnchor && reloadedExports == liveExports) ++same;
+
+                // the command left the node settled: building it again changes nothing
+                mnode before = *t->anchorNode;
+                int passes = t->settleAnchor();
+                check(passes == 1 && memcmp(static_cast<const void*>(&before), static_cast<const void*>(t->anchorNode), sizeof(mnode)) == 0,
+                      label + QString(": the command leaves the anchor settled (one more rebuild: %1 pass, node unchanged)").arg(passes));
+
+                // the same command again
+                trackState once = captureTrackState(t);
+                commandRegistry::run(&history, spec.name, commandTarget::forTrack(ti), spec.example, &error);
+                if(captureTrackState(t, &once) != once) {
+                    notIdempotent << QString("%1 on %2 track %3").arg(spec.name, stem).arg(ti+1);
+                }
+            }
+        }
+    }
+    printf("reload: %d of %d anchor command runs give the same anchor node and exports live as after saving and reloading\n", same, runs);
+    printf("reload: running the command a second time with the same values changes the track in %d: %s\n", notIdempotent.size(),
+           notIdempotent.isEmpty() ? "none" : notIdempotent.join("; ").toUtf8().constData());
+}
+
+// The anchor commands rebuild the anchor until its roll settles
+// (track::settleAnchor(): up to 8 rebuilds, then, for a roll that alternates
+// between two floats, the nearest kept roll within 256 floats; a command whose
+// anchor does not settle fails with a message). Every baseline track settles
+// from the anchor its load built, and so does every roll from -180 to 180
+// degrees in steps of 0.25 at three pitches; the largest number of rebuilds
+// is printed.
+static void checkAnchorSettles(const QStringList& projects)
+{
+    int most = 0;
+    bool all = true;
+    QStringList unsettled;
+    for(int p = 0; p < projects.size(); ++p) {
+        testProject project;
+        loadProjectFile(projects[p], &project);
+        for(int ti = 0; ti < project.tracks.size(); ++ti) {
+            int passes = project.tracks[ti]->settleAnchor();
+            if(passes < 0) {
+                all = false;
+                unsettled << QString("%1 track %2").arg(QFileInfo(projects[p]).fileName()).arg(ti+1);
+            }
+            most = qMax(most, passes);
+        }
+    }
+    check(all, QString("settle: the anchor of every baseline track settles (at most %1 rebuilds)%2")
+          .arg(most).arg(unsettled.isEmpty() ? QString() : QString("; not: ") + unsettled.join(", ")));
+
+    int sweepMost = 0, count = 0, searched = 0;
+    double largestMove = 0.;
+    QStringList sweepUnsettled;
+    const float pitches[] = { 0.f, 12.5f, -40.f };
+    for(int k = 0; k < 3; ++k) {
+        for(int r = -720; r <= 720; ++r) {
+            track t(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+            t.startPitch = pitches[k];
+            t.anchorNode->fRoll = r*0.25f;
+            int passes = t.settleAnchor();
+            ++count;
+            if(passes < 0) sweepUnsettled << QString("roll %1 pitch %2").arg(r*0.25).arg(pitches[k]);
+            if(passes > 8) {
+                ++searched;
+                largestMove = qMax(largestMove, (double)fabs(t.anchorNode->fRoll - r*0.25f));
+            }
+            sweepMost = qMax(sweepMost, passes);
+        }
+    }
+    check(sweepUnsettled.isEmpty(), QString("settle: %1 rolls from -180 to 180 degrees at pitch 0, 12.5 and -40 settle (at most %2 rebuilds; "
+                                            "%3 alternated and were moved to the nearest kept roll, by at most %4 degrees)%5")
+          .arg(count).arg(sweepMost).arg(searched).arg(largestMove, 0, 'g', 3)
+          .arg(sweepUnsettled.isEmpty() ? QString() : QString("; not: ") + sweepUnsettled.join(", ")));
+    printf("settle: the largest number of rebuilds: %d on the baseline tracks, %d over the roll sweep\n", most, sweepMost);
+}
+
+// How many float steps apart two floats are (0 when bit for bit equal).
+static long long floatSteps(float a, float b)
+{
+    qint32 x, y;
+    memcpy(&x, &a, 4);
+    memcpy(&y, &b, 4);
+    long long u = x < 0 ? (long long)INT_MIN - x : x;
+    long long v = y < 0 ? (long long)INT_MIN - y : y;
+    return u > v ? u - v : v - u;
+}
+
+// A rate command changes only the rate it names. On every baseline track:
+// anchor.setPitchRate 50 times with the same value leaves the yaw rate bit for
+// bit as it was before the first run, after every run, with the forces after
+// run 2 and run 50 the same; the same the other way round; then the two alternated for 50 rounds,
+// both rates and both forces the same after rounds 2 and 50. Prints how far the
+// first run moved the other rate (in float steps). The 2016 arithmetic (both
+// rates converted together) grew the other rate by 1.0197 per run.
+static void checkRateCommands(const QStringList& projects)
+{
+    long long largestMove = 0;
+    QStringList notes;
+    for(int p = 0; p < projects.size(); ++p) {
+        QString stem = QFileInfo(projects[p]).fileName();
+        int trackCount;
+        {
+            testProject probe;
+            loadProjectFile(projects[p], &probe);
+            trackCount = probe.tracks.size();
+        }
+        for(int ti = 0; ti < trackCount; ++ti) {
+            for(int which = 0; which < 3; ++which) {
+                testProject project;
+                loadProjectFile(projects[p], &project);
+                track* t = project.tracks[ti];
+                trackHistory history(t);
+                mnode* a = t->anchorNode;
+                const float pitch0 = a->fPitchFromLast, yaw0 = a->fYawFromLast;
+                QString error;
+                bool ran = true;
+                float other1 = 0.f, p2 = 0.f, y2 = 0.f, n2 = 0.f, l2 = 0.f;
+                bool steady = true;
+                for(int run = 1; run <= 50; ++run) {
+                    if(which == 0 || which == 2) ran = commandRegistry::run(&history, "anchor.setPitchRate", commandTarget::forTrack(ti), commandArgs{{"rate", 7.5}}, &error) && ran;
+                    if(which == 1 || which == 2) ran = commandRegistry::run(&history, "anchor.setYawRate", commandTarget::forTrack(ti), commandArgs{{"rate", -6.0}}, &error) && ran;
+                    float other = which == 0 ? a->fYawFromLast : a->fPitchFromLast;
+                    if(run == 1) other1 = other;
+                    if(which < 2 && memcmp(&other, &other1, sizeof(float)) != 0) steady = false;
+                    if(run == 2) { p2 = a->fPitchFromLast; y2 = a->fYawFromLast; n2 = a->forceNormal; l2 = a->forceLateral; }
+                }
+                bool same50 = memcmp(&p2, &a->fPitchFromLast, 4) == 0 && memcmp(&y2, &a->fYawFromLast, 4) == 0
+                        && memcmp(&n2, &a->forceNormal, 4) == 0 && memcmp(&l2, &a->forceLateral, 4) == 0;
+                QString label = QString("rates: %1 track %2, %3").arg(stem).arg(ti+1)
+                        .arg(which == 0 ? "anchor.setPitchRate 7.5 fifty times" : which == 1 ? "anchor.setYawRate -6 fifty times"
+                                                                                  : "the two alternated fifty rounds");
+                if(which < 2) {
+                    float before = which == 0 ? yaw0 : pitch0;
+                    long long move = floatSteps(before, other1);
+                    largestMove = qMax(largestMove, move);
+                    QString otherName = which == 0 ? "yaw" : "pitch";
+                    QString detail = QString("%1 rate %2 deg/s before, %3 after run 1 (%4 float steps), %5 after run 50")
+                            .arg(otherName).arg(before*F_HZ, 0, 'g', 9).arg(other1*F_HZ, 0, 'g', 9).arg(move)
+                            .arg((which == 0 ? a->fYawFromLast : a->fPitchFromLast)*F_HZ, 0, 'g', 9);
+                    if(before != 0.f) notes << stem + QString(" track %1: ").arg(ti+1) + (which == 0 ? "pitch rate typed, " : "yaw rate typed, ") + detail;
+                    check(ran && steady && same50 && move == 0, label + ": the other rate stays bit for bit, and the rates and forces after run 2 equal those after run 50 (" + detail + ")");
+                } else {
+                    check(ran && same50, label + ": both rates and both forces after round 2 equal those after round 50");
+                }
+            }
+        }
+    }
+    printf("rates: the first run moved the rate not typed by at most %lld float steps\n", largestMove);
+    for(int i = 0; i < notes.size(); ++i) printf("  %s\n", notes[i].toUtf8().constData());
 }
 
 // ---- 3. the history ---------------------------------------------------------
@@ -1135,6 +1358,9 @@ int main(int argc, char *argv[])
     checkSpecs();
     historyWarnings.clear();
     runHarness(projects);
+    checkAnchorReload(projects);
+    checkAnchorSettles(projects);
+    checkRateCommands(projects);
     checkHistory(repo);
     check(historyWarnings.isEmpty(), QString("the harness and the history checks raised no history warning (%1)")
           .arg(historyWarnings.isEmpty() ? QString("none") : historyWarnings.join(" | ")));
