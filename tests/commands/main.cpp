@@ -42,13 +42,16 @@
 // 6. Running equals reopened (decision record 0013): every command at a fixed
 //    pattern of places on every baseline track leaves the track that saving
 //    and reopening gives, and that undo then redo gives; so do the two
-//    dialogs' OK (checkRunningEqualsReopened(), checkDialogsReopened()).
+//    dialogs' OK (checkRunningEqualsReopened(), checkDialogsReopened()), and
+//    a few commands on the imported tracks of samples/import/
+//    (checkImportedReopened()).
 // Prints the time of one run plus undo on the largest baseline project, and
 // of a typed value on a late and an early section and of adding a section.
 //
 //   commands <repository folder>
 //   commands <repository folder> --reopen    (part 6 and the times alone,
 //                                             with a track of 150,000 nodes)
+//   commands <repository folder> --imported  (checkImportedReopened() alone)
 
 #include "../../core/track.h"
 #include "../../core/trackstate.h"
@@ -1697,7 +1700,7 @@ static QList<reopenCase> reopenCases(const commandSpec& spec, track* t, int ti)
 // a smoothing entry's name); the largest such difference is printed and
 // bounded (today by 0: they are equal).
 // Prints one table row per command and project.
-// full: every place reopenCases() lists (commands --reopen, about 7 minutes);
+// full: every place reopenCases() lists (commands --reopen, about 1100 runs, four to five minutes);
 // otherwise, to keep tools\run-tests.cmd short, section.add at all its places
 // and the other commands at the first, every third and the last place.
 static void checkRunningEqualsReopened(const QStringList& projects, bool full)
@@ -1712,6 +1715,7 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
     const bool okBefore = allOk;
     printCriticals = false;
     QStringList asserted;
+    QStringList laterFailures;
     qint64 runNs = 0, reopenNs = 0, undoNs = 0;
     QElapsedTimer timer;
     timer.start();
@@ -1763,6 +1767,9 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
                     part.start();
                     bool ok = commandRegistry::run(&history, spec.name, rc.target, rc.args, &error);
                     runNs += part.nsecsElapsed();
+                    // asserts from the command itself; any later one (from
+                    // the save and reopen, or from undo and redo) is a failure
+                    const int commandCriticals = criticalCount - criticalsBefore;
                     if(!ok) {
                         printf("reopen: %s: not run (%s)\n", label.toUtf8().constData(), error.toUtf8().constData());
                         continue;
@@ -1774,11 +1781,12 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
                     QString file = QDir(tmpPath).filePath("reopen.fvd");
                     saveProjectFile(file, project.texPath, project.tracks, &project);
                     trackSnap reopened;
+                    bool hasTrack;
                     {
                         testProject again;
                         loadProjectFile(file, &again);
-                        if(ti >= again.tracks.size()) continue;
-                        reopened = snapOf(again.tracks[ti]);
+                        hasTrack = ti < again.tracks.size();
+                        if(hasTrack) reopened = snapOf(again.tracks[ti]);
                     }
                     reopenNs += part.nsecsElapsed();
                     trackSnap redone = live;
@@ -1789,12 +1797,21 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
                         redone = snapOf(t);
                     }
                     undoNs += part.nsecsElapsed();
-                    if(criticalCount != criticalsBefore) {
-                        // the model's own check failed (lenAssert): these
-                        // values make a track the model refuses, as the
-                        // window's box would; not a place to compare
+                    if(commandCriticals != 0) {
+                        // the model's own check failed (lenAssert) in the
+                        // command: these values make a track the model
+                        // refuses, as the window's box would; not a place to
+                        // compare
                         asserted << label;
                         if(stepped) history.undo();
+                        continue;
+                    }
+                    if(criticalCount != criticalsBefore || !hasTrack) {
+                        // an assert in the save and reopen or in undo and
+                        // redo, or a reopened project without the track
+                        laterFailures << label + (hasTrack ? QString(": the model's check failed while saving and reopening, or in undo and redo")
+                                                           : QString(": the reopened project has no track %1").arg(ti+1));
+                        if(stepped && structural) history.undo();
                         continue;
                     }
                     ++cases;
@@ -1835,10 +1852,13 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
     printf("reopen: | command | project | cases | L!=S | L!=R | end mm (L-S) | end m/s (L-S) | export bytes (L-S) | nodes / saved bytes (L-S) |\n");
     for(int i = 0; i < rows.size(); ++i) printf("reopen: %s\n", rows[i].toUtf8().constData());
     for(int i = 0; i < failures.size(); ++i) printf("reopen: differs: %s\n", failures[i].toUtf8().constData());
+    for(int i = 0; i < laterFailures.size(); ++i) printf("reopen: failed: %s\n", laterFailures[i].toUtf8().constData());
     check(totalBadS == 0, QString("reopen: in %1 command runs the running track equals the saved and reopened one (node count, exports, end position and speed); %2 differ")
           .arg(totalCases).arg(totalBadS));
     check(totalBadR == 0, QString("reopen: in %1 command runs the running track equals the one after undo and redo (saved bytes and exports); %2 differ")
           .arg(totalCases).arg(totalBadR));
+    check(laterFailures.isEmpty(), QString("reopen: no assert while saving and reopening or in undo and redo, and every reopened project has the track (%1 failed)")
+          .arg(laterFailures.size()));
     check(largestSaved <= savedBound, QString("reopen: a load moves at most %1 saved bytes of the running track's (bound %2; issue 63, item 7)")
           .arg(largestSaved).arg(savedBound));
     printf("reopen: %d runs in %.1f s (the commands %.1f s, saving and reopening %.1f s, undo and redo %.1f s; "
@@ -1986,6 +2006,155 @@ static void timeCommands(const QString& repo, bool longTrack)
     }
 }
 
+// One case of checkImportedReopened(): an optional command made first, in
+// its own step (a section to edit), then the command compared.
+struct importedCase
+{
+    QString what;
+    QString preName;
+    commandArgs preArgs;
+    QString name;
+    commandTarget target;
+    commandArgs args;
+    bool movesNothing;
+};
+
+// The running track after a command on a track with an imported section
+// (decision record 0013): the saved projects of samples/import/ (nl1, a
+// Bezier section from the NoLimits 1 import; nl2, a NoLimits 2 CSV section;
+// the point list has no saved project, its importer leaves values unset).
+// For a few commands an owner would run on an imported track: L against S
+// and against R as in checkRunningEqualsReopened(), the track before against
+// the track after for a command that should move nothing, and a command run
+// ten times with two values alternating against the same run twice.
+// The NoLimits 2 CSV track must be exact in all of these. The Bezier track is
+// measured and printed but not checked: a Bezier section reads values a load
+// leaves unset (bezier_t's fvdRoll, ptf, length and numNodes; the last
+// point's ptf and length are never set), so its recompute, and a reopen of
+// it, differ from run to run (seen: 0.03 to 1.8 mm usually, once 5.9 m and
+// 7 m/s between the running and the reopened track). Issue 63, item 5.
+static void checkImportedReopened(const QString& repo)
+{
+    const char* names[] = { "nl1.ref.resaved.fvd", "nl2.ref.resaved.fvd" };
+    const int ti = 1;   // track 1 of these projects is empty
+    printf("imported: | project | command | L!=S (nodes / end mm / end m/s / export bytes) | L!=R | before!=after |\n");
+    snapDiff worstS, worstR, worstMove, worstRepeat;
+    int badS = 0, badR = 0, moved = 0, badRepeat = 0, cases = 0;
+    for(int n = 0; n < 2; ++n) {
+        const bool gated = n == 1;   // the NoLimits 2 CSV track; see above
+        QString file = QDir(repo).filePath(QString("samples/import/") + names[n]);
+        int sections;
+        {
+            testProject probe;
+            loadProjectFile(file, &probe);
+            if(!check(probe.tracks.size() > ti && !probe.tracks[ti]->lSections.isEmpty(), QString("imported: %1 has an imported track 2").arg(names[n]))) continue;
+            sections = probe.tracks[ti]->lSections.size();
+        }
+        commandArgs addStraight{{"type", QString("straight")}, {"after", sections}};
+        commandArgs addForce{{"type", QString("force")}, {"after", sections}};
+        QList<importedCase> list;
+        list << importedCase{"track.setColor", QString(), commandArgs(), "track.setColor", commandTarget::forTrack(ti),
+                             commandArgs{{"which", QString("default")}, {"color", QString("#204060")}}, true};
+        list << importedCase{"track.setName", QString(), commandArgs(), "track.setName", commandTarget::forTrack(ti),
+                             commandArgs{{"name", QString("Imported")}}, true};
+        list << importedCase{"track.setFriction", QString(), commandArgs(), "track.setFriction", commandTarget::forTrack(ti),
+                             commandArgs{{"friction", 0.0417}}, false};
+        list << importedCase{"anchor.setSpeed", QString(), commandArgs(), "anchor.setSpeed", commandTarget::forTrack(ti),
+                             commandArgs{{"speed", 13.5}}, false};
+        list << importedCase{"section.add straight at the end", QString(), commandArgs(), "section.add", commandTarget::forTrack(ti), addStraight, false};
+        list << importedCase{"section.add force at the end", QString(), commandArgs(), "section.add", commandTarget::forTrack(ti), addForce, false};
+        list << importedCase{"straight.setLength on it", "section.add", addStraight, "straight.setLength", commandTarget::forSection(ti, sections),
+                             commandArgs{{"length", 12.375}}, false};
+        list << importedCase{"transition.setChange on it", "section.add", addForce, "transition.setChange",
+                             commandTarget::forTransition(ti, sections, funcNormal, 0), commandArgs{{"change", 0.77}}, false};
+        list << importedCase{"section.delete of it", "section.add", addStraight, "section.delete", commandTarget::forSection(ti, sections),
+                             commandArgs(), false};
+        for(int c = 0; c < list.size(); ++c) {
+            const importedCase& ic = list[c];
+            testProject project;
+            loadProjectFile(file, &project);
+            track* t = project.tracks[ti];
+            trackHistory h(t);
+            QString error;
+            QString label = QString("imported: %1 on %2").arg(ic.what, names[n]);
+            if(!ic.preName.isEmpty() && !check(commandRegistry::run(&h, ic.preName, commandTarget::forTrack(ti), ic.preArgs, &error), label + ": the section is added " + error)) continue;
+            trackSnap before = snapOf(t);
+            if(!check(commandRegistry::run(&h, ic.name, ic.target, ic.args, &error), label + ": runs " + error)) continue;
+            trackSnap live = snapOf(t);
+            QString saved = QDir(tmpPath).filePath("imported.fvd");
+            saveProjectFile(saved, project.texPath, project.tracks, &project);
+            trackSnap reopened;
+            {
+                testProject again;
+                loadProjectFile(saved, &again);
+                reopened = snapOf(again.tracks[ti]);
+            }
+            h.undo();
+            h.redo();
+            trackSnap redone = snapOf(t);
+            snapDiff ds = diffOf(live, reopened);
+            snapDiff dr = diffOf(live, redone);
+            snapDiff dm = diffOf(before, live);
+            if(gated) {
+                ++cases;
+                if(!ds.sameTrack()) ++badS;
+                if(!dr.sameTrack() || dr.savedBytes != 0) ++badR;
+                worstS.widen(ds);
+                worstR.widen(dr);
+                if(ic.movesNothing) {
+                    if(!dm.sameTrack()) ++moved;
+                    worstMove.widen(dm);
+                }
+            }
+            printf("imported: | %s%s | %s | %s | %s | %s |\n", names[n], gated ? "" : " (not checked)", ic.what.toUtf8().constData(),
+                   ds.text().toUtf8().constData(), dr.text().toUtf8().constData(), ic.movesNothing ? dm.text().toUtf8().constData() : "-");
+        }
+
+        // ten runs, two values alternating, end where two runs end
+        struct repeatCase { QString pre; commandArgs preArgs; QString name; commandTarget target; commandArgs a, b; };
+        QList<repeatCase> repeats;
+        repeats << repeatCase{QString(), commandArgs(), "track.setFriction", commandTarget::forTrack(ti), commandArgs{{"friction", 0.0417}}, commandArgs{{"friction", 0.025}}};
+        repeats << repeatCase{QString(), commandArgs(), "anchor.setSpeed", commandTarget::forTrack(ti), commandArgs{{"speed", 13.5}}, commandArgs{{"speed", 14.5}}};
+        repeats << repeatCase{QString(), commandArgs(), "track.setColor", commandTarget::forTrack(ti),
+                              commandArgs{{"which", QString("default")}, {"color", QString("#204060")}}, commandArgs{{"which", QString("default")}, {"color", QString("#406080")}}};
+        repeats << repeatCase{"section.add", addStraight, "straight.setLength", commandTarget::forSection(ti, sections), commandArgs{{"length", 12.375}}, commandArgs{{"length", 20.0}}};
+        for(int r = 0; r < repeats.size(); ++r) {
+            const repeatCase& rc = repeats[r];
+            trackSnap ends[2];
+            int counts[2] = { 2, 10 };
+            bool ok = true;
+            for(int k = 0; k < 2; ++k) {
+                testProject project;
+                loadProjectFile(file, &project);
+                track* t = project.tracks[ti];
+                trackHistory h(t);
+                QString error;
+                if(!rc.pre.isEmpty()) ok = ok && commandRegistry::run(&h, rc.pre, commandTarget::forTrack(ti), rc.preArgs, &error);
+                for(int i = 0; i < counts[k]; ++i) {
+                    ok = ok && commandRegistry::run(&h, rc.name, rc.target, i % 2 ? rc.b : rc.a, &error);
+                }
+                ends[k] = snapOf(t);
+            }
+            QString label = QString("imported: %1 ten times on %2").arg(rc.name, names[n]);
+            if(!check(ok, label + ": runs")) continue;
+            snapDiff d = diffOf(ends[0], ends[1]);
+            if(gated) {
+                worstRepeat.widen(d);
+                if(!d.sameTrack() || d.savedBytes != 0) ++badRepeat;
+            }
+            printf("imported: %s%s: %s ten times, two values alternating, against twice: %s\n", names[n], gated ? "" : " (not checked)",
+                   rc.name.toUtf8().constData(), d.text().toUtf8().constData());
+        }
+    }
+    printf("imported: NoLimits 2 CSV: %d cases; L!=S %d (largest %s); L!=R %d (largest %s); a command that should move nothing moved %d (largest %s); "
+           "ten runs differ from two %d (largest %s)\n", cases, badS, worstS.text().toUtf8().constData(), badR, worstR.text().toUtf8().constData(),
+           moved, worstMove.text().toUtf8().constData(), badRepeat, worstRepeat.text().toUtf8().constData());
+    check(badS == 0, QString("imported: on the NoLimits 2 CSV track the running track equals the reopened one in %1 cases; %2 differ").arg(cases).arg(badS));
+    check(badR == 0, QString("imported: the running track equals the one after undo and redo; %1 differ").arg(badR));
+    check(moved == 0, QString("imported: a command that should move nothing moves nothing; %1 moved").arg(moved));
+    check(badRepeat == 0, QString("imported: ten runs end where two end; %1 differ").arg(badRepeat));
+}
+
 // The two dialogs that run several commands in one step end in the reopened
 // state too, once their OK commits it: the smoothing dialog (a tick, a new
 // region, OK) and Track Properties (a colour, the heartline, the friction),
@@ -2056,11 +2225,20 @@ int main(int argc, char *argv[])
     QStringList projects = baselineProjects(repo);
     check(projects.size() >= 8, QString("%1 baseline projects found").arg(projects.size()));
 
+    // commands <repository folder> --imported: only the imported tracks
+    if(argc > 2 && QString(argv[2]) == "--imported") {
+        checkImportedReopened(repo);
+        printf("%d checks, %d failed\n", checkCount, failCount);
+        printf("%s\n", allOk ? "PASS" : "FAIL");
+        return allOk ? 0 : 1;
+    }
+
     // commands <repository folder> --reopen: only the running-equals-reopened
     // check and the command times
     if(argc > 2 && QString(argv[2]) == "--reopen") {
         checkRunningEqualsReopened(projects, true);
         checkDialogsReopened(repo);
+        checkImportedReopened(repo);
         timeCommands(repo, true);
         printf("%d checks, %d failed\n", checkCount, failCount);
         printf("%s\n", allOk ? "PASS" : "FAIL");
@@ -2083,6 +2261,7 @@ int main(int argc, char *argv[])
     checkDialogSteps(repo);
     checkRunningEqualsReopened(projects, false);
     checkDialogsReopened(repo);
+    checkImportedReopened(repo);
     timeLargest(projects);
     timeCommands(repo, false);
 
