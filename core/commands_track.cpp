@@ -30,7 +30,7 @@
 
 #include <type_traits>
 
-// The heartline's startPos goes through track::anchorStartPos() (defined in
+// The heartline change's startPos goes through track::anchorStartPos() (defined in
 // commands_anchor.cpp), which calls the C library's double cos and sin; the
 // dialog's copied expression did the same only if no float overload is in
 // scope here, which these check (as commands_anchor.cpp does).
@@ -65,9 +65,10 @@ bool applySetResistance(track* t, const commandTarget&, const commandArgs& args,
 }
 
 // The dialog's heartline change, its model steps in their order: the
-// heartline point of the anchor is taken with the old height, the height is
-// set, and the anchor position (startPos) is moved so that the heartline
-// point stays where it was (track::anchorStartPos(), the expression the
+// track point of the anchor (the centre of the rails, mnode::vPosHeart()) is
+// taken with the old height, the height is set, and the anchor position
+// (startPos, the heartline point) is moved so that the track point stays
+// where it was (track::anchorStartPos(), the expression the
 // anchor commands use, which is the dialog's: the same double cos and sin of
 // the same floats). Then, as a load does, the anchor node is built again from
 // the saved values, its energy from the new height included
@@ -212,7 +213,7 @@ QList<commandSpec> trackCommands()
         commandSpec s;
         s.name = "track.setHeartline";
         s.settlesItself = true;   // ends in track::updateFromAnchor()
-        s.description = "Sets the heartline height, the distance from the rails to the rider's heart that the forces are computed at; the anchor is moved so that the heartline's start stays where it was.";
+        s.description = "Sets the heartline height, the distance from the rails to the rider's heart that the forces are computed at; the start of the track (the rails) stays where it was and the heartline moves.";
         s.target = targetTrack;
         s.params << commandParam::floatParam("height", "m",
                                              "The heartline height above the rails (1.1 for a new track; negative for a track hung below).",
