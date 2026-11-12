@@ -93,9 +93,13 @@ public:
     // start, with (prev.max + cur.max) - cur.min, which in single precision
     // can move an end by a last digit; issue 63, item 7). After it the pieces
     // are those a save and reopen gives; on pieces a load made it changes
-    // nothing. Changes no node; run updateTrack() or updateFromAnchor() after
-    // it. Every command ends with it (core/command.cpp, decision record 0013).
-    void settleTransitions();
+    // nothing. One pass of the sums is not always a fixed point (an end can
+    // move a last digit again on the second), so the passes repeat until
+    // nothing moves, so that a load of the saved track moves nothing more;
+    // false, with a qWarning, if eight passes do not settle. Changes no node;
+    // run updateTrack() or updateFromAnchor() after it. Every command ends
+    // with it (core/command.cpp, decision record 0013).
+    bool settleTransitions();
 
     // Builds the anchor node from the values a save writes for it (its fRoll,
     // fVel, forceNormal and forceLateral, and startPitch and fHeart) exactly

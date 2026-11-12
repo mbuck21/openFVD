@@ -614,28 +614,46 @@ void track::updateFromAnchor()
 // update and the start values the updates translate are overwritten: by the
 // next piece read, and by the section's recompute from its first node.)
 // Only for the sections whose functions a file holds.
-void track::settleTransitions()
+//
+// One pass is not always a fixed point of those sums: in single precision
+// (prev.max + cur.max) - cur.min can move an end by a last digit on the
+// first pass and again on the second (issue 63, item 7). A load applies the
+// sums once more to what was saved, so the passes repeat until no piece's
+// start or end moves, bit for bit: then a load of the saved track changes
+// nothing more. If eight passes do not settle, it says so (qWarning; the
+// tests fail on it) and returns false.
+bool track::settleTransitions()
 {
-    for(int s = 0; s < lSections.size(); ++s)
+    for(int pass = 0; pass < 8; ++pass)
     {
-        section* sec = lSections[s];
-        if(sec->type != straight && sec->type != curved && sec->type != forced && sec->type != geometric) continue;
-        func* funcs[3] = { sec->rollFunc, sec->normForce, sec->latForce };
-        for(int f = 0; f < 3; ++f)
+        bool moved = false;
+        for(int s = 0; s < lSections.size(); ++s)
         {
-            func* cur = funcs[f];
-            if(cur == NULL || (f > 0 && sec->type != forced && sec->type != geometric)) continue;
-            for(int i = 2; i < cur->funcList.size(); ++i)
+            section* sec = lSections[s];
+            if(sec->type != straight && sec->type != curved && sec->type != forced && sec->type != geometric) continue;
+            func* funcs[3] = { sec->rollFunc, sec->normForce, sec->latForce };
+            for(int f = 0; f < 3; ++f)
             {
-                for(int j = 1; j < i; ++j)
+                func* cur = funcs[f];
+                if(cur == NULL || (f > 0 && sec->type != forced && sec->type != geometric)) continue;
+                for(int i = 2; i < cur->funcList.size(); ++i)
                 {
-                    subfunc* prev = cur->funcList[j-1];
-                    subfunc* piece = cur->funcList[j];
-                    piece->update(prev->maxArgument, prev->maxArgument + piece->maxArgument - piece->minArgument, piece->symArg);
+                    for(int j = 1; j < i; ++j)
+                    {
+                        subfunc* prev = cur->funcList[j-1];
+                        subfunc* piece = cur->funcList[j];
+                        const float wasMin = piece->minArgument, wasMax = piece->maxArgument;
+                        piece->update(prev->maxArgument, prev->maxArgument + piece->maxArgument - piece->minArgument, piece->symArg);
+                        if(memcmp(&wasMin, &piece->minArgument, sizeof(float)) != 0
+                                || memcmp(&wasMax, &piece->maxArgument, sizeof(float)) != 0) moved = true;
+                    }
                 }
             }
         }
+        if(!moved) return true;
     }
+    qWarning("track::settleTransitions: the transitions' starts and ends did not settle in 8 passes; a reopen may move them");
+    return false;
 }
 
 // See track.h. The node track::track() makes, then the steps loadTrackHeader()

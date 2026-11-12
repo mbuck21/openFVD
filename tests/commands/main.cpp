@@ -52,6 +52,10 @@
 //   commands <repository folder> --reopen    (part 6 and the times alone,
 //                                             with a track of 150,000 nodes)
 //   commands <repository folder> --imported  (checkImportedReopened() alone)
+//   commands <repository folder> [--reopen] <extra folder>
+//                                            (also the running-equals-reopened
+//                                             check on every *.fvd there that
+//                                             is not a .2016.* or .ref.* file)
 
 #include "../../core/track.h"
 #include "../../core/trackstate.h"
@@ -93,6 +97,7 @@ static QStringList historyWarnings;
 
 // The number of failed lenAsserts so far, and whether they are printed.
 static int criticalCount = 0;
+static QStringList settleWarnings;   // track::settleTransitions() did not settle
 static bool printCriticals = true;
 
 // Debug output and other warnings are dropped (the exporters print thousands
@@ -102,6 +107,10 @@ static void messageHandler(QtMsgType type, const QMessageLogContext&, const QStr
 {
     if(type == QtWarningMsg && msg.startsWith("trackHistory")) {
         historyWarnings.append(msg);
+    }
+    if(type == QtWarningMsg && msg.startsWith("track::settleTransitions")) {
+        settleWarnings.append(msg);
+        allOk = false;
     }
     if(type == QtCriticalMsg || type == QtFatalMsg) {
         ++criticalCount;
@@ -1703,7 +1712,11 @@ static QList<reopenCase> reopenCases(const commandSpec& spec, track* t, int ti)
 // full: every place reopenCases() lists (commands --reopen, about 1100 runs, four to five minutes);
 // otherwise, to keep tools\run-tests.cmd short, section.add at all its places
 // and the other commands at the first, every third and the last place.
-static void checkRunningEqualsReopened(const QStringList& projects, bool full)
+// savedExact false (the projects of an extra folder, such as the owner's):
+// the saved bytes of L and S are counted and printed, not bounded; a project
+// saved by an older build can hold a stored value the load rewrites without
+// the track depending on it. The track itself must still be the same.
+static void checkRunningEqualsReopened(const QStringList& projects, bool full, bool savedExact = true)
 {
     // Bytes; see above. A load rewrites a transition's ends and the smoothing
     // entries' names and ranges, but every command now leaves them as a load
@@ -1716,12 +1729,14 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
     printCriticals = false;
     QStringList asserted;
     QStringList laterFailures;
+    QStringList notFixed;
     qint64 runNs = 0, reopenNs = 0, undoNs = 0;
     QElapsedTimer timer;
     timer.start();
     const QList<commandSpec>& all = commandRegistry::all();
     int totalCases = 0, totalBadS = 0, totalBadR = 0;
     qint64 largestSaved = 0;
+    int savedOnly = 0;   // runs where L and S are the same track but not the same saved bytes
     QStringList rows;
     QStringList failures;
     QList<int> trackCounts;
@@ -1776,6 +1791,10 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
                     }
                     bool stepped = history.position() == positionBefore+1 || history.steps().size() > stepsBefore;
                     trackSnap live = snapOf(t);
+                    // the transitions are a fixed point of a load's sums:
+                    // settling them once more changes no saved byte
+                    t->settleTransitions();
+                    if(savedBytes(t) != live.saved) notFixed << label;
 
                     part.restart();
                     QString file = QDir(tmpPath).filePath("reopen.fvd");
@@ -1820,6 +1839,7 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
                     worstS.widen(ds);
                     worstR.widen(dr);
                     largestSaved = qMax(largestSaved, ds.savedBytes);
+                    if(ds.sameTrack() && ds.savedBytes != 0) ++savedOnly;
                     bool sOk = ds.sameTrack();
                     bool rOk = dr.sameTrack() && dr.savedBytes == 0;
                     if(!sOk) ++badS;
@@ -1857,10 +1877,16 @@ static void checkRunningEqualsReopened(const QStringList& projects, bool full)
           .arg(totalCases).arg(totalBadS));
     check(totalBadR == 0, QString("reopen: in %1 command runs the running track equals the one after undo and redo (saved bytes and exports); %2 differ")
           .arg(totalCases).arg(totalBadR));
+    for(int i = 0; i < notFixed.size(); ++i) printf("reopen: not a fixed point: %s\n", notFixed[i].toUtf8().constData());
+    check(notFixed.isEmpty(), QString("reopen: after every command, settling the transitions once more changes no saved byte (%1 do)").arg(notFixed.size()));
     check(laterFailures.isEmpty(), QString("reopen: no assert while saving and reopening or in undo and redo, and every reopened project has the track (%1 failed)")
           .arg(laterFailures.size()));
-    check(largestSaved <= savedBound, QString("reopen: a load moves at most %1 saved bytes of the running track's (bound %2; issue 63, item 7)")
-          .arg(largestSaved).arg(savedBound));
+    printf("reopen: %d runs where only the saved bytes differ from the reopened project's, the track being the same (largest %lld bytes)%s\n",
+           savedOnly, (long long)largestSaved, savedExact ? "" : "; not checked for these projects");
+    if(savedExact) {
+        check(largestSaved <= savedBound, QString("reopen: a load moves at most %1 saved bytes of the running track's (bound %2; issue 63, item 7)")
+              .arg(largestSaved).arg(savedBound));
+    }
     printf("reopen: %d runs in %.1f s (the commands %.1f s, saving and reopening %.1f s, undo and redo %.1f s; "
            "of these, taking the node counts, saved bytes and exports %.1f s)\n",
            totalCases, timer.elapsed()/1000., runNs/1e9, reopenNs/1e9, undoNs/1e9, snapNs/1e9);
@@ -2004,6 +2030,42 @@ static void timeCommands(const QString& repo, bool longTrack)
         loadProjectFile(file, &longP);
         timeOn("a long track", longP.tracks[0]);
     }
+}
+
+// The transitions are settled to a fixed point of a load's sums
+// (track::settleTransitions(), decision record 0013): one pass of
+// (prev.max + cur.max) - cur.min is not always stable, and a reopen applies
+// it once more. Found with settleTransitions() cut to one pass in a scratch
+// build, by running transition.setLength with typed lengths in steps of
+// 0.05 s on every transition of the baseline projects' force and geometric
+// sections and settling once more after it: the first lengths whose second
+// pass still moved a piece were 0.20, 0.30, 0.45, 0.55, 0.70 and 0.95 s on the
+// first normal force transition of gen-normal-shapes' first force section.
+// 0.20 s is pinned here: with one pass the checks below fail, with the passes
+// repeated they pass.
+static void checkSettleFixedPoint(const QString& repo)
+{
+    testProject project;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/gen-normal-shapes.fvd"), &project);
+    track* t = project.tracks[0];
+    int sec = -1;
+    for(int i = 0; i < t->lSections.size() && sec < 0; ++i) {
+        if(t->lSections[i]->type == forced) sec = i;
+    }
+    if(!check(sec >= 0 && t->lSections[sec]->normForce->funcList.size() >= 3, "settle: gen-normal-shapes has a force section with three normal transitions or more")) return;
+    trackHistory h(t);
+    QString error;
+    bool ok = commandRegistry::run(&h, "transition.setLength", commandTarget::forTransition(0, sec, funcNormal, 0), commandArgs{{"length", 0.2}}, &error);
+    if(!check(ok, "settle: the length is set " + error)) return;
+    trackSnap live = snapOf(t);
+    t->settleTransitions();
+    check(savedBytes(t) == live.saved, "settle: settling the transitions once more changes no saved byte");
+    QString file = QDir(tmpPath).filePath("settle.fvd");
+    saveProjectFile(file, project.texPath, project.tracks, &project);
+    testProject again;
+    loadProjectFile(file, &again);
+    snapDiff d = diffOf(live, snapOf(again.tracks[0]));
+    check(d.sameTrack() && d.savedBytes == 0, "settle: length 0.2 s: the running track is the reopened one (" + d.text() + ")");
 }
 
 // One case of checkImportedReopened(): an optional command made first, in
@@ -2235,11 +2297,29 @@ int main(int argc, char *argv[])
 
     // commands <repository folder> --reopen: only the running-equals-reopened
     // check and the command times
+    // An extra folder (commands <repository folder> [--reopen] <folder>):
+    // every *.fvd in it that is not a .2016.* or .ref.* file also goes
+    // through checkRunningEqualsReopened(), as tests/trackstate takes one.
+    QString extraArg = argc > 3 && QString(argv[2]) == "--reopen" ? QString::fromLocal8Bit(argv[3])
+            : (argc > 2 && !QString(argv[2]).startsWith("--") ? QString::fromLocal8Bit(argv[2]) : QString());
+    QStringList extraProjects;
+    if(!extraArg.isEmpty()) {
+        QDir extra(extraArg);
+        QStringList names = extra.entryList(QStringList() << "*.fvd", QDir::Files, QDir::Name);
+        for(int i = 0; i < names.size(); ++i) {
+            if(!names[i].contains(".2016.") && !names[i].contains(".ref.")) extraProjects << extra.filePath(names[i]);
+        }
+        check(!extraProjects.isEmpty(), QString("%1 projects found in %2").arg(extraProjects.size()).arg(extra.path()));
+    }
+
     if(argc > 2 && QString(argv[2]) == "--reopen") {
         checkRunningEqualsReopened(projects, true);
+        if(!extraProjects.isEmpty()) checkRunningEqualsReopened(extraProjects, true, false);
         checkDialogsReopened(repo);
         checkImportedReopened(repo);
+        checkSettleFixedPoint(repo);
         timeCommands(repo, true);
+        check(settleWarnings.isEmpty(), QString("the transitions settled after every command (%1)").arg(settleWarnings.isEmpty() ? QString("always") : settleWarnings.join(" | ")));
         printf("%d checks, %d failed\n", checkCount, failCount);
         printf("%s\n", allOk ? "PASS" : "FAIL");
         return allOk ? 0 : 1;
@@ -2260,10 +2340,13 @@ int main(int argc, char *argv[])
     checkSectionCommands(repo);
     checkDialogSteps(repo);
     checkRunningEqualsReopened(projects, false);
+    if(!extraProjects.isEmpty()) checkRunningEqualsReopened(extraProjects, false, false);
     checkDialogsReopened(repo);
     checkImportedReopened(repo);
+    checkSettleFixedPoint(repo);
     timeLargest(projects);
     timeCommands(repo, false);
+    check(settleWarnings.isEmpty(), QString("the transitions settled after every command (%1)").arg(settleWarnings.isEmpty() ? QString("always") : settleWarnings.join(" | ")));
 
     printf("%d checks, %d failed\n", checkCount, failCount);
     printf("%s\n", allOk ? "PASS" : "FAIL");
