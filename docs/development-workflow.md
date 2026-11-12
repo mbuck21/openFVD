@@ -43,7 +43,7 @@ The owner's instruction of 2026-11-10 (decision record 0004).
 gh pr edit <number> --add-label review
 ```
 
-The review's instructions are the prompt in `.github/workflows/claude-code-review.yml`, written for this codebase: it reads `CLAUDE.md` and the map first, reads every changed file, posts findings as inline comments and one summary that says which files it read in full. It runs on Opus and reviews a draft like any other pull request. If adding the label starts no run within a minute (seen once, on a pull request whose merge check was still pending), take the label off and add it again. To review a later push, do the same.
+The review's instructions are the prompt in `.github/workflows/claude-code-review.yml`, written for this codebase: it reads `CLAUDE.md` and the map first, reads every changed file, posts findings as inline comments and one summary that says which files it read in full. It runs on Opus and reviews a draft like any other pull request. If adding the label starts no run within a minute (seen once, on a pull request whose merge check was still pending), take the label off and add it again. To review a later push, do the same. When the run is queued or slow, the owner has allowed a reviewer sub-agent in the lead's session to stand in for it, given the diff and not the lead's conclusions; the pull request says that this was done. The GitHub review stays the default.
 
 **The team.** Sub-agents and side sessions run on Opus, Sonnet or Haiku. Pick the cheapest that does the piece well:
 
