@@ -1,10 +1,10 @@
 A1. gen-normal-shapes.fvd, section 3 (force, time, 4600 nodes; track 14124 nodes). Free: normal-force transition 5 change (now -0.2 g) and lateral-force transition 1 change (now 0 g, a quartic bump). Goals: end height, end heading. Tolerances 0.01 m and 0.05 deg. Start: the project as saved.
 As saved the section ends at height 4.573 m, heading 0.000 deg, pitch -6.75 deg, speed 16.74 m/s.
-Goal: end 1.0 m lower and heading +10 deg: converged in 7 evaluations (2 Newton steps), 235 ms wall (227 ms in the program); normal change -0.2867 g, lateral bump 0.1187 g; miss -0.00 cm, 0.000 deg; condition number at the start 1.5.
+Goal: end 1.0 m lower and heading +10 deg: converged in 7 evaluations (2 Newton steps), 394 ms wall (379 ms in the program); normal change -0.2867 g, lateral bump 0.1187 g; miss -0.00 cm, 0.000 deg; condition number at the start 1.5.
 
 A1b. 100 random reachable goals (unknowns drawn uniformly, normal -1.2..0.8 g, lateral -1..1 g, seed 20261111; each solved from the saved values):
   outcome counts: converged 100
-  converged: evaluations median 10, max 13; wall time median 413 ms, max 631 ms; program time per evaluation 41.0 ms
+  converged: evaluations median 10, max 13; wall time median 492 ms, max 976 ms; program time per evaluation 49.6 ms
 A1c. 20 goals drawn in a box (height -30..+15 m from the saved end, heading -60..+60 deg), partly out of reach:
   converged: 13; evaluations [4, 7, 7, 7, 7, 7, 7, 7, 7, 10, 10, 13, 16]
   stalled: 7; evaluations [22, 25, 25, 39, 45, 57, 58]; closest misses (m, deg) (0.71, 1.91), (8.42, 1.22), (3.50, 1.03), (1.16, 0.25), (0.73, 4.64), (3.67, 1.62)
@@ -12,12 +12,12 @@ A1c. 20 goals drawn in a box (height -30..+15 m from the saved end, heading -60.
 A2. Camelback, entry 30 m/s, airtime 0.0 g, crest 38 m above the entry, R6's six starting guesses (R6 Part 3, A1). Unknowns t2 (= t4) and t_air; goals exit level (unwrapped) and crest height; tolerances 0.05 deg and 0.05 m.
 | start t2, t_air (s) | result | evaluations | t2 (s) | t_air (s) | exit pitch (deg) | crest (m) | exit height (m) | exit speed (m/s) | wall ms |
 |---|---|---|---|---|---|---|---|---|---|
-| 0.5, 2.0 | start invalid | 1 |  |  |  |  |  |  | 19 |
-| 0.2, 4.0 | converged | 19 | 0.438 | 4.092 | 0.03 | 38.00 | -1.08 | 28.68 | 509 |
-| 1.0, 1.0 | start invalid | 1 |  |  |  |  |  |  | 23 |
-| 0.1, 8.0 | converged | 16 | 0.437 | 4.094 | -0.03 | 38.00 | -1.16 | 28.71 | 443 |
-| 2.0, 3.0 | start invalid | 1 |  |  |  |  |  |  | 32 |
-| 0.6, 0.5 | start invalid | 1 |  |  |  |  |  |  | 22 |
+| 0.5, 2.0 | start invalid | 1 |  |  |  |  |  |  | 17 |
+| 0.2, 4.0 | converged | 19 | 0.438 | 4.092 | 0.03 | 38.00 | -1.08 | 28.68 | 443 |
+| 1.0, 1.0 | start invalid | 1 |  |  |  |  |  |  | 21 |
+| 0.1, 8.0 | converged | 16 | 0.437 | 4.094 | -0.03 | 38.00 | -1.16 | 28.71 | 385 |
+| 2.0, 3.0 | start invalid | 1 |  |  |  |  |  |  | 28 |
+| 0.6, 0.5 | start invalid | 1 |  |  |  |  |  |  | 21 |
 
 A3. Camelback map on the real model: crest 25 m above the entry, exit level. Each cell: number of solutions found by the scan (t2 from 0.05 to 1.95 s in 0.1 s steps and 2.2 to 3.95 s in 0.25 s steps, t_air solved for a level exit at each, with a bracketing grid of t_air from 0.25 to 8 s when continuation fails) / the reachable crest range (m) / Newton from R6's fixed start (0.5 s, 2.0 s) / Newton from the scan's point nearest 25 m (evaluations, or the failure).
 | entry (m/s) | +0.2 g | +0.0 g | -0.2 g | -0.4 g | -0.6 g | -0.8 g | -1.0 g |
@@ -32,47 +32,47 @@ A3. Camelback map on the real model: crest 25 m above the entry, exit level. Eac
 A3 in detail (scan evaluations, scan wall time, program ms per evaluation of the scan; the solution's t2, t_air, exit height and speed; exit force drift = exit normal force - 1 g; crest force drift = force measured at the start of the crest section - the airtime force asked for; 'six' = how many of R6's six starting guesses converged):
 | entry | airtime | valid scan points | crest range (m) | solutions | scan evals | scan s | ms/eval | fixed start | from scan | six | t2 | t_air | exit h (m) | exit v (m/s) | exit force drift (g) | crest force drift (g) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 15 | +0.2 | 4 | 4.0 to 10.5 | 0 | 843 | 23.77 | 12.7 | start invalid (1) | stalled (21, 492 ms) | 0 |  |  |  |  |  |  |
-| 15 | +0.0 | 3 | 3.8 to 9.9 | 0 | 840 | 22.63 | 13.1 | start invalid (1) | stalled (20, 480 ms) | 0 |  |  |  |  |  |  |
-| 15 | -0.2 | 2 | 5.1 to 8.3 | 0 | 868 | 23.18 | 13.0 | start invalid (1) | stalled (29, 780 ms) | 0 |  |  |  |  |  |  |
-| 15 | -0.4 | 0 | none | 0 | 924 | 26.58 | 14.1 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 15 | -0.6 | 0 | none | 0 | 924 | 25.50 | 14.0 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 15 | -0.8 | 0 | none | 0 | 924 | 26.87 | 14.1 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 15 | -1.0 | 0 | none | 0 | 924 | 25.89 | 14.2 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | +0.2 | 0 | none | 0 | 924 | 24.25 | 13.2 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | +0.0 | 0 | none | 0 | 924 | 23.46 | 13.0 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | -0.2 | 0 | none | 0 | 924 | 23.26 | 13.0 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | -0.4 | 0 | none | 0 | 924 | 24.45 | 13.4 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | -0.6 | 0 | none | 0 | 924 | 28.46 | 15.7 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | -0.8 | 0 | none | 0 | 924 | 30.65 | 17.7 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 20 | -1.0 | 0 | none | 0 | 924 | 29.63 | 16.6 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
-| 25 | +0.2 | 3 | 28.8 to 30.2 | 0 | 871 | 26.84 | 15.5 | start invalid (1) | stalled (10, 261 ms) | 0 |  |  |  |  |  |  |
-| 25 | +0.0 | 4 | 26.8 to 29.9 | 0 | 837 | 24.28 | 14.5 | start invalid (1) | stalled (10, 222 ms) | 0 |  |  |  |  |  |  |
-| 25 | -0.2 | 4 | 25.1 to 28.8 | 0 | 839 | 24.54 | 14.5 | start invalid (1) | stalled (16, 359 ms) | 0 |  |  |  |  |  |  |
-| 25 | -0.4 | 4 | 23.6 to 27.7 | 1 | 839 | 23.65 | 14.2 | start invalid (1) | converged (4, 93 ms) | 0 | 0.142 | 2.925 | -0.63 | 23.89 | 0.0003 | 0.0007 |
-| 25 | -0.6 | 4 | 22.4 to 26.6 | 1 | 810 | 23.97 | 14.4 | start invalid (1) | converged (7, 169 ms) | 0 | 0.228 | 2.608 | -0.61 | 23.90 | 0.0000 | 0.0010 |
-| 25 | -0.8 | 4 | 21.4 to 25.6 | 1 | 812 | 23.69 | 14.2 | start invalid (1) | converged (4, 92 ms) | 0 | 0.303 | 2.342 | -0.59 | 23.91 | -0.0002 | 0.0013 |
-| 25 | -1.0 | 5 | 20.5 to 25.9 | 1 | 786 | 21.88 | 13.3 | start invalid (1) | converged (8, 167 ms) | 0 | 0.372 | 2.113 | -0.51 | 23.89 | -0.0001 | 0.0015 |
-| 30 | +0.2 | 8 | 33.7 to 43.5 | 0 | 752 | 22.61 | 13.7 | start invalid (1) | stalled (10, 247 ms) | 0 |  |  |  |  |  |  |
-| 30 | +0.0 | 9 | 30.2 to 43.0 | 0 | 687 | 20.73 | 13.9 | start invalid (1) | stalled (10, 228 ms) | 0 |  |  |  |  |  |  |
-| 30 | -0.2 | 9 | 27.6 to 41.5 | 0 | 687 | 20.41 | 14.2 | start invalid (1) | stalled (10, 206 ms) | 0 |  |  |  |  |  |  |
-| 30 | -0.4 | 9 | 25.6 to 39.8 | 0 | 660 | 19.55 | 14.3 | start invalid (1) | stalled (10, 197 ms) | 0 |  |  |  |  |  |  |
-| 30 | -0.6 | 9 | 24.0 to 38.3 | 1 | 660 | 19.73 | 14.3 | converged (10) | converged (7, 148 ms) | 2 | 0.099 | 2.687 | -0.56 | 28.70 | 0.0005 | 0.0009 |
-| 30 | -0.8 | 10 | 22.7 to 38.2 | 1 | 636 | 18.86 | 14.0 | converged (10) | converged (4, 94 ms) | 1 | 0.168 | 2.409 | -0.51 | 28.71 | 0.0002 | 0.0009 |
-| 30 | -1.0 | 10 | 21.7 to 37.0 | 1 | 630 | 18.27 | 13.9 | converged (7) | converged (7, 135 ms) | 1 | 0.230 | 2.173 | -0.54 | 28.75 | -0.0002 | 0.0011 |
-| 35 | +0.2 | 12 | 36.4 to 59.0 | 0 | 607 | 19.84 | 14.5 | start invalid (1) | stalled (10, 228 ms) | 0 |  |  |  |  |  |  |
-| 35 | +0.0 | 14 | 32.1 to 58.7 | 0 | 539 | 17.61 | 14.3 | start invalid (1) | stalled (19, 470 ms) | 0 |  |  |  |  |  |  |
-| 35 | -0.2 | 14 | 29.0 to 56.6 | 0 | 520 | 16.71 | 14.1 | start invalid (1) | stalled (10, 221 ms) | 0 |  |  |  |  |  |  |
-| 35 | -0.4 | 14 | 26.7 to 54.4 | 0 | 512 | 16.93 | 14.6 | stalled (28) | stalled (10, 196 ms) | 0 |  |  |  |  |  |  |
-| 35 | -0.6 | 16 | 24.9 to 55.1 | 1 | 451 | 15.17 | 14.8 | converged (14) | converged (4, 86 ms) | 2 | 0.052 | 2.723 | -0.46 | 33.55 | 0.0003 | 0.0009 |
-| 35 | -0.8 | 16 | 23.5 to 53.3 | 1 | 479 | 15.90 | 14.7 | converged (10) | converged (10, 218 ms) | 2 | 0.119 | 2.444 | -0.48 | 33.59 | 0.0006 | 0.0009 |
-| 35 | -1.0 | 16 | 22.4 to 51.7 | 1 | 450 | 14.58 | 14.3 | converged (7) | converged (4, 87 ms) | 1 | 0.179 | 2.204 | -0.43 | 33.61 | -0.0000 | 0.0008 |
-| 40 | +0.2 | 17 | 38.1 to 77.3 | 0 | 461 | 16.57 | 15.1 | start invalid (1) | stalled (10, 345 ms) | 0 |  |  |  |  |  |  |
-| 40 | +0.0 | 18 | 33.3 to 75.8 | 0 | 427 | 16.54 | 15.3 | start invalid (1) | stalled (19, 374 ms) | 0 |  |  |  |  |  |  |
-| 40 | -0.2 | 19 | 29.9 to 74.2 | 0 | 370 | 12.68 | 14.4 | stalled (25) | stalled (10, 189 ms) | 0 |  |  |  |  |  |  |
-| 40 | -0.4 | 20 | 27.4 to 72.7 | 0 | 340 | 12.06 | 14.4 | stalled (19) | stalled (10, 201 ms) | 0 |  |  |  |  |  |  |
-| 40 | -0.6 | 20 | 25.5 to 70.1 | 0 | 338 | 11.57 | 14.0 | stalled (19) | stalled (15, 281 ms) | 0 |  |  |  |  |  |  |
-| 40 | -0.8 | 20 | 24.0 to 67.6 | 1 | 341 | 10.79 | 13.1 | converged (7) | converged (4, 83 ms) | 2 | 0.094 | 2.460 | -0.36 | 38.47 | -0.0008 | 0.0001 |
-| 40 | -1.0 | 20 | 22.8 to 65.4 | 1 | 342 | 10.41 | 13.2 | converged (7) | converged (1, 18 ms) | 2 | 0.150 | 2.224 | -0.46 | 38.53 | 0.0000 | 0.0009 |
+| 15 | +0.2 | 4 | 4.0 to 10.5 | 0 | 843 | 18.62 | 9.9 | start invalid (1) | stalled (21, 435 ms) | 0 |  |  |  |  |  |  |
+| 15 | +0.0 | 3 | 3.8 to 9.9 | 0 | 840 | 21.12 | 12.1 | start invalid (1) | stalled (20, 495 ms) | 0 |  |  |  |  |  |  |
+| 15 | -0.2 | 2 | 5.1 to 8.3 | 0 | 868 | 22.62 | 12.6 | start invalid (1) | stalled (29, 692 ms) | 0 |  |  |  |  |  |  |
+| 15 | -0.4 | 0 | none | 0 | 924 | 24.58 | 12.4 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 15 | -0.6 | 0 | none | 0 | 924 | 25.55 | 12.6 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 15 | -0.8 | 0 | none | 0 | 924 | 23.82 | 12.5 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 15 | -1.0 | 0 | none | 0 | 924 | 24.95 | 13.0 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | +0.2 | 0 | none | 0 | 924 | 20.78 | 10.6 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | +0.0 | 0 | none | 0 | 924 | 19.70 | 10.4 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | -0.2 | 0 | none | 0 | 924 | 23.10 | 12.4 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | -0.4 | 0 | none | 0 | 924 | 18.74 | 10.3 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | -0.6 | 0 | none | 0 | 924 | 18.71 | 10.3 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | -0.8 | 0 | none | 0 | 924 | 23.46 | 12.6 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 20 | -1.0 | 0 | none | 0 | 924 | 19.04 | 10.3 | start invalid (1) | no start | 0 |  |  |  |  |  |  |
+| 25 | +0.2 | 3 | 28.8 to 30.2 | 0 | 871 | 19.60 | 10.3 | start invalid (1) | stalled (10, 193 ms) | 0 |  |  |  |  |  |  |
+| 25 | +0.0 | 4 | 26.8 to 29.9 | 0 | 837 | 18.03 | 10.4 | start invalid (1) | stalled (10, 157 ms) | 0 |  |  |  |  |  |  |
+| 25 | -0.2 | 4 | 25.1 to 28.8 | 0 | 839 | 18.06 | 10.5 | start invalid (1) | stalled (16, 249 ms) | 0 |  |  |  |  |  |  |
+| 25 | -0.4 | 4 | 23.6 to 27.7 | 1 | 839 | 17.97 | 10.5 | start invalid (1) | converged (4, 69 ms) | 0 | 0.142 | 2.925 | -0.63 | 23.89 | 0.0003 | 0.0007 |
+| 25 | -0.6 | 4 | 22.4 to 26.6 | 1 | 810 | 24.50 | 14.8 | start invalid (1) | converged (7, 126 ms) | 0 | 0.228 | 2.608 | -0.61 | 23.90 | 0.0000 | 0.0010 |
+| 25 | -0.8 | 4 | 21.4 to 25.6 | 1 | 812 | 23.93 | 14.4 | start invalid (1) | converged (4, 114 ms) | 0 | 0.303 | 2.342 | -0.59 | 23.91 | -0.0002 | 0.0013 |
+| 25 | -1.0 | 5 | 20.5 to 25.9 | 1 | 786 | 18.28 | 11.6 | start invalid (1) | converged (8, 138 ms) | 0 | 0.372 | 2.113 | -0.51 | 23.89 | -0.0001 | 0.0015 |
+| 30 | +0.2 | 8 | 33.7 to 43.5 | 0 | 752 | 17.52 | 10.7 | start invalid (1) | stalled (10, 187 ms) | 0 |  |  |  |  |  |  |
+| 30 | +0.0 | 9 | 30.2 to 43.0 | 0 | 687 | 15.84 | 10.9 | start invalid (1) | stalled (10, 164 ms) | 0 |  |  |  |  |  |  |
+| 30 | -0.2 | 9 | 27.6 to 41.5 | 0 | 687 | 16.15 | 11.0 | start invalid (1) | stalled (10, 172 ms) | 0 |  |  |  |  |  |  |
+| 30 | -0.4 | 9 | 25.6 to 39.8 | 0 | 660 | 15.65 | 10.8 | start invalid (1) | stalled (10, 153 ms) | 0 |  |  |  |  |  |  |
+| 30 | -0.6 | 9 | 24.0 to 38.3 | 1 | 660 | 19.51 | 14.1 | converged (10) | converged (7, 191 ms) | 2 | 0.099 | 2.687 | -0.56 | 28.70 | 0.0005 | 0.0009 |
+| 30 | -0.8 | 10 | 22.7 to 38.2 | 1 | 636 | 17.96 | 13.6 | converged (10) | converged (4, 66 ms) | 1 | 0.168 | 2.409 | -0.51 | 28.71 | 0.0002 | 0.0009 |
+| 30 | -1.0 | 10 | 21.7 to 37.0 | 1 | 630 | 14.22 | 10.8 | converged (7) | converged (7, 114 ms) | 1 | 0.230 | 2.173 | -0.54 | 28.75 | -0.0002 | 0.0011 |
+| 35 | +0.2 | 12 | 36.4 to 59.0 | 0 | 607 | 14.69 | 11.1 | start invalid (1) | stalled (10, 186 ms) | 0 |  |  |  |  |  |  |
+| 35 | +0.0 | 14 | 32.1 to 58.7 | 0 | 539 | 13.99 | 11.4 | start invalid (1) | stalled (19, 316 ms) | 0 |  |  |  |  |  |  |
+| 35 | -0.2 | 14 | 29.0 to 56.6 | 0 | 520 | 12.77 | 10.9 | start invalid (1) | stalled (10, 170 ms) | 0 |  |  |  |  |  |  |
+| 35 | -0.4 | 14 | 26.7 to 54.4 | 0 | 512 | 13.59 | 11.4 | stalled (28) | stalled (10, 241 ms) | 0 |  |  |  |  |  |  |
+| 35 | -0.6 | 16 | 24.9 to 55.1 | 1 | 451 | 18.88 | 18.0 | converged (14) | converged (4, 109 ms) | 2 | 0.052 | 2.723 | -0.46 | 33.55 | 0.0003 | 0.0009 |
+| 35 | -0.8 | 16 | 23.5 to 53.3 | 1 | 479 | 19.58 | 17.5 | converged (10) | converged (10, 262 ms) | 2 | 0.119 | 2.444 | -0.48 | 33.59 | 0.0006 | 0.0009 |
+| 35 | -1.0 | 16 | 22.4 to 51.7 | 1 | 450 | 16.15 | 14.8 | converged (7) | converged (4, 103 ms) | 1 | 0.179 | 2.204 | -0.43 | 33.61 | -0.0000 | 0.0008 |
+| 40 | +0.2 | 17 | 38.1 to 77.3 | 0 | 461 | 15.89 | 14.4 | start invalid (1) | stalled (10, 209 ms) | 0 |  |  |  |  |  |  |
+| 40 | +0.0 | 18 | 33.3 to 75.8 | 0 | 427 | 11.59 | 11.4 | start invalid (1) | stalled (19, 321 ms) | 0 |  |  |  |  |  |  |
+| 40 | -0.2 | 19 | 29.9 to 74.2 | 0 | 370 | 10.52 | 11.7 | stalled (25) | stalled (10, 149 ms) | 0 |  |  |  |  |  |  |
+| 40 | -0.4 | 20 | 27.4 to 72.7 | 0 | 340 | 9.68 | 11.5 | stalled (19) | stalled (10, 144 ms) | 0 |  |  |  |  |  |  |
+| 40 | -0.6 | 20 | 25.5 to 70.1 | 0 | 338 | 8.83 | 11.0 | stalled (19) | stalled (15, 235 ms) | 0 |  |  |  |  |  |  |
+| 40 | -0.8 | 20 | 24.0 to 67.6 | 1 | 341 | 8.20 | 10.3 | converged (7) | converged (4, 63 ms) | 2 | 0.094 | 2.460 | -0.36 | 38.47 | -0.0008 | 0.0001 |
+| 40 | -1.0 | 20 | 22.8 to 65.4 | 1 | 342 | 7.90 | 10.1 | converged (7) | converged (1, 17 ms) | 2 | 0.150 | 2.224 | -0.46 | 38.53 | 0.0000 | 0.0009 |
 
-(run time 976 s on the machine that ran it; python 3.14.3)
+(run time 846 s on the machine that ran it; python 3.14.3)
