@@ -222,14 +222,6 @@ bool anyTransition(track* t, int ti, commandTarget* out)
     return findTransition(t, ti, out, [](section*, func*, int) { return true; });
 }
 
-// Adding a one-unit transition to a geometric section that runs on distance
-// does not redo exactly (the whole-track recompute of a restore differs from
-// the incremental one by more than the last digits), so the example avoids it.
-bool addTarget(track* t, int ti, commandTarget* out)
-{
-    return findTransition(t, ti, out, [](section* s, func*, int) { return !(s->type == geometric && s->bArgument == DISTANCE); });
-}
-
 // A locked transition stretches to its section's end again, whatever its length is set to.
 bool unlockedTransition(track* t, int ti, commandTarget* out)
 {
@@ -376,7 +368,6 @@ QList<commandSpec> transitionCommands()
                                             QStringList() << "after" << "before");
         s.label = "Add transition";
         s.example.insert("where", QString("after"));
-        s.exampleTarget = addTarget;
         s.apply = applyAdd;
         list << s;
     }

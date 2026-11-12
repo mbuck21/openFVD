@@ -1935,6 +1935,24 @@ static void timeOn(const QString& what, track* t)
            "on the first (section %d) %.1f ms; section.add of a force section in the middle %.1f ms\n",
            what.toUtf8().constData(), t->lSections.size(), t->getNumPoints(), late.section+1, lateMs,
            early.section+1, earlyMs, addMs);
+    // the other typed values, on the first section they apply to
+    double lengthMs = commandMs(h, "transition.setLength", early, commandArgs{{"length", 1.3}});
+    printf("time: %s: transition.setLength on the first force section %.1f ms", what.toUtf8().constData(), lengthMs);
+    int firstStraight = -1, firstCurve = -1;
+    for(int i = t->lSections.size()-1; i >= 0; --i) {
+        if(t->lSections[i]->type == straight) firstStraight = i;
+        if(t->lSections[i]->type == curved) firstCurve = i;
+    }
+    if(firstStraight >= 0) {
+        printf("; straight.setLength on the first straight (section %d) %.1f ms", firstStraight+1,
+               commandMs(h, "straight.setLength", commandTarget::forSection(0, firstStraight), commandArgs{{"length", 12.5}}));
+    }
+    if(firstCurve >= 0) {
+        printf("; curve.setAngle on the first curve (section %d) %.1f ms, curve.setRadius %.1f ms", firstCurve+1,
+               commandMs(h, "curve.setAngle", commandTarget::forSection(0, firstCurve), commandArgs{{"angle", 75.0}}),
+               commandMs(h, "curve.setRadius", commandTarget::forSection(0, firstCurve), commandArgs{{"radius", 23.0}}));
+    }
+    printf("\n");
 }
 
 // The time of a typed value on a late and on an early section and of adding a

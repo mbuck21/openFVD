@@ -153,6 +153,13 @@ public:
     void getSecNode(int index, int *node, int *section);
 
     bool hasChanged;
+    // While set, updateTrack() computes nothing (it only marks the track
+    // changed). commandRegistry::runSpec() sets it around a command's apply
+    // function when the whole track is computed from the anchor right after
+    // (decision record 0013): the apply function's own recompute from the
+    // edited point would be thrown away. False at every other time; not part
+    // of the saved or captured state.
+    bool bDeferUpdate;
     bool drawTrack;
     int drawHeartline;
 

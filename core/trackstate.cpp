@@ -335,23 +335,29 @@ void restoreTrackState(track* t, const trackState& state)
         Q_UNUSED(error);
 
         lenAssert(t->lSections.size() == state.sections.size());
-        for(int i = 0; i < t->lSections.size() && i < state.sections.size(); ++i) {
-            section* sec = t->lSections[i];
-            if(sec->type == bezier) {
-                // every field of every point, the saved ones included (a
-                // flag the importer left unset would otherwise come back as 0 or 1)
-                const QByteArray& points = state.bezierPoints[i];
-                lenAssert(points.size() == sec->bezList.size()*(int)sizeof(bezier_t));
-                for(int b = 0; b < sec->bezList.size() && (b+1)*(int)sizeof(bezier_t) <= points.size(); ++b) {
-                    memcpy(static_cast<void*>(sec->bezList[b]), points.constData() + b*sizeof(bezier_t), sizeof(bezier_t));
+        // The inputs a recompute reads and may write: run again before the
+        // second recompute below, so that it starts from them as captured (a
+        // Bezier section's update changes its points' roll helpers).
+        auto putInputsBack = [&]() {
+            for(int i = 0; i < t->lSections.size() && i < state.sections.size(); ++i) {
+                section* sec = t->lSections[i];
+                if(sec->type == bezier) {
+                    // every field of every point, the saved ones included (a
+                    // flag the importer left unset would otherwise come back as 0 or 1)
+                    const QByteArray& points = state.bezierPoints[i];
+                    lenAssert(points.size() == sec->bezList.size()*(int)sizeof(bezier_t));
+                    for(int b = 0; b < sec->bezList.size() && (b+1)*(int)sizeof(bezier_t) <= points.size(); ++b) {
+                        memcpy(static_cast<void*>(sec->bezList[b]), points.constData() + b*sizeof(bezier_t), sizeof(bezier_t));
+                    }
+                } else if(sec->type == nolimitscsv) {
+                    sec->sName = state.unsavedNames[i];
                 }
-            } else if(sec->type == nolimitscsv) {
-                sec->sName = state.unsavedNames[i];
+                // The transition pieces exactly as captured: the load above can
+                // move a piece's end by one last digit (putTransitionsBack()).
+                putTransitionsBack(sec, state.sections[i]);
             }
-            // The transition pieces exactly as captured: the load above can
-            // move a piece's end by one last digit (putTransitionsBack()).
-            putTransitionsBack(sec, state.sections[i]);
-        }
+        };
+        putInputsBack();
 
         if(!t->lSections.isEmpty()) {
             putNode(&t->lSections[0]->lNodes[0], state.firstNode);
@@ -367,13 +373,23 @@ void restoreTrackState(track* t, const trackState& state)
         // turn off again, removeSmooth(), is exact only to the last digits,
         // and every node after it inherits that.) Any other first node (one an
         // import made, or one an edit outside the commands left stale) is put
-        // back as captured and the track computed from it.
+        // back as captured and the track computed from it. A track with an
+        // imported section (Bezier or NoLimits CSV) always takes that second
+        // way, as before: such a section changes its start node and its
+        // points on every update, so a trial from the anchor can give the
+        // captured first node by chance, and whether it does depended on the
+        // values an importer leaves unset (tests/trackstate, pointlist.txt).
+        bool imported = false;
+        for(int i = 0; i < t->lSections.size(); ++i) {
+            if(t->lSections[i]->type == bezier || t->lSections[i]->type == nolimitscsv) imported = true;
+        }
         bool fromAnchor = false;
-        if(!t->lSections.isEmpty()) {
+        if(!t->lSections.isEmpty() && !imported) {
             t->updateFromAnchor();
             fromAnchor = nodeBytes(t->lSections[0]->lNodes[0]) == state.firstNode;
         }
         if(!fromAnchor) {
+            putInputsBack();
             if(!t->lSections.isEmpty()) {
                 putNode(&t->lSections[0]->lNodes[0], state.firstNode);
             }

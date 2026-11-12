@@ -32,7 +32,7 @@ using namespace std;
 
 track::track()
 {
-
+    bDeferUpdate = false;
 }
 
 track::track(glm::vec3 startPos, float startYaw, float heartLine)
@@ -48,6 +48,7 @@ track::track(glm::vec3 startPos, float startYaw, float heartLine)
     fFriction = 0.03f;
     fResistance = 2e-5;
     hasChanged = true;
+    bDeferUpdate = false;
     drawTrack = true;
     drawHeartline = 0;
     mListener = NULL;
@@ -377,6 +378,12 @@ bool track::smoothingActive()
 void track::updateTrack(int index, int iNode)
 {
     //qDebug("called updateTrack(%d, %d)", index, iNode);
+    if(bDeferUpdate)
+    {
+        // the whole track is computed from the anchor right after (see track.h)
+        hasChanged = true;
+        return;
+    }
     if(index < 0) index = 0;
     if(lSections.size() <= index)
     {
