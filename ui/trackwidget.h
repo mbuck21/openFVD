@@ -20,6 +20,7 @@
 */
 
 #include <QWidget>
+#include <QVariantMap>
 #include "section.h"
 #include "smoothui.h"
 
@@ -160,6 +161,7 @@ private slots:
 
 private:
     void updateSectionIDs();
+    bool runSectionEdit(const char* name, const QVariantMap& args);
     void showNewSection(sectionHandler* newSec);
     Ui::trackWidget *ui;
     bool phantomChanges;

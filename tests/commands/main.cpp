@@ -1371,6 +1371,40 @@ static void checkSectionCommands(const QString& repo)
               "section commands: the restored entry has its length, passes and on-state");
     }
 
+    // the boxes limit the displayed number (a length or speed in the unit the
+    // options set); the slots divide by the unit factor, and the command must
+    // accept the smallest and the largest value the box can send under each
+    // unit setting (ui/optionsmenu.cpp: length factor 1 or 1/0.3048, speed factor
+    // 1, 3.6 or 2.2369356)
+    {
+        struct boxCase { const char* command; const char* param; double boxMin; double boxMax; bool length; };
+        const boxCase cases[] = {
+            { "straight.setLength", "length", 0.1, 500.0, true },
+            { "curve.setRadius", "radius", 1.0, 500.0, true },
+            { "section.setSpeed", "speed", 0.1, 500.0, false }
+        };
+        const double lengthFactors[] = { 1.0, 1.0/0.3048 };
+        const double speedFactors[] = { 1.0, 3.6, 2.2369356 };
+        for(int c = 0; c < 3; ++c) {
+            const commandSpec* spec = commandRegistry::find(cases[c].command);
+            if(!check(spec != NULL, QString("section commands: %1 exists").arg(cases[c].command))) continue;
+            const int count = cases[c].length ? 2 : 3;
+            for(int f = 0; f < count; ++f) {
+                double factor = cases[c].length ? lengthFactors[f] : speedFactors[f];
+                for(int end = 0; end < 2; ++end) {
+                    double value = (end == 0 ? cases[c].boxMin : cases[c].boxMax)/factor;
+                    commandArgs args;
+                    args.insert(cases[c].param, value);
+                    commandArgs valid;
+                    QString why;
+                    check(spec->validate(args, &valid, &why),
+                          QString("section commands: %1 accepts the box's %2 (%3) under unit factor %4: %5")
+                          .arg(cases[c].command, end == 0 ? "smallest" : "largest").arg(value, 0, 'g', 10).arg(factor, 0, 'g', 8).arg(why));
+                }
+            }
+        }
+    }
+
     // a name that does not change records nothing
     {
         testProject project;

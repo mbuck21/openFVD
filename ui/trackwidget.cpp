@@ -197,6 +197,32 @@ static section* runAddCommand(trackHandler* handler, secType type, int after)
     return handler->trackData->lSections[after];
 }
 
+// Runs a command that edits the selected section's values. When the command is
+// refused the boxes are put back to what the model holds, so no box shows a
+// number the model does not have.
+bool trackWidget::runSectionEdit(const char* name, const commandArgs& args)
+{
+    bool ok = runSectionCommand(inTrack, name, activeSectionTarget(inTrack), args);
+    if(!ok && selSection && selSection->sectionData) {
+        switch(selSection->type) {
+        case straight:
+            setupStraightFrame();
+            break;
+        case curved:
+            setupCurvedFrame();
+            break;
+        case forced:
+        case geometric:
+            setupAdvFrame();
+            break;
+        default:
+            break;
+        }
+        updateOptionsFrame();
+    }
+    return ok;
+}
+
 void trackWidget::addSection(secType _type)
 {
     if(*sectionTypeName(_type) == 0) {
@@ -722,7 +748,7 @@ void trackWidget::on_straightSpeedCheck_stateChanged(int arg1)
 
     ui->straightSpeedBox->setEnabled(arg1);
     inTrack->mHistory->endMergeRun();
-    runSectionCommand(inTrack, "section.setSpeedFixed", activeSectionTarget(inTrack), commandArgs{{"fixed", arg1 != 0}});
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
     inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->straightSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
@@ -737,7 +763,7 @@ void trackWidget::on_straightSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "section.setSpeed", activeSectionTarget(inTrack), commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -748,7 +774,7 @@ void trackWidget::on_straightLengthBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "straight.setLength", activeSectionTarget(inTrack), commandArgs{{"length", arg1/gloParent->mOptions->getLengthFactor()}});
+    runSectionEdit("straight.setLength", commandArgs{{"length", arg1/gloParent->mOptions->getLengthFactor()}});
     if(inTrack->trackData->activeSection->bSpeed) {
         phantomChanges = true;
         ui->straightSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
@@ -766,7 +792,7 @@ void trackWidget::on_curvedSpeedCheck_stateChanged(int arg1)
 
     ui->curvedSpeedBox->setEnabled(arg1);
     inTrack->mHistory->endMergeRun();
-    runSectionCommand(inTrack, "section.setSpeedFixed", activeSectionTarget(inTrack), commandArgs{{"fixed", arg1 != 0}});
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
     inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->curvedSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
@@ -781,7 +807,7 @@ void trackWidget::on_curvedSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "section.setSpeed", activeSectionTarget(inTrack), commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -792,7 +818,7 @@ void trackWidget::on_curvedRadiusBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "curve.setRadius", activeSectionTarget(inTrack), commandArgs{{"radius", arg1/gloParent->mOptions->getLengthFactor()}});
+    runSectionEdit("curve.setRadius", commandArgs{{"radius", arg1/gloParent->mOptions->getLengthFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -803,7 +829,7 @@ void trackWidget::on_curvedAngleBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "curve.setAngle", activeSectionTarget(inTrack), commandArgs{{"angle", arg1}});
+    runSectionEdit("curve.setAngle", commandArgs{{"angle", arg1}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -814,7 +840,7 @@ void trackWidget::on_curvedDirectionBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "curve.setDirection", activeSectionTarget(inTrack), commandArgs{{"direction", arg1}});
+    runSectionEdit("curve.setDirection", commandArgs{{"direction", arg1}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -827,7 +853,7 @@ void trackWidget::on_curvedLeadInBox_valueChanged(double arg1)
 
     // the command cuts a lead-in that is too large; the box shows what is left
     bool cut = arg1+inTrack->trackData->activeSection->fLeadOut > inTrack->trackData->activeSection->fAngle;
-    runSectionCommand(inTrack, "curve.setLeadIn", activeSectionTarget(inTrack), commandArgs{{"leadIn", arg1}});
+    runSectionEdit("curve.setLeadIn", commandArgs{{"leadIn", arg1}});
     if(cut) {
         bool oldP = phantomChanges;
         phantomChanges = true;
@@ -845,7 +871,7 @@ void trackWidget::on_curvedLeadOutBox_valueChanged(double arg1)
     if(phantomChanges) return;
 
     bool cut = arg1+inTrack->trackData->activeSection->fLeadIn > inTrack->trackData->activeSection->fAngle;
-    runSectionCommand(inTrack, "curve.setLeadOut", activeSectionTarget(inTrack), commandArgs{{"leadOut", arg1}});
+    runSectionEdit("curve.setLeadOut", commandArgs{{"leadOut", arg1}});
     if(cut) {
         bool oldP = phantomChanges;
         phantomChanges = true;
@@ -864,7 +890,7 @@ void trackWidget::on_advancedSpeedCheck_stateChanged(int arg1)
 
     ui->advancedSpeedBox->setEnabled(arg1);
     inTrack->mHistory->endMergeRun();
-    runSectionCommand(inTrack, "section.setSpeedFixed", activeSectionTarget(inTrack), commandArgs{{"fixed", arg1 != 0}});
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
     inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->advancedSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
@@ -879,7 +905,7 @@ void trackWidget::on_advancedSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    runSectionCommand(inTrack, "section.setSpeed", activeSectionTarget(inTrack), commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
@@ -914,8 +940,7 @@ void trackWidget::on_orientationBox_currentIndexChanged(int index)
     if(phantomChanges) return;
 
     inTrack->mHistory->endMergeRun();
-    runSectionCommand(inTrack, "section.setOrientation", activeSectionTarget(inTrack),
-                      commandArgs{{"orientation", QString(index ? "euler" : "quaternion")}});
+    runSectionEdit("section.setOrientation", commandArgs{{"orientation", QString(index ? "euler" : "quaternion")}});
     inTrack->mHistory->endMergeRun();
     gloParent->updateInfoPanel();
     updateSectionFrame();
@@ -928,8 +953,7 @@ void trackWidget::on_argumentBox_currentIndexChanged(int index)
     if(phantomChanges) return;
 
     inTrack->mHistory->endMergeRun();
-    runSectionCommand(inTrack, "section.setArgument", activeSectionTarget(inTrack),
-                      commandArgs{{"argument", QString(index ? "distance" : "time")}});
+    runSectionEdit("section.setArgument", commandArgs{{"argument", QString(index ? "distance" : "time")}});
     inTrack->mHistory->endMergeRun();
     gloParent->updateInfoPanel();
     updateSectionFrame();

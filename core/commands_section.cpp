@@ -25,7 +25,11 @@
 // arguments in the same order. The slots work out the value in model units
 // (a length divided by the length factor, a speed divided by the speed factor)
 // before they run the command, so every number here is in model units: metres,
-// metres per second, degrees.
+// metres per second, degrees. The ranges of the lengths and speeds cover what
+// the boxes can send under every unit setting (the boxes limit the displayed
+// number: a straight 0.1 to 500, a radius 1 to 500, a speed 0.1 to 500; in feet
+// the smallest straight is 0.0305 m and the smallest radius 0.305 m, in km/h
+// the smallest speed 0.0278 m/s), so a command refuses nothing a box accepts.
 //
 // Sections made by the importers (Bezier and NoLimits CSV) are not offered by
 // section.add: no window adds them by hand. The panels have no controls for
@@ -374,7 +378,7 @@ QList<commandSpec> sectionCommands()
         s.name = "straight.setLength";
         s.description = "Sets the length of a straight; the track is recomputed from it.";
         s.target = targetSection;
-        s.params << commandParam::floatParam("length", "m", "The straight's length.", 0.1, 500.0);
+        s.params << commandParam::floatParam("length", "m", "The straight's length.", 0.03, 500.0);
         s.label = "Change straight length";
         s.merges = true;
         s.example.insert("length", 12.375);
@@ -402,7 +406,7 @@ QList<commandSpec> sectionCommands()
         s.name = "curve.setRadius";
         s.description = "Sets the radius of a curve; the track is recomputed from it.";
         s.target = targetSection;
-        s.params << commandParam::floatParam("radius", "m", "The radius of the curve.", 1.0, 500.0);
+        s.params << commandParam::floatParam("radius", "m", "The radius of the curve.", 0.3, 500.0);
         s.label = "Change curve radius";
         s.merges = true;
         s.example.insert("radius", 23.25);
@@ -471,7 +475,7 @@ QList<commandSpec> sectionCommands()
         s.name = "section.setSpeed";
         s.description = "Sets the fixed speed of a straight, curve, force or geometric section; it is used while the section runs at a fixed speed (section.setSpeedFixed).";
         s.target = targetSection;
-        s.params << commandParam::floatParam("speed", "m/s", "The speed.", 0.1, 500.0);
+        s.params << commandParam::floatParam("speed", "m/s", "The speed.", 0.027, 500.0);
         s.label = "Change section speed";
         s.merges = true;
         s.example.insert("speed", 17.25);
