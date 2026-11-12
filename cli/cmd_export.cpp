@@ -41,6 +41,77 @@ using namespace std;
 static const double EXPORT_SEGMENT_LENGTH = 2.0;
 static const double EXPORT_RELROLL_THRESHOLD = 85.0;
 
+static bool exportNL2File(track* tTrack, const QString& fileName)
+{
+    float fPerNode = EXPORT_SEGMENT_LENGTH;
+    int fromIndex = 0;
+    int toIndex = tTrack->lSections.size()-1;
+
+    return writeNL2Element(fileName, tTrack, fPerNode, fromIndex, fromIndex+toIndex);
+}
+
+static bool exportNL1File(track* tTrack, const QString& fileName, bool tangent)
+{
+    float fPerNode = EXPORT_SEGMENT_LENGTH;
+    float fRollThresh = sin(EXPORT_RELROLL_THRESHOLD*F_PI/180.f);
+    int fromIndex = 0;
+    int toIndex = tTrack->lSections.size()-1;
+
+    if(tangent) {
+        return writeNL1TangentElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
+    } else {
+        return writeNL1SplineElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
+    }
+}
+
+// The three exports of every track with sections, then the re-saved project
+// as <stem>.resaved.fvd; each file written is listed in report. Shared with
+// the session's "export" (cli/cmd_session.cpp).
+bool writeProjectExports(coreProject& project, const QDir& dir, const QString& stem, QStringList& report, QString& error)
+{
+    QList<track*>& trackList = project.tracks;
+    for(int i = 0; i < trackList.size(); ++i) {
+        track* tTrack = trackList[i];
+        if(tTrack->lSections.size() == 0) {
+            report.append(QString("skipped track %1 (%2): no sections").arg(i+1).arg(tTrack->name));
+            continue;
+        }
+        QString base = stem;
+        if(i > 0) {
+            base += QString(".track%1").arg(i+1);
+        }
+
+        QString nl2Name = base + ".nl2elem";
+        QString tangentName = base + ".tangent.nlelem";
+        QString splineName = base + ".spline.nlelem";
+
+        if(!exportNL2File(tTrack, dir.filePath(nl2Name))) {
+            error = QString("cannot write ") + nl2Name;
+            return false;
+        }
+        report.append(QString("wrote ") + nl2Name);
+        if(!exportNL1File(tTrack, dir.filePath(tangentName), true)) {
+            error = QString("cannot write ") + tangentName;
+            return false;
+        }
+        report.append(QString("wrote ") + tangentName);
+        if(!exportNL1File(tTrack, dir.filePath(splineName), false)) {
+            error = QString("cannot write ") + splineName;
+            return false;
+        }
+        report.append(QString("wrote ") + splineName);
+    }
+
+    QString resavedName = stem + ".resaved.fvd";
+    QString saveResult = saveProjectFile(dir.filePath(resavedName), project.texPath, trackList, &project);
+    if(saveResult.contains("Error")) {
+        error = QString("saving ") + resavedName + ": " + saveResult;
+        return false;
+    }
+    report.append(QString("wrote ") + resavedName);
+    return true;
+}
+
 namespace {
 
 class exporter
@@ -53,8 +124,6 @@ public:
 
 private:
     bool writeProjectFiles(coreProject& project, const QDir& dir, const QString& stem, QString& error);
-    bool exportNL2(track* tTrack, const QString& fileName);
-    bool exportNL1(track* tTrack, const QString& fileName, bool tangent);
     int finish(bool ok, const QString& error);
 };
 
@@ -90,74 +159,9 @@ int exporter::runExport(const QString& projectFile, const QString& outDir)
     return finish(true, QString());
 }
 
-// The three exports of every track with sections, then the re-saved project
-// as <stem>.resaved.fvd; each file written is listed in the report.
 bool exporter::writeProjectFiles(coreProject& project, const QDir& dir, const QString& stem, QString& error)
 {
-    QList<track*>& trackList = project.tracks;
-    for(int i = 0; i < trackList.size(); ++i) {
-        track* tTrack = trackList[i];
-        if(tTrack->lSections.size() == 0) {
-            lReport.append(QString("skipped track %1 (%2): no sections").arg(i+1).arg(tTrack->name));
-            continue;
-        }
-        QString base = stem;
-        if(i > 0) {
-            base += QString(".track%1").arg(i+1);
-        }
-
-        QString nl2Name = base + ".nl2elem";
-        QString tangentName = base + ".tangent.nlelem";
-        QString splineName = base + ".spline.nlelem";
-
-        if(!exportNL2(tTrack, dir.filePath(nl2Name))) {
-            error = QString("cannot write ") + nl2Name;
-            return false;
-        }
-        lReport.append(QString("wrote ") + nl2Name);
-        if(!exportNL1(tTrack, dir.filePath(tangentName), true)) {
-            error = QString("cannot write ") + tangentName;
-            return false;
-        }
-        lReport.append(QString("wrote ") + tangentName);
-        if(!exportNL1(tTrack, dir.filePath(splineName), false)) {
-            error = QString("cannot write ") + splineName;
-            return false;
-        }
-        lReport.append(QString("wrote ") + splineName);
-    }
-
-    QString resavedName = stem + ".resaved.fvd";
-    QString saveResult = saveProjectFile(dir.filePath(resavedName), project.texPath, trackList, &project);
-    if(saveResult.contains("Error")) {
-        error = QString("saving ") + resavedName + ": " + saveResult;
-        return false;
-    }
-    lReport.append(QString("wrote ") + resavedName);
-    return true;
-}
-
-bool exporter::exportNL2(track* tTrack, const QString& fileName)
-{
-    float fPerNode = EXPORT_SEGMENT_LENGTH;
-    int fromIndex = 0;
-    int toIndex = tTrack->lSections.size()-1;
-
-    return writeNL2Element(fileName, tTrack, fPerNode, fromIndex, fromIndex+toIndex);
-}
-
-bool exporter::exportNL1(track* tTrack, const QString& fileName, bool tangent)
-{
-    float fPerNode = EXPORT_SEGMENT_LENGTH;
-    float fRollThresh = sin(EXPORT_RELROLL_THRESHOLD*F_PI/180.f);
-    int fromIndex = 0;
-    int toIndex = tTrack->lSections.size()-1;
-
-    if(tangent) {
-        return writeNL1TangentElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
-    } else {
-        return writeNL1SplineElement(fileName, tTrack, fPerNode, fromIndex, toIndex+fromIndex, fRollThresh, false);
-    }
+    return writeProjectExports(project, dir, stem, lReport, error);
 }
 
 int exporter::finish(bool ok, const QString& error)

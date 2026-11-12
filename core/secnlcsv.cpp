@@ -257,14 +257,13 @@ bool secnlcsv::isInFunction(int index, subfunc* func)
     return false;
 }
 
-void secnlcsv::loadTrack(QString filename)
+bool secnlcsv::readNodes(const QString& filename, QList<mnode>& nodes, QString* error)
 {
     QFile file(filename);
 
-    csvNodes.clear();
-
     if (!file.open(QIODevice::ReadOnly)) {
-        return ;
+        if(error) *error = QString("cannot read ") + filename;
+        return false;
     }
 
     int lineCount=0;
@@ -272,8 +271,14 @@ void secnlcsv::loadTrack(QString filename)
     while (!file.atEnd()) {
         QByteArray line = file.readLine();
 
-        if(lineCount) {
+        if(lineCount && !line.trimmed().isEmpty()) {
             QList<QByteArray> lineSplitted = line.split('\t');
+
+            if(lineSplitted.size() < 10) {
+                if(error) *error = QString("line %1 of %2 has %3 column(s); a NoLimits 2 CSV line has at least 10")
+                        .arg(lineCount+1).arg(filename).arg(lineSplitted.size());
+                return false;
+            }
 
             glm::vec3 pos = glm::vec3(lineSplitted[1].toFloat(), lineSplitted[2].toFloat(), lineSplitted[3].toFloat());
             glm::vec3 front = glm::vec3(lineSplitted[4].toFloat(), lineSplitted[5].toFloat(), lineSplitted[6].toFloat());
@@ -283,11 +288,27 @@ void secnlcsv::loadTrack(QString filename)
             node.vPos = pos;
             node.vDir = front;
             node.vLat = left;
-            csvNodes.append(node);
+            nodes.append(node);
         }
 
         lineCount++;
     }
 
+    if(nodes.size() < 2) {
+        if(error) *error = filename + QString(" holds %1 line(s) of data; a NoLimits 2 CSV needs at least 2").arg(nodes.size());
+        return false;
+    }
+    return true;
+}
+
+bool secnlcsv::loadTrack(QString filename, QString* error)
+{
+    QList<mnode> nodes;
+    if(!readNodes(filename, nodes, error)) {
+        return false;
+    }
+    csvNodes = nodes;
+
     parent->updateTrack(0, 0);
+    return true;
 }

@@ -139,8 +139,10 @@ struct rideSummary
     bool nonFinite;         // some node has a speed, force or position that is not a number
                             // (a stalled train); such values are skipped in every sum and extreme
 
-    double length_m;        // along the centre line: the last node's fTotalLength
-    double heartLength_m;   // along the heartline: fTotalHeartLength
+    double length_m;        // along the centre line: fTotalLength of the last node whose length is a number
+    double heartLength_m;   // along the heartline: fTotalHeartLength, the same way
+    bool lengthStopsAtStall;    // the last node's length is not a number (a stalled train), so the
+                            // two lengths above are those of the last node before the stall
     double duration_s;      // first node to last node
 
     rideSpot highest;       // value = height in the world, m

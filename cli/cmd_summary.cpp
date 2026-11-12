@@ -112,6 +112,9 @@ static QString sheetText(const rideSummary& r, bool withSections)
     if(r.nonFinite) {
         t += "  Note: some values are not numbers (the train stalls); they are left out above.\n";
     }
+    if(r.lengthStopsAtStall) {
+        t += "  Note: the length stops at the stall (the last node whose length is a number).\n";
+    }
     if(withSections) {
         t += "\n  Sections (end position is the centre line in the world frame)\n";
         t += QString("  %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12\n").arg("no", 3).arg("type", -13).arg("name", -16)
@@ -164,13 +167,16 @@ static QJsonValue fallJson(const rideFall& d)
     return o;
 }
 
-static QJsonObject sheetJson(const rideSummary& r, int trackNumber, const QString& trackName)
+// The ride sheet as one JSON object, shared with the session's "summary".
+// withSections false leaves out "section_list" (the table of section ends).
+QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QString& trackName, bool withSections)
 {
     QJsonObject o;
     o["track"] = trackNumber;
     o["name"] = trackName;
     o["empty"] = r.empty;
     o["non_finite"] = r.nonFinite;
+    o["length_stops_at_stall"] = r.lengthStopsAtStall;
     o["sections"] = r.sectionCount;
     o["nodes"] = r.nodeCount;
     o["length_m"] = rounded(r.length_m);
@@ -223,6 +229,7 @@ static QJsonObject sheetJson(const rideSummary& r, int trackNumber, const QStrin
         findings.append(fo);
     }
     o["findings"] = findings;
+    if(!withSections) return o;
     QJsonArray secs;
     for(int i = 0; i < r.sections.size(); ++i) {
         const rideSectionInfo& s = r.sections.at(i);
@@ -289,7 +296,7 @@ static int runSummary(const QStringList& args)
         track* t = trackByNumber(project, numbers.at(k), error);
         rideSummary r = computeRideSummary(t);
         if(json) {
-            all.append(sheetJson(r, numbers.at(k), t->name));
+            all.append(summarySheetJson(r, numbers.at(k), t->name, true));
         } else {
             if(k > 0) text += "\n";
             text += QString("Ride sheet: %1, track %2 \"%3\"\n").arg(positional.at(0)).arg(numbers.at(k)).arg(t->name);

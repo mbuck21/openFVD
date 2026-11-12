@@ -358,6 +358,20 @@ static void checkEmptyAndStalled(const QString& repo)
            QString("a stalled train: the non-finite flag is set, every sum and extreme is a number (top speed %1 m/s, "
                    "duration %2 s), the findings say so (%3 problem(s))")
            .arg(r.topSpeed.value).arg(r.duration_s).arg(r.findingCount[findingProblem]));
+
+    // The length stops at the stall: that of the last node whose length is a
+    // number (not 0, which it was when the last node's length was taken).
+    int lastNode = t->getNumPoints();
+    int lastFinite = -1;
+    for(int i = lastNode; i >= 0; --i) {
+        if(std::isfinite(t->getPoint(i)->fTotalLength)) { lastFinite = i; break; }
+    }
+    report(!std::isfinite(t->getPoint(lastNode)->fTotalLength) && lastFinite >= 0 && r.lengthStopsAtStall
+           && r.length_m > 0.0 && r.length_m == (double)t->getPoint(lastFinite)->fTotalLength,
+           QString("a stalled train: the length is %1 m, that of the last node with a length (node %2 of %3), and the result says it stops at the stall")
+           .arg(r.length_m).arg(lastFinite).arg(lastNode));
+    rideSummary fine = computeRideSummary(&none);
+    report(!fine.lengthStopsAtStall && !e.lengthStopsAtStall, "an empty track does not claim a stall");
 }
 
 // ---------------------------------------------------------------------------

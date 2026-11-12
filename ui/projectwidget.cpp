@@ -210,7 +210,16 @@ void projectWidget::importNLTrackFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsNlTrack();
+    if(!importer->importAsNlTrack()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 1 Track"), why);
+        return;
+    }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
@@ -241,10 +250,20 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
 
-    newTrack->trackData->fHeart = 0.0f;
-    newTrack->trackWidgetItem->addSection(nolimitscsv);
-
-    dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+    // the model steps (heartline, the section, the file) are the importer's;
+    // the section's row in the panel comes through the track's notice
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
+    if(!importer->importAsCsv()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 2 CSV"), why);
+        return;
+    }
+    delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
 
@@ -274,7 +293,16 @@ void projectWidget::importPointListFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsTxt();
+    if(!importer->importAsTxt()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import from Pointlist"), why);
+        return;
+    }
     delete importer;
     newTrack->mUndoHandler->clearActions();   // the import is the start of the track's undo list
 }
