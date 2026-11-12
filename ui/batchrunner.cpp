@@ -656,18 +656,17 @@ static QString sameOrNot(const QStringList& diff)
 // batchscenarios.cpp to track 1 through the windows; writes "B"; undoes every
 // step through Edit, Undo and writes "A2"; redoes every step and writes "B2".
 // Passes when A2 equals A and B2 equals B byte for byte. With --each, every
-// edit is in addition undone and redone on its own right after it is made, so
-// that a failure names the edit that causes it (a diagnostic, not the default).
+// edit is in addition undone and redone on its own right after it is made,
+// and each must restore the files exactly (decision record 0013: every edit
+// ends in the state a save and reopen gives); a failure names the edit.
 // --edits runs only the listed edits, plus the first and the last.
 int batchRunner::runUndoCheck()
 {
     // --all-edits: include the edits known to fail today
     // --edits 3,17,20: only these edits (numbered as in the report) and the first
     //     and last, which recompute the whole track; to find which edit fails
-    // --each: also undo and redo every edit on its own right after making it,
-    //     and report whether that restores the files (a diagnostic: today the
-    //     part of the track after an edit is recomputed from the edited point,
-    //     which can differ from the stored values in the last digits)
+    // --each: also undo and redo every edit on its own right after making it;
+    //     an edit whose undo or redo does not restore the files fails the check
     bool allEdits = lArgs.contains("--all-edits");
     if(allEdits) lArgs.removeAll("--all-edits");
     bool each = lArgs.contains("--each");
@@ -811,6 +810,9 @@ int batchRunner::runUndoCheck()
         }
         bool editOk = undoDiff.isEmpty() && redoDiff.isEmpty();
         if(!editOk) {
+            // every edit ends in the reopened state, so undo and redo of it
+            // alone restore the files exactly (decision record 0013)
+            allOk = false;
             // the evidence: the files that differ, before and after the round trip
             QString prefix = QString("%1.edit%2.").arg(stem).arg(i+1);
             if(!undoDiff.isEmpty()) {

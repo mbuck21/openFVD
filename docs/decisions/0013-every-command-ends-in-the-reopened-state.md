@@ -28,7 +28,9 @@
 
 ## Where enforced
 
-- `core/command.cpp` (`commandRegistry::run`) and the model fixes it needs; `tests/commands/` ("running equals reopened").
-- `FVD.exe --batch-undo-check ... --each`: a single-edit redo that differs is a failure, not a note.
+- `core/command.cpp` (`commandRegistry::runSpec`): after a successful apply, `track::settleTransitions()` (the transitions' starts and ends put through the sums a load makes when it reads them back) and `track::updateFromAnchor()` (the whole track from the anchor, as a load computes it), then `track::updateSmoothEntries()` (the smoothing entries' names and ranges, which a load takes from the track). A command whose apply function already ends that way is marked `settlesItself` (the anchor commands, `track.setHeartline`, and `smoothing.setEntry`, `addRegion` and `removeRegion`, which recompute with `apply` true and on purpose leave the track alone with `apply` false, for the smoothing dialog, whose step ends exact at OK).
+- `core/trackstate.cpp` (`restoreTrackState`): an undo, a redo or a rollback first computes the track from the anchor, as a load does, and keeps that when it gives the captured first node back bit for bit (roll smoothing turns the first node, and taking the turn off again before a recompute from it is exact only to the last digits); any other first node (an import's, or one an edit outside the commands left stale) is put back and the track computed from it, as before.
+- `tests/commands/` ("running equals reopened", `checkRunningEqualsReopened()` and `checkDialogsReopened()`; `commands <repository> --reopen` runs them alone).
+- `FVD.exe --batch-undo-check ... --each`: a single-edit undo or redo that differs is a failure, not a note; `tools/run-baseline.py --undo-check` runs it with `--each`.
 - `core/CLAUDE.md`: a new command must pass the test; a new kind of recompute must be exact.
 - Issue 63, item 14.

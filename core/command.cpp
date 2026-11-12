@@ -323,7 +323,7 @@ commandParam commandParam::textParam(const QString& name, const QString& descrip
 // ---- commandSpec ------------------------------------------------------------
 
 commandSpec::commandSpec()
-    : target(targetTrack), merges(false), exampleMayChangeNothing(false)
+    : target(targetTrack), merges(false), exampleMayChangeNothing(false), settlesItself(false)
 {
 }
 
@@ -580,6 +580,24 @@ bool commandRegistry::runSpec(trackHistory* history, const commandSpec& spec, co
     history->recordCall(call);
     why.clear();
     bool ok = spec.apply(history->getTrack(), target, valid, &why);
+    if(ok) {
+        // The track as saving and reopening gives it (decision record 0013).
+        track* t = history->getTrack();
+        if(!spec.settlesItself) {
+            // The apply function recomputed from the edited point onward, as
+            // the window's slot did; that can leave the track a little (with
+            // roll smoothing, metres) away from the one its settings give. The
+            // transitions as a load reads them back, then the whole track from
+            // the anchor, as a load computes it.
+            t->settleTransitions();
+            t->updateFromAnchor();
+        }
+        // The smoothing entries' names and node ranges, which a load takes
+        // from the track (smoothHandler::update()); the custom regions are
+        // labelled again a, b, ... as the smoothing dialog shows them.
+        char customChar;
+        t->updateSmoothEntries(&customChar);
+    }
     history->endStep(ok);
     if(!ok) {
         if(error) *error = name + " (" + target.toText() + "): " + (why.isEmpty() ? QString("failed") : why);

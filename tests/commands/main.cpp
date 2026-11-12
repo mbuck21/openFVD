@@ -39,9 +39,16 @@
 //    step, undone as one) or Cancel rolls it back (the saved bytes as at the
 //    start, nothing recorded); smoothing.apply gives the exports the
 //    smoothing dialog's OK gave.
-// Prints the time of one run plus undo on the largest baseline project.
+// 6. Running equals reopened (decision record 0013): every command at a fixed
+//    pattern of places on every baseline track leaves the track that saving
+//    and reopening gives, and that undo then redo gives; so do the two
+//    dialogs' OK (checkRunningEqualsReopened(), checkDialogsReopened()).
+// Prints the time of one run plus undo on the largest baseline project, and
+// of a typed value on a late and an early section and of adding a section.
 //
 //   commands <repository folder>
+//   commands <repository folder> --reopen    (part 6 and the times alone,
+//                                             with a track of 150,000 nodes)
 
 #include "../../core/track.h"
 #include "../../core/trackstate.h"
@@ -50,6 +57,9 @@
 #include "../../core/projectfile.h"
 #include "../../core/elementfile.h"
 #include "../../core/smoothhandler.h"
+#include "../../core/section.h"
+#include "../../core/function.h"
+#include "../../core/subfunction.h"
 #include "../../lenassert.h"
 
 #include <QCoreApplication>
@@ -78,6 +88,10 @@ static QString tmpPath;
 // The history's warnings, kept for the checks that look for them.
 static QStringList historyWarnings;
 
+// The number of failed lenAsserts so far, and whether they are printed.
+static int criticalCount = 0;
+static bool printCriticals = true;
+
 // Debug output and other warnings are dropped (the exporters print thousands
 // of lines); a failed lenAssert (qCritical in release) is shown and fails the
 // test.
@@ -87,7 +101,8 @@ static void messageHandler(QtMsgType type, const QMessageLogContext&, const QStr
         historyWarnings.append(msg);
     }
     if(type == QtCriticalMsg || type == QtFatalMsg) {
-        fprintf(stderr, "critical: %s\n", msg.toLocal8Bit().constData());
+        ++criticalCount;
+        if(printCriticals) fprintf(stderr, "critical: %s\n", msg.toLocal8Bit().constData());
         allOk = false;
     }
 }
@@ -1420,6 +1435,417 @@ static void checkSectionCommands(const QString& repo)
     }
 }
 
+// ---- 6. running equals reopened ---------------------------------------------
+
+// What the test compares of a track: the node count, the saved bytes, the
+// three exports and the end node's position and speed.
+struct trackSnap
+{
+    int nodes;
+    QByteArray saved;
+    QList<QByteArray> exports;
+    glm::vec3 endPos;
+    float endVel;
+};
+
+static qint64 snapNs = 0;
+
+static trackSnap snapOf(track* t)
+{
+    QElapsedTimer timer;
+    timer.start();
+    struct addTime { QElapsedTimer& t; ~addTime() { snapNs += t.nsecsElapsed(); } } add{timer};
+    trackSnap s;
+    s.nodes = t->getNumPoints();
+    s.saved = savedBytes(t);
+    s.exports = exportsOf(t);
+    mnode* end = t->getPoint(s.nodes);
+    s.endPos = end->vPos;
+    s.endVel = end->fVel;
+    return s;
+}
+
+// The bytes that differ: those at the same place, or, when the lengths differ
+// (a name of another length), the span between the common start and the
+// common end, whichever is fewer.
+static qint64 bytesDiffering(const QByteArray& x, const QByteArray& y)
+{
+    qint64 n = qAbs(x.size() - y.size());
+    for(int k = 0; k < qMin(x.size(), y.size()); ++k) {
+        if(x[k] != y[k]) ++n;
+    }
+    int shortest = qMin(x.size(), y.size());
+    int head = 0;
+    while(head < shortest && x[head] == y[head]) ++head;
+    int tail = 0;
+    while(tail < shortest - head && x[x.size()-1-tail] == y[y.size()-1-tail]) ++tail;
+    return qMin(n, (qint64)qMax(x.size(), y.size()) - head - tail);
+}
+
+// How far two snapshots are apart, and whether they are the same track.
+struct snapDiff
+{
+    snapDiff() : nodes(0), endMm(0.), endVel(0.), exportBytes(0), savedBytes(0) {}
+    int nodes;
+    double endMm;
+    double endVel;
+    qint64 exportBytes;
+    qint64 savedBytes;
+    // the same track: node count, exports, end position and speed bit for bit
+    bool sameTrack() const { return nodes == 0 && endMm == 0. && endVel == 0. && exportBytes == 0; }
+    void widen(const snapDiff& o)
+    {
+        nodes = qMax(nodes, o.nodes);
+        endMm = qMax(endMm, o.endMm);
+        endVel = qMax(endVel, o.endVel);
+        exportBytes = qMax(exportBytes, o.exportBytes);
+        savedBytes = qMax(savedBytes, o.savedBytes);
+    }
+    QString text() const
+    {
+        return QString("nodes %1, end %2 mm, speed %3 m/s, exports %4 bytes, saved %5 bytes")
+                .arg(nodes).arg(endMm, 0, 'g', 4).arg(endVel, 0, 'g', 4).arg(exportBytes).arg(savedBytes);
+    }
+};
+
+static snapDiff diffOf(const trackSnap& a, const trackSnap& b)
+{
+    snapDiff d;
+    d.nodes = qAbs(a.nodes - b.nodes);
+    bool samePos = memcmp(&a.endPos, &b.endPos, sizeof(glm::vec3)) == 0;
+    d.endMm = samePos ? 0. : qMax((double)glm::distance(a.endPos, b.endPos)*1000., 1e-9);
+    bool sameVel = memcmp(&a.endVel, &b.endVel, sizeof(float)) == 0;
+    d.endVel = sameVel ? 0. : qMax((double)fabs(a.endVel - b.endVel), 1e-12);
+    exportDiff(a.exports, b.exports, &d.exportBytes);
+    d.savedBytes = bytesDiffering(a.saved, b.saved);
+    return d;
+}
+
+// One run of a command in the test: its target and arguments.
+struct reopenCase
+{
+    commandTarget target;
+    commandArgs args;
+};
+
+static QList<int> firstMiddleLast(int count)
+{
+    QList<int> out;
+    if(count <= 0) return out;
+    out << 0;
+    if(count/2 != 0) out << count/2;
+    if(count-1 != 0 && count-1 != count/2) out << count-1;
+    return out;
+}
+
+// The example arguments with one value changed: the first number that is not
+// zero halved, else the first switch (other than "apply") turned over, else
+// the first choice changed. Empty when there is nothing to change.
+static commandArgs otherArgs(const commandSpec& spec)
+{
+    commandArgs args = spec.example;
+    for(int p = 0; p < spec.params.size(); ++p) {
+        const commandParam& par = spec.params[p];
+        if(par.type == paramFloat && args.value(par.name).toDouble() != 0.) {
+            double v = args.value(par.name).toDouble()*0.5;
+            if(par.hasRange) v = qBound(par.minimum, v, par.maximum);
+            args.insert(par.name, v);
+            return args;
+        }
+    }
+    for(int p = 0; p < spec.params.size(); ++p) {
+        const commandParam& par = spec.params[p];
+        if(par.type == paramBool && par.name != "apply") {
+            args.insert(par.name, !args.value(par.name).toBool());
+            return args;
+        }
+        if(par.type == paramEnum) {
+            QString now = args.value(par.name).toString();
+            for(int k = 0; k < par.enumNames.size(); ++k) {
+                if(par.enumNames[k] != now) {
+                    args.insert(par.name, par.enumNames[k]);
+                    return args;
+                }
+            }
+        }
+    }
+    return commandArgs();
+}
+
+static bool isEditableSection(const section* s)
+{
+    return s->type == straight || s->type == curved || s->type == forced || s->type == geometric;
+}
+
+// The sections a section command applies to (the windows' panels).
+static bool sectionFits(const QString& name, const section* s)
+{
+    if(name == "section.delete" || name == "section.setName") return true;
+    if(name == "straight.setLength") return s->type == straight;
+    if(name.startsWith("curve.")) return s->type == curved;
+    if(name == "section.setSpeedFixed") return isEditableSection(s) && s->bSpeed;
+    if(name == "section.setSpeed") return isEditableSection(s);
+    if(name == "section.setArgument") return (s->type == forced || s->type == geometric) && s->bArgument == TIME;
+    if(name == "section.setOrientation") return (s->type == curved && s->bOrientation == QUATERNION)
+            || (s->type == geometric && s->bArgument == TIME && s->bOrientation == QUATERNION);
+    return isEditableSection(s);
+}
+
+// The places a command is run at on a track, in a fixed pattern: every
+// section command at the first, a middle and the last section it applies to;
+// every transition command at each function of the first, a middle and the
+// last section the panels edit (a straight's or a curve's roll included) and
+// its first, a middle and its last transition; section.add of
+// each kind after 0, after 1, in the middle and at the end. Each with the
+// example arguments; the first place once more with otherArgs().
+static QList<reopenCase> reopenCases(const commandSpec& spec, track* t, int ti)
+{
+    QList<reopenCase> cases;
+    commandTarget example;
+    if(!spec.findExampleTarget(t, ti, &example)) return cases;
+
+    if(spec.name == "section.add") {
+        const char* kinds[] = { "straight", "curved", "force", "geometric" };
+        int n = t->lSections.size();
+        QList<int> places;
+        places << 0 << 1 << n/2 << n;
+        for(int k = 0; k < 4; ++k) {
+            QList<int> done;
+            for(int p = 0; p < places.size(); ++p) {
+                if(places[p] > n || done.contains(places[p])) continue;
+                done << places[p];
+                reopenCase c;
+                c.target = commandTarget::forTrack(ti);
+                c.args = commandArgs{{"type", QString(kinds[k])}, {"after", places[p]}};
+                cases << c;
+            }
+        }
+        return cases;
+    }
+
+    if(spec.target == targetTrack) {
+        reopenCase c;
+        c.target = example;
+        c.args = spec.example;
+        cases << c;
+    } else if(spec.target == targetSection) {
+        QList<int> fit;
+        for(int i = 0; i < t->lSections.size(); ++i) {
+            if(sectionFits(spec.name, t->lSections[i])) fit << i;
+        }
+        QList<int> pick = firstMiddleLast(fit.size());
+        for(int k = 0; k < pick.size(); ++k) {
+            reopenCase c;
+            c.target = commandTarget::forSection(ti, fit[pick[k]]);
+            c.args = spec.example;
+            cases << c;
+        }
+    } else {
+        QList<int> fit;
+        for(int i = 0; i < t->lSections.size(); ++i) {
+            if(isEditableSection(t->lSections[i])) fit << i;
+        }
+        QList<int> pick = firstMiddleLast(fit.size());
+        for(int k = 0; k < pick.size(); ++k) {
+            section* s = t->lSections[fit[pick[k]]];
+            func* funcs[3] = { s->rollFunc, s->normForce, s->latForce };
+            for(int f = 0; f < 3; ++f) {
+                if(funcs[f] == NULL) continue;
+                QList<int> tr = firstMiddleLast(funcs[f]->funcList.size());
+                for(int j = 0; j < tr.size(); ++j) {
+                    subfunc* sub = funcs[f]->funcList[tr[j]];
+                    reopenCase c;
+                    c.target = commandTarget::forTransition(ti, fit[pick[k]], funcs[f]->type, tr[j]);
+                    c.args = spec.example;
+                    if(spec.name == "transition.setLength" && sub->locked) continue;
+                    if(spec.name == "transition.delete" && funcs[f]->funcList.size() < 2) continue;
+                    if(spec.name == "transition.setLocked") {
+                        if(sub->locked) {
+                            c.args.insert("locked", false);
+                        } else if(tr[j] != funcs[f]->funcList.size()-1 || !s->isLockable(funcs[f])) {
+                            continue;
+                        }
+                    }
+                    cases << c;
+                }
+            }
+        }
+    }
+    // A second value where the value reaches the track's shape: not for the
+    // anchor (checkAnchorReload() and checkRateCommands() run those further)
+    // nor for what only the 3D view shows.
+    commandArgs other = otherArgs(spec);
+    bool secondValue = spec.name != "transition.setLocked" && !spec.name.startsWith("anchor.")
+            && spec.name != "track.setColor" && spec.name != "track.setStyle" && spec.name != "track.setWireframe"
+            && spec.name != "track.setHeartlineDrawing" && spec.name != "track.setName" && spec.name != "section.setName";
+    if(!cases.isEmpty() && !other.isEmpty() && secondValue) {
+        reopenCase c = cases.first();
+        c.args = other;
+        cases << c;
+    }
+    return cases;
+}
+
+// Every registered command on every track of every baseline project, at the
+// places reopenCases() lists: the running track straight after the command
+// (L) against the project saved and loaded into a fresh model (S), and
+// against the track after an undo and a redo (R) (decision record 0013).
+// L and S must be the same track (node count, the three exports, the end
+// node's position and speed, bit for bit); L and R must have the same saved
+// bytes and exports. The saved bytes of L and S could differ where a load
+// moves a stored value (issue 63, item 7: a transition's end by a last digit,
+// a smoothing entry's name); the largest such difference is printed and
+// bounded (today by 0: they are equal).
+// Prints one table row per command and project.
+// full: every place reopenCases() lists (commands --reopen, about 7 minutes);
+// otherwise, to keep tools\run-tests.cmd short, section.add at all its places
+// and the other commands at the first, every third and the last place.
+static void checkRunningEqualsReopened(const QStringList& projects, bool full)
+{
+    // Bytes; see above. A load rewrites a transition's ends and the smoothing
+    // entries' names and ranges, but every command now leaves them as a load
+    // would (track::settleTransitions(), track::updateSmoothEntries()), and
+    // none differs on the baseline projects.
+    const int savedBound = 0;
+    // A place where the command's values make the model's own check fail
+    // (a lenAssert, which a release build only logs) is left out and listed.
+    const bool okBefore = allOk;
+    printCriticals = false;
+    QStringList asserted;
+    qint64 runNs = 0, reopenNs = 0, undoNs = 0;
+    QElapsedTimer timer;
+    timer.start();
+    const QList<commandSpec>& all = commandRegistry::all();
+    int totalCases = 0, totalBadS = 0, totalBadR = 0;
+    qint64 largestSaved = 0;
+    QStringList rows;
+    QStringList failures;
+    QList<int> trackCounts;
+    for(int p = 0; p < projects.size(); ++p) {
+        testProject probe;
+        loadProjectFile(projects[p], &probe);
+        trackCounts << probe.tracks.size();
+    }
+    for(int c = 0; c < all.size(); ++c) {
+        const commandSpec& spec = all[c];
+        for(int p = 0; p < projects.size(); ++p) {
+            QString stem = QFileInfo(projects[p]).fileName();
+            const int trackCount = trackCounts[p];
+            int cases = 0, badS = 0, badR = 0;
+            snapDiff worstS, worstR;
+            for(int ti = 0; ti < trackCount; ++ti) {
+                testProject project;
+                loadProjectFile(projects[p], &project);
+                track* t = project.tracks[ti];
+                prepareExample(spec, t);
+                QList<reopenCase> list = reopenCases(spec, t, ti);
+                if(!full && spec.name != "section.add") {
+                    // the first, every third and the last place
+                    QList<reopenCase> some;
+                    for(int k = 0; k < list.size(); ++k) {
+                        if(k % 3 == 0 || k == list.size()-1) some << list[k];
+                    }
+                    list = some;
+                }
+                const bool structural = spec.name == "section.add" || spec.name == "section.delete"
+                        || spec.name == "transition.add" || spec.name == "transition.delete"
+                        || spec.name == "transition.setLocked" || spec.name.startsWith("smoothing.");
+                trackHistory history(t);
+                for(int k = 0; k < list.size(); ++k) {
+                    const reopenCase& rc = list[k];
+                    QString label = QString("%1 on %2 track %3 (%4) %5").arg(spec.name, stem).arg(ti+1).arg(rc.target.toText())
+                            .arg(QString::fromUtf8(QJsonDocument(commandArgsToJson(rc.args)).toJson(QJsonDocument::Compact)));
+                    int stepsBefore = history.steps().size();
+                    int positionBefore = history.position();
+                    int criticalsBefore = criticalCount;
+                    QString error;
+                    QElapsedTimer part;
+                    part.start();
+                    bool ok = commandRegistry::run(&history, spec.name, rc.target, rc.args, &error);
+                    runNs += part.nsecsElapsed();
+                    if(!ok) {
+                        printf("reopen: %s: not run (%s)\n", label.toUtf8().constData(), error.toUtf8().constData());
+                        continue;
+                    }
+                    bool stepped = history.position() == positionBefore+1 || history.steps().size() > stepsBefore;
+                    trackSnap live = snapOf(t);
+
+                    part.restart();
+                    QString file = QDir(tmpPath).filePath("reopen.fvd");
+                    saveProjectFile(file, project.texPath, project.tracks, &project);
+                    trackSnap reopened;
+                    {
+                        testProject again;
+                        loadProjectFile(file, &again);
+                        if(ti >= again.tracks.size()) continue;
+                        reopened = snapOf(again.tracks[ti]);
+                    }
+                    reopenNs += part.nsecsElapsed();
+                    trackSnap redone = live;
+                    part.restart();
+                    if(stepped) {
+                        history.undo();
+                        history.redo();
+                        redone = snapOf(t);
+                    }
+                    undoNs += part.nsecsElapsed();
+                    if(criticalCount != criticalsBefore) {
+                        // the model's own check failed (lenAssert): these
+                        // values make a track the model refuses, as the
+                        // window's box would; not a place to compare
+                        asserted << label;
+                        if(stepped) history.undo();
+                        continue;
+                    }
+                    ++cases;
+                    snapDiff ds = diffOf(live, reopened);
+                    snapDiff dr = diffOf(live, redone);
+                    worstS.widen(ds);
+                    worstR.widen(dr);
+                    largestSaved = qMax(largestSaved, ds.savedBytes);
+                    bool sOk = ds.sameTrack();
+                    bool rOk = dr.sameTrack() && dr.savedBytes == 0;
+                    if(!sOk) ++badS;
+                    if(!rOk) ++badR;
+                    if(!sOk || !rOk) {
+                        failures << label + ": " + (sOk ? QString() : QString("reopened: ") + ds.text() + "; ")
+                                    + (rOk ? QString() : QString("undo and redo: ") + dr.text());
+                    }
+                    // A command that adds, removes or locks something is
+                    // undone, so the next place is found in the track it was
+                    // listed from; after a change of a value the next place
+                    // starts from the track as it now is (an undo costs a
+                    // whole restore).
+                    if(stepped && structural) history.undo();
+                }
+            }
+            if(cases == 0) continue;
+            totalCases += cases;
+            totalBadS += badS;
+            totalBadR += badR;
+            rows << QString("| %1 | %2 | %3 | %4 | %5 | %6 | %7 | %8 | %9 |").arg(spec.name, stem).arg(cases).arg(badS).arg(badR)
+                    .arg(worstS.endMm, 0, 'g', 4).arg(worstS.endVel, 0, 'g', 4).arg(worstS.exportBytes)
+                    .arg(QString("%1 / %2").arg(worstS.nodes).arg(worstS.savedBytes));
+            printf("reopen: row %s\n", rows.last().toUtf8().constData());
+        }
+    }
+    printCriticals = true;
+    allOk = okBefore;
+    for(int i = 0; i < asserted.size(); ++i) printf("reopen: left out, the model's check failed: %s\n", asserted[i].toUtf8().constData());
+    printf("reopen: | command | project | cases | L!=S | L!=R | end mm (L-S) | end m/s (L-S) | export bytes (L-S) | nodes / saved bytes (L-S) |\n");
+    for(int i = 0; i < rows.size(); ++i) printf("reopen: %s\n", rows[i].toUtf8().constData());
+    for(int i = 0; i < failures.size(); ++i) printf("reopen: differs: %s\n", failures[i].toUtf8().constData());
+    check(totalBadS == 0, QString("reopen: in %1 command runs the running track equals the saved and reopened one (node count, exports, end position and speed); %2 differ")
+          .arg(totalCases).arg(totalBadS));
+    check(totalBadR == 0, QString("reopen: in %1 command runs the running track equals the one after undo and redo (saved bytes and exports); %2 differ")
+          .arg(totalCases).arg(totalBadR));
+    check(largestSaved <= savedBound, QString("reopen: a load moves at most %1 saved bytes of the running track's (bound %2; issue 63, item 7)")
+          .arg(largestSaved).arg(savedBound));
+    printf("reopen: %d runs in %.1f s (the commands %.1f s, saving and reopening %.1f s, undo and redo %.1f s; "
+           "of these, taking the node counts, saved bytes and exports %.1f s)\n",
+           totalCases, timer.elapsed()/1000., runNs/1e9, reopenNs/1e9, undoNs/1e9, snapNs/1e9);
+}
+
 static void timeLargest(const QStringList& projects)
 {
     QString largest;
@@ -1459,6 +1885,137 @@ static void timeLargest(const QStringList& projects)
            runMs, undoMs, (long long)h.bytes());
 }
 
+// The time of one command, without its undo: the smallest of five runs, each
+// undone again before the next.
+static double commandMs(trackHistory& h, const QString& name, const commandTarget& target, const commandArgs& args)
+{
+    double best = -1.;
+    for(int k = 0; k < 5; ++k) {
+        QString error;
+        QElapsedTimer timer;
+        timer.start();
+        bool ok = commandRegistry::run(&h, name, target, args, &error);
+        double ms = timer.nsecsElapsed()/1e6;
+        if(!ok) {
+            printf("time: %s failed: %s\n", name.toUtf8().constData(), error.toUtf8().constData());
+            return -1.;
+        }
+        h.undo();
+        if(best < 0. || ms < best) best = ms;
+    }
+    return best;
+}
+
+// The first normal-force transition of the first and of the last force section.
+static bool forceTransitions(track* t, commandTarget* early, commandTarget* late)
+{
+    int first = -1, last = -1;
+    for(int i = 0; i < t->lSections.size(); ++i) {
+        if(t->lSections[i]->type != forced) continue;
+        if(first < 0) first = i;
+        last = i;
+    }
+    if(first < 0) return false;
+    *early = commandTarget::forTransition(0, first, funcNormal, 0);
+    *late = commandTarget::forTransition(0, last, funcNormal, 0);
+    return true;
+}
+
+static void timeOn(const QString& what, track* t)
+{
+    trackHistory h(t);
+    commandTarget early, late;
+    if(!check(forceTransitions(t, &early, &late), "time: " + what + " has force sections")) return;
+    commandArgs change{{"change", 0.77}};
+    double lateMs = commandMs(h, "transition.setChange", late, change);
+    double earlyMs = commandMs(h, "transition.setChange", early, change);
+    double addMs = commandMs(h, "section.add", commandTarget::forTrack(0),
+                             commandArgs{{"type", QString("force")}, {"after", t->lSections.size()/2}});
+    printf("time: %s (%d sections, %d nodes): transition.setChange on the last force section (section %d) %.1f ms, "
+           "on the first (section %d) %.1f ms; section.add of a force section in the middle %.1f ms\n",
+           what.toUtf8().constData(), t->lSections.size(), t->getNumPoints(), late.section+1, lateMs,
+           early.section+1, earlyMs, addMs);
+}
+
+// The time of a typed value on a late and on an early section and of adding a
+// section in the middle, on gen-normal-shapes and on a long track made from it
+// by appending force sections and straights at a fixed speed until it has
+// about 150,000 nodes (a ride of two and a half minutes), saved and loaded.
+// The long track only with --reopen (building and undoing it takes a while).
+static void timeCommands(const QString& repo, bool longTrack)
+{
+    const QString normal = QDir(repo).filePath("samples/baseline/gen-normal-shapes.fvd");
+    {
+        testProject p;
+        loadProjectFile(normal, &p);
+        timeOn("gen-normal-shapes", p.tracks[0]);
+    }
+    if(longTrack) {
+        testProject p;
+        loadProjectFile(normal, &p);
+        track* t = p.tracks[0];
+        for(int k = 0; t->getNumPoints() < 150000 && k < 1000; ++k) {
+            section* added = t->appendSectionFromFile(k % 2 ? straight : forced);
+            added->bSpeed = 0;
+            added->fVel = 20.f;
+            t->updateTrack(added, 0);
+        }
+        QString file = QDir(tmpPath).filePath("long.fvd");
+        saveProjectFile(file, p.texPath, p.tracks, &p);
+        testProject longP;
+        loadProjectFile(file, &longP);
+        timeOn("a long track", longP.tracks[0]);
+    }
+}
+
+// The two dialogs that run several commands in one step end in the reopened
+// state too, once their OK commits it: the smoothing dialog (a tick, a new
+// region, OK) and Track Properties (a colour, the heartline, the friction),
+// on four-sections and on the smoothed gen-smooth-whole.
+static void checkDialogsReopened(const QString& repo)
+{
+    const char* names[] = { "four-sections.fvd", "gen-smooth-whole.fvd" };
+    for(int n = 0; n < 2; ++n) {
+        for(int dialog = 0; dialog < 2; ++dialog) {
+            testProject project;
+            loadProjectFile(QDir(repo).filePath(QString("samples/baseline/") + names[n]), &project);
+            track* t = project.tracks[0];
+            trackHistory h(t);
+            QString error;
+            bool ok;
+            if(dialog == 0) {
+                h.beginStep("Change smoothing", commandTarget::forTrack(0));
+                char customChar;
+                t->updateSmoothEntries(&customChar);
+                commandArgs tick = entryArgs(t, 0);
+                tick.insert("on", !t->smoothList[0]->active);
+                ok = runIn(h, "smoothing.setEntry", tick, &error)
+                        && runIn(h, "smoothing.addRegion", newRegionArgs(), &error)
+                        && runIn(h, "smoothing.apply", commandArgs(), &error);
+            } else {
+                h.beginStep("Change track properties", commandTarget::forTrack(0));
+                ok = runIn(h, "track.setColor", commandArgs{{"which", QString("default")}, {"color", QString("#204060")}}, &error)
+                        && runIn(h, "track.setHeartline", commandArgs{{"height", 0.9}}, &error)
+                        && runIn(h, "track.setFriction", commandArgs{{"friction", 0.025}}, &error);
+            }
+            h.endStep(true);
+            QString label = QString("reopen: the %1 dialog's OK on %2").arg(dialog == 0 ? "smoothing" : "Track Properties", names[n]);
+            if(!check(ok, label + ": its commands run " + error)) continue;
+            trackSnap live = snapOf(t);
+            QString file = QDir(tmpPath).filePath("reopen.fvd");
+            saveProjectFile(file, project.texPath, project.tracks, &project);
+            testProject again;
+            loadProjectFile(file, &again);
+            snapDiff ds = diffOf(live, snapOf(again.tracks[0]));
+            h.undo();
+            h.redo();
+            snapDiff dr = diffOf(live, snapOf(t));
+            check(ds.sameTrack() && ds.savedBytes == 0,label + ": the running track is the reopened one (" + ds.text() + ")");
+            check(dr.sameTrack() && dr.savedBytes == 0, label + ": and the one after undo and redo (" + dr.text() + ")");
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
@@ -1481,6 +2038,17 @@ int main(int argc, char *argv[])
     QStringList projects = baselineProjects(repo);
     check(projects.size() >= 8, QString("%1 baseline projects found").arg(projects.size()));
 
+    // commands <repository folder> --reopen: only the running-equals-reopened
+    // check and the command times
+    if(argc > 2 && QString(argv[2]) == "--reopen") {
+        checkRunningEqualsReopened(projects, true);
+        checkDialogsReopened(repo);
+        timeCommands(repo, true);
+        printf("%d checks, %d failed\n", checkCount, failCount);
+        printf("%s\n", allOk ? "PASS" : "FAIL");
+        return allOk ? 0 : 1;
+    }
+
     checkSpecs();
     historyWarnings.clear();
     runHarness(projects);
@@ -1495,7 +2063,10 @@ int main(int argc, char *argv[])
     checkTransitionCommands(repo);
     checkSectionCommands(repo);
     checkDialogSteps(repo);
+    checkRunningEqualsReopened(projects, false);
+    checkDialogsReopened(repo);
     timeLargest(projects);
+    timeCommands(repo, false);
 
     printf("%d checks, %d failed\n", checkCount, failCount);
     printf("%s\n", allOk ? "PASS" : "FAIL");

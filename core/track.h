@@ -87,6 +87,16 @@ public:
     // it was made from until the project was saved and reopened.
     void updateFromAnchor();
 
+    // Puts every transition's start and end through the sums a load makes
+    // when it reads a function back (func::loadFunction() appends the pieces
+    // one by one, and each append links every earlier piece again, end to
+    // start, with (prev.max + cur.max) - cur.min, which in single precision
+    // can move an end by a last digit; issue 63, item 7). After it the pieces
+    // are those a save and reopen gives; on pieces a load made it changes
+    // nothing. Changes no node; run updateTrack() or updateFromAnchor() after
+    // it. Every command ends with it (core/command.cpp, decision record 0013).
+    void settleTransitions();
+
     // Builds the anchor node from the values a save writes for it (its fRoll,
     // fVel, forceNormal and forceLateral, and startPitch and fHeart) exactly
     // as a load does: a fresh level node, the energy, pitch, roll and the

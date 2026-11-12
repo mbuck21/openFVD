@@ -380,6 +380,9 @@ commandSpec anchorSpec(const char* name, const char* description, const char* la
     s.target = targetTrack;
     s.label = QString(label);
     s.merges = true;
+    // anchorChanged() and holdAnchorPoint() end in track::updateFromAnchor();
+    // the position edits move only startPos, which no node holds
+    s.settlesItself = true;
     s.apply = apply;
     return s;
 }

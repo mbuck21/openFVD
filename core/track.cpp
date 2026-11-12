@@ -597,6 +597,40 @@ void track::updateFromAnchor()
     updateTrack(0, 0);
 }
 
+// See track.h. A load reads piece 0, then for each further piece i appends a
+// placeholder after piece i-1 (func::appendSubFunction(1, i-1)), whose loop
+// links pieces 1 to i-1 again and then the placeholder, and reads piece i
+// over the placeholder. So piece j (0 < j < n-1) is linked once at each later
+// append, after the pieces before it, and the last piece keeps what was read.
+// The same updates in the same order, on the pieces as they are, give the
+// arguments the load gives from their saved bytes. (The placeholder's own
+// update and the start values the updates translate are overwritten: by the
+// next piece read, and by the section's recompute from its first node.)
+// Only for the sections whose functions a file holds.
+void track::settleTransitions()
+{
+    for(int s = 0; s < lSections.size(); ++s)
+    {
+        section* sec = lSections[s];
+        if(sec->type != straight && sec->type != curved && sec->type != forced && sec->type != geometric) continue;
+        func* funcs[3] = { sec->rollFunc, sec->normForce, sec->latForce };
+        for(int f = 0; f < 3; ++f)
+        {
+            func* cur = funcs[f];
+            if(cur == NULL || (f > 0 && sec->type != forced && sec->type != geometric)) continue;
+            for(int i = 2; i < cur->funcList.size(); ++i)
+            {
+                for(int j = 1; j < i; ++j)
+                {
+                    subfunc* prev = cur->funcList[j-1];
+                    subfunc* piece = cur->funcList[j];
+                    piece->update(prev->maxArgument, prev->maxArgument + piece->maxArgument - piece->minArgument, piece->symArg);
+                }
+            }
+        }
+    }
+}
+
 // See track.h. The node track::track() makes, then the steps loadTrackHeader()
 // always made after reading the values, unchanged: on the fresh node of a
 // track being loaded this gives what a load always gave, bit for bit.

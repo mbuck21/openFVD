@@ -277,7 +277,8 @@ trackState captureTrackState(track* t, const trackState* previous)
 // code a load uses, then puts the live values, the transition pieces and the
 // smoothing entries' saved fields back as they were captured.
 //
-// What the recompute (updateTrack(0, 0)) then does to the saved fields:
+// What the recompute (updateFromAnchor(), or updateTrack(0, 0) from the
+// captured first node; see below) then does to the saved fields:
 // - a piece's start value (and a "to zero" piece's change) is set again from
 //   the section's start node and the piece before, as every recompute does;
 // - a straight's length, a curve's angle and a force or geometric section's
@@ -358,7 +359,27 @@ void restoreTrackState(track* t, const trackState& state)
         t->smoothedUntil = state.smoothedUntil;
         t->bAutoSmooth = state.bAutoSmooth;
 
-        t->updateTrack(0, 0);
+        // First the track as a load computes it, from the anchor
+        // (updateFromAnchor()). When that gives the first node as captured,
+        // that is the state: what a load and every command since decision
+        // record 0013 leave. (Restoring the captured first node and computing
+        // from it would not: when roll smoothing turned that node, taking the
+        // turn off again, removeSmooth(), is exact only to the last digits,
+        // and every node after it inherits that.) Any other first node (one an
+        // import made, or one an edit outside the commands left stale) is put
+        // back as captured and the track computed from it.
+        bool fromAnchor = false;
+        if(!t->lSections.isEmpty()) {
+            t->updateFromAnchor();
+            fromAnchor = nodeBytes(t->lSections[0]->lNodes[0]) == state.firstNode;
+        }
+        if(!fromAnchor) {
+            if(!t->lSections.isEmpty()) {
+                putNode(&t->lSections[0]->lNodes[0], state.firstNode);
+            }
+            t->smoothedUntil = state.smoothedUntil;
+            t->updateTrack(0, 0);
+        }
 
         // The six saved fields of each smoothing entry, as captured; the load
         // above and updateTrack() rewrote some of them from the track.

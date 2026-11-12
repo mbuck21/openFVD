@@ -53,7 +53,9 @@ public:
     QByteArray firstNode;           // lSections[0]->lNodes[0]: a copy of the anchor, made with the
                                     // section and again by every anchor edit (track::updateFromAnchor()),
                                     // but roll smoothing that starts at the first node turns it;
-                                    // empty with no sections
+                                    // empty with no sections. A restore computes from the anchor
+                                    // (updateFromAnchor()), as a load does, and keeps that when it
+                                    // gives this node back; else it computes from this node
     QList<QByteArray> bezierPoints; // per section: every bezier_t of a Bezier section as raw bytes,
                                     // else empty. The file holds only some fields; fVel (a point's
                                     // speed, set by the NoLimits 1 importer, zeroed by a load) and the

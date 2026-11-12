@@ -28,6 +28,15 @@
 #include "command.h"
 #include "track.h"
 
+#include <type_traits>
+
+// The heartline's startPos goes through track::anchorStartPos() (defined in
+// commands_anchor.cpp), which calls the C library's double cos and sin; the
+// dialog's copied expression did the same only if no float overload is in
+// scope here, which these check (as commands_anchor.cpp does).
+static_assert(std::is_same<decltype(cos(1.0f)), double>::value, "cos(float) must be the double cos, as in track::anchorStartPos()");
+static_assert(std::is_same<decltype(sin(1.0f)), double>::value, "sin(float) must be the double sin, as in track::anchorStartPos()");
+
 namespace {
 
 // The Track Properties dialog's OK (TrackProperties::applyBoxes(), run from
@@ -58,11 +67,13 @@ bool applySetResistance(track* t, const commandTarget&, const commandArgs& args,
 // The dialog's heartline change, its model steps in their order: the
 // heartline point of the anchor is taken with the old height, the height is
 // set, and the anchor position (startPos) is moved so that the heartline
-// point stays where it was; then the whole track is recomputed. The anchor
-// position expression is copied verbatim from the dialog (the anchor commands
-// compute the same expression for roll, pitch and yaw; one shared core
-// function can replace both copies later, without changing the arithmetic).
-bool applySetHeartline(track* t, const commandTarget&, const commandArgs& args, QString*)
+// point stays where it was (track::anchorStartPos(), the expression the
+// anchor commands use, which is the dialog's: the same double cos and sin of
+// the same floats). Then, as a load does, the anchor node is built again from
+// the saved values, its energy from the new height included
+// (track::settleAnchor()), and the whole track computed from it
+// (track::updateFromAnchor()), so the running track is the reopened one.
+bool applySetHeartline(track* t, const commandTarget&, const commandArgs& args, QString* error)
 {
     double value = args.value("height").toDouble();
     if(t->fHeart != value) {
@@ -77,11 +88,13 @@ bool applySetHeartline(track* t, const commandTarget&, const commandArgs& args, 
 
         t->fHeart = value;
 
-        t->startPos.x = -(cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll))*t->fHeart + x;
-        t->startPos.y = (cos(pitch)*cos(roll))*t->fHeart + y;
-        t->startPos.z = (sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll))*t->fHeart + z;
+        t->startPos = track::anchorStartPos(yaw, pitch, roll, t->fHeart, x, y, z);
 
-        t->updateTrack(0, 0);
+        if(t->settleAnchor() < 0) {
+            if(error) *error = QString("the anchor's roll (%1 deg) does not settle").arg(t->anchorNode->fRoll, 0, 'g', 9);
+            return false;
+        }
+        t->updateFromAnchor();
     }
     return true;
 }
@@ -198,6 +211,7 @@ QList<commandSpec> trackCommands()
     {
         commandSpec s;
         s.name = "track.setHeartline";
+        s.settlesItself = true;   // ends in track::updateFromAnchor()
         s.description = "Sets the heartline height, the distance from the rails to the rider's heart that the forces are computed at; the anchor is moved so that the heartline's start stays where it was.";
         s.target = targetTrack;
         s.params << commandParam::floatParam("height", "m",
