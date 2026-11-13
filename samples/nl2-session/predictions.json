@@ -1,0 +1,357 @@
+{
+ "about": "Predicted by this program's model; see README.md.",
+ "e1": {
+  "v10": {
+   "Aeneas NL 2.0 fit": {
+    "drag": 2e-05,
+    "friction": 0.026,
+    "initial_slope_of_half_v2": 0.257,
+    "speed_mps": [
+     [
+      0.0,
+      10.0
+     ],
+     [
+      150.0,
+      4.81
+     ],
+     [
+      300.0,
+      0.0
+     ],
+     [
+      450.0,
+      0.0
+     ],
+     [
+      600.0,
+      0.0
+     ],
+     [
+      750.0,
+      0.0
+     ]
+    ],
+    "stops_at_m": 195.3
+   },
+   "Aeneas NL 2.2 fit": {
+    "drag": 0.0001,
+    "friction": 0.026,
+    "initial_slope_of_half_v2": 0.265,
+    "speed_mps": [
+     [
+      0.0,
+      10.0
+     ],
+     [
+      150.0,
+      4.657
+     ],
+     [
+      300.0,
+      0.0
+     ],
+     [
+      450.0,
+      0.0
+     ],
+     [
+      600.0,
+      0.0
+     ],
+     [
+      750.0,
+      0.0
+     ]
+    ],
+    "stops_at_m": 192.4
+   },
+   "program defaults": {
+    "drag": 2e-05,
+    "friction": 0.03,
+    "initial_slope_of_half_v2": 0.2962,
+    "speed_mps": [
+     [
+      0.0,
+      10.0
+     ],
+     [
+      150.0,
+      3.377
+     ],
+     [
+      300.0,
+      0.0
+     ],
+     [
+      450.0,
+      0.0
+     ],
+     [
+      600.0,
+      0.0
+     ],
+     [
+      750.0,
+      0.0
+     ]
+    ],
+    "stops_at_m": 169.4
+   }
+  },
+  "v40": {
+   "Aeneas NL 2.0 fit": {
+    "drag": 2e-05,
+    "friction": 0.026,
+    "initial_slope_of_half_v2": 0.287,
+    "speed_mps": [
+     [
+      0.0,
+      40.0
+     ],
+     [
+      150.0,
+      38.912
+     ],
+     [
+      300.0,
+      37.8
+     ],
+     [
+      450.0,
+      36.661
+     ],
+     [
+      600.0,
+      35.493
+     ],
+     [
+      750.0,
+      34.292
+     ]
+    ],
+    "stops_at_m": null
+   },
+   "Aeneas NL 2.2 fit": {
+    "drag": 0.0001,
+    "friction": 0.026,
+    "initial_slope_of_half_v2": 0.415,
+    "speed_mps": [
+     [
+      0.0,
+      40.0
+     ],
+     [
+      150.0,
+      38.436
+     ],
+     [
+      300.0,
+      36.856
+     ],
+     [
+      450.0,
+      35.254
+     ],
+     [
+      600.0,
+      33.627
+     ],
+     [
+      750.0,
+      31.968
+     ]
+    ],
+    "stops_at_m": null
+   },
+   "program defaults": {
+    "drag": 2e-05,
+    "friction": 0.03,
+    "initial_slope_of_half_v2": 0.3262,
+    "speed_mps": [
+     [
+      0.0,
+      40.0
+     ],
+     [
+      150.0,
+      38.761
+     ],
+     [
+      300.0,
+      37.489
+     ],
+     [
+      450.0,
+      36.181
+     ],
+     [
+      600.0,
+      34.831
+     ],
+     [
+      750.0,
+      33.436
+     ]
+    ],
+    "stops_at_m": null
+   }
+  }
+ },
+ "e2": {
+  "e2-level-600": {
+   "drag_part_of_that_m2s2": 5.11,
+   "half_v2_loss_between_marks_m2s2": 108.07,
+   "heartline_height_change_between_marks_m": 0.0,
+   "length_m": 600.0,
+   "lowest_heartline_y_m": 0.0,
+   "max_normal_g": 1.0,
+   "speed_at_100m_mps": 28.943,
+   "speed_at_450m_mps": 24.931
+  },
+  "e2-valley-1.5g": {
+   "drag_part_of_that_m2s2": 5.34,
+   "extra_loss_if_friction_follows_load_m2s2": 10.6,
+   "half_v2_loss_between_marks_m2s2": 108.32,
+   "heartline_height_change_between_marks_m": -0.0,
+   "length_m": 600.0,
+   "lowest_heartline_y_m": -8.0,
+   "max_normal_g": 1.5,
+   "metres_within_0.05g_of_the_valley_g": 72.0,
+   "speed_at_100m_mps": 28.943,
+   "speed_at_450m_mps": 24.921,
+   "valley_g_set": 1.5
+  },
+  "e2-valley-4g": {
+   "drag_part_of_that_m2s2": 6.14,
+   "extra_loss_if_friction_follows_load_m2s2": 27.3,
+   "half_v2_loss_between_marks_m2s2": 109.11,
+   "heartline_height_change_between_marks_m": -0.001,
+   "length_m": 600.0,
+   "lowest_heartline_y_m": -30.0,
+   "max_normal_g": 4.0,
+   "metres_within_0.05g_of_the_valley_g": 31.0,
+   "speed_at_100m_mps": 28.943,
+   "speed_at_450m_mps": 24.889,
+   "valley_g_set": 4.0
+  }
+ },
+ "e3": {
+  "note": "Speed of the whole train (one speed for all cars, R7) at the moment the named car is at the crest, and the vertical force that car feels there. Car lengths are assumed (R7). The track is the R7 camelback behind a 60 m level run-in, and the numbers are computed on this project from the start of the camelback (cars behind that point stand on the straight run-in, as in R7). Distances are from the start of the track. The shape equals the R7 one to within 0.10 m or m/s.",
+  "point": {
+   "crest_dist_m": 177.0,
+   "crest_height_m": 30.0,
+   "normal_g": -0.2,
+   "speed_mps": 15.473
+  },
+  "trains": {
+   "2 cars": {
+    "car_length_m": 2.5,
+    "cars": {
+     "front": {
+      "normal_g": -0.21,
+      "train_speed_mps": 15.546
+     },
+     "lowest_normal_g_within_25m_of_crest": {
+      "front": -0.25,
+      "rear": -0.25
+     },
+     "middle": {
+      "normal_g": -0.21,
+      "train_speed_mps": 15.52
+     },
+     "rear": {
+      "normal_g": -0.2,
+      "train_speed_mps": 15.494
+     }
+    }
+   },
+   "4 cars": {
+    "car_length_m": 2.5,
+    "cars": {
+     "front": {
+      "normal_g": -0.26,
+      "train_speed_mps": 15.863
+     },
+     "lowest_normal_g_within_25m_of_crest": {
+      "front": -0.35,
+      "rear": -0.35
+     },
+     "middle": {
+      "normal_g": -0.23,
+      "train_speed_mps": 15.611
+     },
+     "rear": {
+      "normal_g": -0.24,
+      "train_speed_mps": 15.712
+     }
+    }
+   },
+   "9 cars": {
+    "car_length_m": 2.2,
+    "cars": {
+     "front": {
+      "normal_g": -0.45,
+      "train_speed_mps": 17.033
+     },
+     "lowest_normal_g_within_25m_of_crest": {
+      "front": -0.6,
+      "rear": -0.58
+     },
+     "middle": {
+      "normal_g": -0.27,
+      "train_speed_mps": 15.931
+     },
+     "rear": {
+      "normal_g": -0.4,
+      "train_speed_mps": 16.72
+     }
+    }
+   }
+  }
+ },
+ "e4": {
+  "note": "Same reading as E3; the chain holds 3.5 m/s only while the rear car is on the lift and gravity alone would be slower (R7). The lift is the R7 one with 28 m of level run-in in front, so the train stands on it; the numbers are computed on this project. The drop equals the R7 one to within 0.08 m or m/s.",
+  "point": {
+   "crest_dist_m": 42.0,
+   "crest_height_m": 0.0,
+   "normal_g": 1.0,
+   "speed_mps": 3.5
+  },
+  "trains": {
+   "9 cars": {
+    "car_length_m": 2.2,
+    "cars": {
+     "front": {
+      "normal_g": 1.0,
+      "train_speed_mps": 3.5
+     },
+     "lowest_normal_g_within_25m_of_crest": {
+      "front": 0.63,
+      "rear": -1.55
+     },
+     "middle": {
+      "normal_g": 1.0,
+      "train_speed_mps": 4.825
+     },
+     "rear": {
+      "normal_g": 1.0,
+      "train_speed_mps": 9.063
+     }
+    }
+   }
+  }
+ },
+ "e5": {
+  "drag_1e-4_at_40mps_slope": 0.16,
+  "drag_2e-5_at_40mps_slope": 0.032,
+  "friction_0.026_slope": 0.255,
+  "friction_0.03_no_drag_slope": 0.2942,
+  "note": "slope of v^2/2 against distance (m/s^2); R12 section 7, E5"
+ },
+ "settings": {
+  "friction": 0.03,
+  "heartline_m": 1.1,
+  "resistance": 2e-05
+ }
+}

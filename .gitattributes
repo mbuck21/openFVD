@@ -12,3 +12,8 @@ samples/investigations/*.fvd binary
 
 # The import samples and their references are compared byte for byte; never convert them.
 samples/import/** -text
+
+# The NoLimits 2 session kit is regenerated and compared byte for byte; never convert the generated files.
+samples/nl2-session/*.fvd binary
+samples/nl2-session/*.nl2elem -text
+samples/nl2-session/predictions.* -text
