@@ -56,7 +56,7 @@ fvdcore check <project.fvd> [--track N] [--check ID] [--json] [--fail-on problem
 fvdcore check samples\baseline\four-sections.fvd --fail-on problem
 fvdcore check --list
 ```
-The findings as sentences, one per line, with the severity and the stretch (metres along the track; the sentence has the times), and a last line with the counts. `--json` prints them as an object. Exit code 0 when it ran, 1 on an error, 3 when `--fail-on` is given and a finding of that severity or worse exists. `--list` prints the checks.
+The findings as sentences, one per line, with the severity and the stretch (metres along the track; the sentence has the times), and a last line with the counts. `--json` prints them as an object. Exit code 0 when it ran, 1 on an error, 3 when `--fail-on` is given and a finding of that severity or worse exists. `--list` prints the checks: `basic`, and `forceLimits`, the force limits of ASTM F2291 (public numbers, not a certification) at the point the program follows, as warnings with the node stretch; on `four-sections.fvd` it gives the same six findings as `limits --trace` on its measures. `summary` prints it as the line "Force limits (ASTM F2291, public numbers): within / n findings" (`force_limits` in the JSON).
 
 ```
 fvdcore totext <project.fvd> <out.json|-> [--force]

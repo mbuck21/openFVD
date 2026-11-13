@@ -18,6 +18,7 @@
 */
 
 #include "finding.h"
+#include "designforcelimits.h"
 #include "measure.h"
 #include "mnode.h"
 #include <QStringList>
@@ -159,6 +160,11 @@ static QList<finding> runBasic(const track* t)
     return basicCheck(t, basicCheckLimits());
 }
 
+static QList<finding> runForceLimits(const track* t)
+{
+    return designPointForceLimits(t, 0);
+}
+
 static checkDef check(const char* id, const char* name, const char* description, checkRun run)
 {
     checkDef c;
@@ -174,7 +180,10 @@ static QList<checkDef> buildChecks()
     QList<checkDef> table;
     table
         << check("basic", "Basic limits",
-                 "The train keeps moving (speed at least 3 m/s) and the vertical force stays between -1.5 g and +5 g.", runBasic);
+                 "The train keeps moving (speed at least 3 m/s) and the vertical force stays between -1.5 g and +5 g.", runBasic)
+        << check("forceLimits", "Force limits at the design point",
+                 "The forces at the point the program follows against the acceleration-duration limits of ASTM F2291 "
+                 "(public secondary sources, not the standard; a design aid, not a certification). No train needed.", runForceLimits);
     return table;
 }
 

@@ -90,6 +90,7 @@ private:
     QLabel* mFindingList;
     QLabel* mNonFinite;
     QLabel* mNote;
+    QLabel* mLimitsNote;
     QTimer mTimer;
     track* mTrack;
     bool bStale;

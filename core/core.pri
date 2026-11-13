@@ -16,6 +16,7 @@ SOURCES += \
     $$PWD/commands_smoothing.cpp \
     $$PWD/commands_track.cpp \
     $$PWD/commands_transition.cpp \
+    $$PWD/designforcelimits.cpp \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
     $$PWD/finding.cpp \
@@ -44,6 +45,7 @@ SOURCES += \
 
 HEADERS += \
     $$PWD/command.h \
+    $$PWD/designforcelimits.h \
     $$PWD/elementfile.h \
     $$PWD/exportfuncs.h \
     $$PWD/finding.h \
