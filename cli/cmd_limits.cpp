@@ -48,6 +48,12 @@ static QJsonValue rounded(double v, double scale = 10000.0)
     return std::isfinite(v) ? QJsonValue(std::floor(v*scale + 0.5)/scale) : QJsonValue(QJsonValue::Null);
 }
 
+// The time of a sample, or null when there is none (-1: nothing found).
+static QJsonValue sampleTimeJson(int sample, double dt)
+{
+    return sample < 0 ? QJsonValue(QJsonValue::Null) : rounded(sample*dt);
+}
+
 // The column of a header word: gx, gy, gz and time_s, or the names `fvdcore
 // measures` and `nodes` print (forceAlong, forceLateral / lateral_g,
 // forceNormal / normal_g).
@@ -288,18 +294,20 @@ static int runLimits(const QStringList& args)
         top["pass"] = r.bPass;
         top["worst_share"] = rounded(r.worst.dUtil);
         top["worst_rule"] = r.ruleName(r.worst.iRule);
-        top["worst_time_s"] = rounded(r.worst.iSample*trace.dt);
+        top["worst_time_s"] = sampleTimeJson(r.worst.iSample, trace.dt);
         QJsonObject families;
         for(int f = 0; f < LIMIT_FAMILIES; ++f) {
             QJsonObject o;
             o["share"] = rounded(r.worstFamily[f].dUtil);
             o["rule"] = r.ruleName(r.worstFamily[f].iRule);
-            o["time_s"] = rounded(r.worstFamily[f].iSample*trace.dt);
+            o["time_s"] = sampleTimeJson(r.worstFamily[f].iSample, trace.dt);
             families[limitFamilyName(f)] = o;
         }
         top["families"] = families;
-        top["restraint_area"] = r.iRestraintArea;
-        top["restraint_area_time_s"] = rounded(r.iRestraintSample*trace.dt);
+        top["restraint_area"] = r.iRestraintArea > 0 ? QJsonValue(r.iRestraintArea) : QJsonValue(QJsonValue::Null);
+        top["restraint_area_time_s"] = sampleTimeJson(r.iRestraintSample, trace.dt);
+        top["restraint_area_confidence"] = r.sRestraintConfidence.isEmpty() ? QJsonValue(QJsonValue::Null)
+                                                                             : QJsonValue(r.sRestraintConfidence);
         QJsonArray list;
         for(int i = 0; i < r.lFindings.size(); ++i) {
             const limitFinding& f = r.lFindings.at(i);
@@ -333,16 +341,22 @@ static int runLimits(const QStringList& args)
             .arg(options.bExtendedNegZ ? QString(", extended airtime line allowed") : QString())
             .arg(options.bFilter ? QString("filtered at %1 Hz, delay of %2 s taken out").arg(set.filterCorner.dValue).arg(r.dFilterDelay, 0, 'f', 3)
                                  : QString("not filtered"));
-    text += QString("Result: %1. Largest share of a limit: %2 (%3, at %4 s).\n")
+    text += QString("Result: %1. Largest share of a limit: %2.\n")
             .arg(r.bPass ? QString("within the limits") : QString("%1 finding(s)").arg(r.lFindings.size()))
-            .arg(r.worst.dUtil, 0, 'f', 2).arg(r.ruleName(r.worst.iRule)).arg(r.worst.iSample*trace.dt, 0, 'f', 2);
+            .arg(r.worst.iSample < 0 ? QString("none (no limit applied anywhere)")
+                                     : QString("%1 (%2, at %3 s)").arg(r.worst.dUtil, 0, 'f', 2).arg(r.ruleName(r.worst.iRule))
+                                                                  .arg(r.worst.iSample*trace.dt, 0, 'f', 2));
     QStringList fam;
     for(int f = 0; f < LIMIT_FAMILIES; ++f) {
         fam << QString("%1 %2").arg(limitFamilyName(f)).arg(r.worstFamily[f].dUtil, 0, 'f', 2);
     }
     text += "Largest share per family: " + fam.join(", ") + "\n";
-    text += QString("Restraint area (1 Hz, information): %1, first reached at %2 s.\n")
-            .arg(r.iRestraintArea).arg(r.iRestraintSample*trace.dt, 0, 'f', 2);
+    if(r.iRestraintSample < 0) {
+        text += "Restraint area (1 Hz, information): not found.\n";
+    } else {
+        text += QString("Restraint area (1 Hz, information): %1, first reached at %2 s (boundaries of %3 confidence).\n")
+                .arg(r.iRestraintArea).arg(r.iRestraintSample*trace.dt, 0, 'f', 2).arg(r.sRestraintConfidence);
+    }
     for(int i = 0; i < r.lFindings.size(); ++i) {
         text += "  " + r.lFindings.at(i).sText + "\n";
     }
