@@ -538,6 +538,22 @@ static void checkProject(const QString& file, const QString& tmp)
             QList<finding> again = checkRegistry::run(t, "forceLimits");
             printf("  time: the whole check forceLimits (measures, resampling, engine) on %s, %d nodes: %lld ms, %d finding(s)\n",
                    qPrintable(label), (int)last + 1, (long long)clock.elapsed(), (int)again.size());
+            // Pinned only as far as the along-track measure allows: the totals of the projects with
+            // spikes move with issue 96 (the along-track force), and are pinned after it.
+            const QString fname = QFileInfo(file).fileName();
+            int onVertical = 0, firstNode = -1, lastNodeOf = -1;
+            for(int k = 0; k < f.size(); ++k) {
+                if(f.at(k).checkId != "forceLimits" || f.at(k).measureId != "forceNormal") continue;
+                ++onVertical;
+                if(firstNode < 0 || f.at(k).fromNode < firstNode) firstNode = f.at(k).fromNode;
+                if(f.at(k).toNode > lastNodeOf) lastNodeOf = f.at(k).toNode;
+            }
+            if(fname == "n1-tension-force-chain.fvd") {
+                report(limitFindings == 1 && onVertical == 1 && firstNode >= 2200 && lastNodeOf <= 2900,
+                       label + QString(": exactly one force-limit finding, on the vertical force, within 2.2 s to 2.9 s (%1 to %2 nodes)").arg(firstNode).arg(lastNodeOf));
+            } else if(fname == "four-sections.fvd" || fname == "n1-tension-loop.fvd") {
+                report(onVertical >= 1, label + QString(": at least one force-limit finding on the vertical force at the spike (%1)").arg(onVertical));
+            }
             const bool gen = QFileInfo(file).fileName().startsWith("gen-");
             report(r.forceLimits.bRan && r.forceLimits.iFindings == limitFindings && (!gen || limitFindings == 0),
                    label + QString(": force limits say \"%1\" (%2 finding(s))").arg(r.forceLimits.value()).arg(limitFindings));

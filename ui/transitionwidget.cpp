@@ -51,12 +51,15 @@ void transitionWidget::changeSubfunc(subfunc *_newSubfunc)
         return;
     }
     if(_newSubfunc->parent->secParent->type == curved) {
+        optionsMenu::setBoxRange(ui->lengthSpin, 1.0);
         ui->lengthSpin->setValue(selectedFunc->maxArgument-selectedFunc->minArgument);
         ui->lengthSpin->setSuffix(QString("%1").arg(QChar(0xb0)));
     } else if(_newSubfunc->parent->secParent->bArgument == TIME && _newSubfunc->parent->secParent->type != straight) {
+        optionsMenu::setBoxRange(ui->lengthSpin, 1.0);
         ui->lengthSpin->setValue(selectedFunc->maxArgument-selectedFunc->minArgument);
         ui->lengthSpin->setSuffix(QString("s"));
     } else {
+        optionsMenu::setBoxRange(ui->lengthSpin, gloParent->mOptions->getLengthFactor());
         ui->lengthSpin->setValue((selectedFunc->maxArgument-selectedFunc->minArgument)*gloParent->mOptions->getLengthFactor());
         ui->lengthSpin->setSuffix(gloParent->mOptions->getLengthString());
     }

@@ -41,6 +41,10 @@ public:
 
     QList<track*> tracks;
     QString texPath;
+    QJsonObject additions;  // the project's own additions (the file's appendix)
+    QString loadedFrom;     // the file loadProject() read, empty for none
+    bool additionsDropped;  // that load dropped the file's appendix (projectAdditionsDropped())
+    QString droppedReason;
 
     void clear();
 
@@ -51,7 +55,16 @@ public:
     void projectTrackLoaded(track*) {}
     void projectLoadFinished() {}
     void projectTrackSaving(track*) {}
+    QJsonObject projectAdditions() { return additions; }
+    void projectAdditionsRead(const QJsonObject& read) { additions = read; }
+    void projectAdditionsDropped(const QString& reason) { additionsDropped = true; droppedReason = reason; }
 };
+
+// True, with the refusal in error, when target is the very file the project
+// was loaded from and that load dropped the file's appendix: the file still
+// holds the additions, so nothing writes over it, --force or not. Every
+// command that can write a project to a path asks this first.
+bool refuseOverwritingDropped(const coreProject& project, const QString& target, QString& error);
 
 // Loads a project file into project. On failure returns false and error holds
 // the text (the same texts the export report uses: "project file not found: ..."

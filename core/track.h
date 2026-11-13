@@ -30,6 +30,7 @@
 #include <fstream>
 #include <QString>
 #include <QColor>
+#include <QJsonObject>
 #include "tracklistener.h"
 
 class smoothHandler;
@@ -195,6 +196,13 @@ public:
     int smoothedUntil;
     enum trackStyle style;
     glm::vec2 povPos;
+
+    // The track's additions: what the project file keeps for it in the
+    // appendix after "EOP" (core/projectfile.h), one key per feature. Keys this
+    // program does not know are kept as read and written back. Empty for a
+    // track without additions. Part of the track's state (core/trackstate.h);
+    // not touched by saveTrack() / loadTrack().
+    QJsonObject additions;
 };
 
 #endif // TRACK_H

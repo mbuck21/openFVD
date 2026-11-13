@@ -7,6 +7,7 @@
 INCLUDEPATH += $$PWD
 
 SOURCES += \
+    $$PWD/cmd_additions.cpp \
     $$PWD/cmd_check.cpp \
     $$PWD/cmd_commands.cpp \
     $$PWD/cmd_compare.cpp \

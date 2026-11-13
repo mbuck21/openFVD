@@ -61,6 +61,7 @@ static const command* const table[] = {
     &cmdCheck,
     &cmdToText,
     &cmdFromText,
+    &cmdAdditions,
     &cmdImport,
     &cmdSession,
     &cmdCommands,

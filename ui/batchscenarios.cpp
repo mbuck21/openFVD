@@ -391,6 +391,11 @@ double batchDriver::panelValue(const char* name)
     return spinValue(find(trackPanel(), name));
 }
 
+QDoubleSpinBox* batchDriver::panelSpin(const char* name)
+{
+    return qobject_cast<QDoubleSpinBox*>(find(trackPanel(), name));
+}
+
 bool batchDriver::panelEnabled(const char* name)
 {
     QWidget* w = find(trackPanel(), name);

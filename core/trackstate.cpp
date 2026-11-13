@@ -23,6 +23,7 @@
 #include "exportfuncs.h"
 #include "function.h"
 #include "subfunction.h"
+#include "projectfile.h"
 
 #include <QSet>
 #include <cstring>
@@ -179,7 +180,7 @@ QByteArray trackState::savedBytes() const
 
 qint64 trackState::byteSize() const
 {
-    qint64 size = header.size() + smoothing.size() + anchorNode.size() + firstNode.size();
+    qint64 size = header.size() + smoothing.size() + anchorNode.size() + firstNode.size() + additions.size();
     for(int i = 0; i < sections.size(); ++i) {
         size += sections[i].size();
     }
@@ -197,6 +198,7 @@ qint64 trackState::bytesNotSharedWith(const trackState& other) const
     QSet<const char*> shared;
     shared.insert(other.header.constData());
     shared.insert(other.smoothing.constData());
+    if(!other.additions.isEmpty()) shared.insert(other.additions.constData());
     for(int i = 0; i < other.sections.size(); ++i) {
         shared.insert(other.sections[i].constData());
     }
@@ -204,6 +206,7 @@ qint64 trackState::bytesNotSharedWith(const trackState& other) const
     qint64 size = byteSize();
     if(shared.contains(header.constData())) size -= header.size();
     if(shared.contains(smoothing.constData())) size -= smoothing.size();
+    if(!additions.isEmpty() && shared.contains(additions.constData())) size -= additions.size();
     for(int i = 0; i < sections.size(); ++i) {
         if(shared.contains(sections[i].constData())) size -= sections[i].size();
     }
@@ -220,7 +223,8 @@ bool trackState::operator==(const trackState& other) const
         && bezierPoints == other.bezierPoints
         && unsavedNames == other.unsavedNames
         && smoothedUntil == other.smoothedUntil
-        && bAutoSmooth == other.bAutoSmooth;
+        && bAutoSmooth == other.bAutoSmooth
+        && additions == other.additions;
 }
 
 trackState captureTrackState(track* t, const trackState* previous)
@@ -266,6 +270,7 @@ trackState captureTrackState(track* t, const trackState* previous)
     }
     state.smoothedUntil = t->smoothedUntil;
     state.bAutoSmooth = t->bAutoSmooth;
+    state.additions = shareIfEqual(additionsBytes(t->additions), previous ? &previous->additions : NULL);
 
     return state;
 }
@@ -416,6 +421,7 @@ void restoreTrackState(track* t, const trackState& state)
 
         t->povPos = povPos;
         t->drawTrack = drawTrack;
+        t->additions = additionsFromBytes(state.additions);
     }
 
     if(t->mListener != NULL)
