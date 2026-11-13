@@ -52,8 +52,8 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/research/n2-matching-the-2016-maths.md` | N2: what the 2016 binary's `asinhf` and `asinf` computed, the reproduction in `core/fvdmath.cpp` that matches it on every argument, and an audit of the other maths functions the core uses. | current |
 | `samples/investigations/` | Synthetic projects made to test one explanation each (N1); not part of the baseline. | current |
 | `docs/development-workflow.md` | How a session runs a task here. | current |
-| `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-18`) with the architect's notes on what each needs. | current |
-| `docs/roadmap.md` | Where each request is in the plan, the seven shared pieces, the stages and their pieces, what is serial and what runs together, what is asked of the owner and by when. | current |
+| `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-19`) with the architect's notes on what each needs. | current |
+| `docs/roadmap.md` | Where each request is in the plan, the seven shared pieces, the eight stages and their pieces, what is serial and what runs together, what is asked of the owner and by when. | current |
 | `docs/maybe-later.md` | Ideas deliberately left out, each with its trigger. | current |
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
 | `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | superseded by 0005 |
@@ -68,6 +68,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0011-undo-by-snapshot-commands-on-top.md` | Undo restores a snapshot of the track; named commands are built on top, group by group; what the owner will notice. | accepted |
 | `docs/decisions/0012-measures-the-command-line-program-the-ride-sheet.md` | Measures as a registry in core, the command-line program in `cli/`, the ride sheet and its definitions; R11 deferred. | accepted |
 | `docs/decisions/0013-every-command-ends-in-the-reopened-state.md` | After every command the running track is the one a save and a reopen give; a test proves it for every command; the measurements that led to it. | accepted |
+| `docs/decisions/0014-stage-3-the-train-on-the-finished-track.md` | Stage 3 is the train: a second computation over the finished track, the force limits as an engine with its numbers as data, the seat map and the ride strip, the saved-file appendix, what waits for Stage 4; the choices put to the owner. | proposed |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |
