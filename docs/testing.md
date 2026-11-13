@@ -102,6 +102,10 @@ FVD.exe --batch-ride-sheet <project.fvd> <outdir>
 
 loads the project, opens track 1 as a person would, makes the ride sheet panel (`ui/ridesheet.*`) refresh at once and writes every label and value of the panel, one line each (`<object name> | <label> | <value>`, for example `rideLengthValue | Length | 54.5 m`), to `<outdir>/<project>.ridesheet.txt`, with a report `<project>.batch.txt` ending `OK` or `ERROR: <what>`. With the unit setting at metres and m/s, each number equals the one `fvdcore summary <project>` prints for the same project (to the printed decimals); that is how the panel is checked against core without a screen. Not part of `run-baseline.py`.
 
+Added as a fourth argument, `--english-boxes` sets the unit option to English in memory, selects every straight and curved section of track 1 and writes the length, radius and speed boxes of the track panel to `<outdir>/<project>.boxes.txt` (`section | box | value | min | max | model`, the last column being what the box holds in the model: the straight's length, the curve's radius, or the section's speed, in m or m/s). It checks that a box's limit stays its metric limit in feet and mph (the length and radius maximum must read 1640.420, 500 m) and that a long value is not cut off: make a project with a 300 m straight (`fvdcore totext` on `four-sections.fvd`, set the first `"to": 10` to 300, `fvdcore fromtext`), and the straight's box must read 984.252, not 500. Metric limits are unchanged: the form's values times 1.0.
+
+**Batch mode always runs in metric (m/s, m).** `batchRunner::createHiddenWindow()` sets the unit option in memory to metric whatever `options.cfg` says, and never saves it, so the file keeps its value (a fresh install writes `Measures 2`, English; a file that cannot be read is reset like a missing one, units included). The scripted scenarios convert typed values with the unit factors, and a conversion to feet and back can move the last digit of a float, which the exact comparison with the 2016 binary would catch.
+
 ## Scripted test projects
 
 ```
