@@ -4,13 +4,13 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-13, written by the session that planned Stage 3. **Stage 3 is planned and not started; no code has changed since Stage 2.** Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
+2026-11-13, written by the session that planned Stage 3. **Stage 3 is planned and not started; no code has changed since Stage 2.** The owner accepted the plan's eight recommendations the same day. Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
 
 ## Focus
 
 - **Stage 2 of the roadmap is finished: "reach and measure".** The program can be driven and measured without a person, every edit of a track is a named command, and the questions behind the newer requests were answered by experiment. It was built in 30 pull requests into the integration branch (#47 to #81) under decision records 0011, 0012 and 0013.
 - **Saved files did not change, and every project still computes exactly as the 2016 program does.** The comparison with the 2016 binary passes with no tolerance, the owner's own project included.
-- **Stage 3 is planned, not built: the train.** The owner set its priorities on 2026-11-13: a whole-train simulation with friction as in NoLimits 2, the number of cars and which car the design is for, the ASTM force check at every seat shown at a glance, and English units by default. The plan is three documents: decision record 0014 (the design, provisional, ending in eight choices for the owner), `docs/roadmap.md` (reworked: Stage 3 shows the train and changes no design, Stage 4 is the train's real numbers and the design following a car, the old Stage 3's other pieces are Stage 5) and `docs/stage-3-plan.md` (the build plan, written so a fresh session can start from it). Another session builds the stage at the owner's word.
+- **Stage 3 is planned, not built: the train.** The owner set its priorities on 2026-11-13: a whole-train simulation with friction as in NoLimits 2, the number of cars and which car the design is for, the ASTM force check at every seat shown at a glance, and English units by default. The plan is three documents: decision record 0014 (the design; the owner accepted all eight of its recommendations on 2026-11-13), `docs/roadmap.md` (reworked: Stage 3 shows the train and changes no design, Stage 4 is the train's real numbers and the design following a car, the old Stage 3's other pieces are Stage 5) and `docs/stage-3-plan.md` (the build plan, written so a fresh session can start from it). Another session builds the stage at the owner's word.
 - **Two research notes came with the plan.** R12: NoLimits 2 has no mass anywhere and uses the same two resistance numbers as this program; how it couples its cars and what a lift crest does are not published and need a short session in NoLimits 2. R13: of the twelve uncertain force-limit items of R3, two are now corroborated, six still rest on one source and one is contradicted between editions.
 
 ## Milestone now
@@ -39,8 +39,8 @@ Open issues:
 
 The full list, with when each answer is needed, is the last section of `docs/roadmap.md`. The ones that matter now:
 
-- **The eight choices of decision record 0014,** each with a recommendation: the split between Stage 3 and Stage 4; how the seat check is shown; no train by default; the train's centre as the default reference; buying ASTM F2291 (edition 26b, US$121); train settings saved in an appendix the 2016 program ignores, with rule 4 in `CLAUDE.md` reworded; a short session in NoLimits 2; the order after the train. `docs/stage-3-plan.md` says which piece waits for which answer; only the Train panel waits before it can be built.
-- **The word for a session to build Stage 3.**
+- **The word for a session to build Stage 3.** The eight choices of decision record 0014 are answered (all accepted, 2026-11-13), so nothing in the stage waits for an answer.
+- **Two of those answers need his hands later,** each as an `owner` issue the building session files: buying ASTM F2291 (edition 26b, US$121) and typing its numbers into the limit file, once that file exists; and about an hour in NoLimits 2, once the kit for it is ready (needed before Stage 4).
 - **Try Stage 2,** if not done yet. Pull request #46's "For the owner" part says what to try first.
 - **#72, the start-rate boxes:** recommendation, leave it. No answer means it stays.
 - **#65, one or two NoLimits 2 tracks exported as CSV,** when convenient; needed before Stage 6.

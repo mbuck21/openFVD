@@ -72,7 +72,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0011-undo-by-snapshot-commands-on-top.md` | Undo restores a snapshot of the track; named commands are built on top, group by group; what the owner will notice. | accepted |
 | `docs/decisions/0012-measures-the-command-line-program-the-ride-sheet.md` | Measures as a registry in core, the command-line program in `cli/`, the ride sheet and its definitions; R11 deferred. | accepted |
 | `docs/decisions/0013-every-command-ends-in-the-reopened-state.md` | After every command the running track is the one a save and a reopen give; a test proves it for every command; the measurements that led to it. | accepted |
-| `docs/decisions/0014-stage-3-the-train-on-the-finished-track.md` | Stage 3 is the train: a second computation over the finished track, the force limits as an engine with its numbers as data, the seat map and the ride strip, the saved-file appendix, what waits for Stage 4; the choices put to the owner. | provisional |
+| `docs/decisions/0014-stage-3-the-train-on-the-finished-track.md` | Stage 3 is the train: a second computation over the finished track, the force limits as an engine with its numbers as data, the seat map and the ride strip, the saved-file appendix, what waits for Stage 4; the eight choices put to the owner and his answers. | accepted |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |

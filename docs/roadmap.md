@@ -214,7 +214,7 @@ Done on `claude/stage-2` in 30 pull requests into the integration branch (#47 to
 
 ## Stage 3: the train on the finished track
 
-**Planned on 2026-11-13, not started.** The two research notes are written; no code is. `docs/stage-3-plan.md` is the build plan (each piece, its order, its proof), and decision record 0014 (provisional) has the design, the reasons and the owner's choices.
+**Planned on 2026-11-13, not started.** The two research notes are written; no code is. `docs/stage-3-plan.md` is the build plan (each piece, its order, its proof), and decision record 0014 has the design, the reasons and the owner's answers: he accepted all eight of its recommendations on 2026-11-13.
 
 **Goal.** The program rides the finished track with a whole train and checks what every seat feels against the force limits. **Nothing in this stage changes what a project computes;** a project without a train is today's program.
 
@@ -346,26 +346,26 @@ The stages follow the dependencies; the order of Stages 3 and 4 is the owner's o
 
 ## Asked of the owner, and by when
 
-Everything about how to build this is the architect's call. These are not; each comes with a recommendation when its time comes. Number 4 and numbers 13 to 19 are the choices of decision record 0014, put to the owner on 2026-11-13; `docs/stage-3-plan.md` says which piece waits for which answer.
+Everything about how to build this is the architect's call. These are not; each comes with a recommendation when its time comes. Number 4 and numbers 13 to 19 are the choices of decision record 0014, put to the owner on 2026-11-13 and all accepted that day.
 
 | # | What | Needed |
 |---|---|---|
 | 1 | The word to start Stage 2. | given 2026-11-11 |
 | 2 | One or two NoLimits 2 tracks exported as CSV, for R11 (deferred); and a larger finished layout of the owner's as a test track, if one turns up. | before Stage 8 |
 | 3 | What counts as airtime and as an inversion on the ride sheet. | given 2026-11-11 (decision record 0012) |
-| 4 | Whether to buy ASTM F2291 (US$121, the current edition 26b) and transcribe the uncertain numbers by hand; the seller prohibits giving it to an AI (R3, R13). Recommendation: yes; the check works on the public numbers until then and marks them. | during Stage 3; no answer means the public numbers stay, marked |
+| 4 | Whether to buy ASTM F2291 (US$121, the current edition 26b) and transcribe the uncertain numbers by hand; the seller prohibits giving it to an AI (R3, R13). Recommendation: yes; the check works on the public numbers until then and marks them. | given 2026-11-13: yes. The building session files the `owner` issue once the limit file exists; the public numbers stay, marked, until he has typed his in |
 | 5 | R5's questions: the ranking of the directions; solve on a button or live; which values the program may change; what to do when a pin cannot be met. Recommendation: a button, and a result to accept. | before G2, Stage 6; G1 is built on the recommendation |
-| 6 | The saved file: may a project that uses a feature the 2016 program cannot compute stop opening in the 2016 program? Recommendation: yes, by a new file version, and only for such a project (number 17). | before P2, Stage 4 |
+| 6 | The saved file: may a project that uses a feature the 2016 program cannot compute stop opening in the 2016 program? Recommendation: yes, by a new file version, and only for such a project (number 17). | given 2026-11-13 with number 17: yes |
 | 7 | For elements (R6, section 4.4): which numbers define the camelback, whether elements hold position by default, which elements come first. | in E2, Stage 6 |
 | 8 | Whether designing for the train becomes the default for new projects once P2 exists. | before P2, Stage 4 |
 | 9 | How much NoLimits 2 block-script compatibility is worth (R4 recommends the standard automatic behaviour). | before Stage 8 |
 | 10 | The priorities of Stage 3. | given 2026-11-13: the train, the cars and the design car, the ASTM check at every seat, English units. The stage is planned; another session builds it at the owner's word |
 | 11 | Whether the train moves up. | given 2026-11-13: the train is the next stage |
 | 12 | Issue #72: a typed start rate comes back about 2 percent larger, as in the 2016 program. Leave it, or make the two conversions agree. Recommendation: leave it. | any time; no answer means it stays |
-| 13 | The split: Stage 3 shows the train and changes no design; the design following a chosen car (P2) comes in Stage 4 with the real numbers. Recommendation: yes. | before X1 is read, end of Stage 3 |
-| 14 | The seat check as proposed: a seat map that shows the whole ride by default and the moment at the cursor as a second mode, colour by test, a ride strip, the track coloured by the worst seat; the train drawn in 3D in Stage 4. Recommendation: yes. | before V2 |
-| 15 | No train by default: a project has no train until one is ticked in Track Properties. Recommendation: yes. | before V1 |
-| 16 | The train's centre as the default reference. Recommendation: yes. | before V1 |
-| 17 | The saved file now: the train's settings in an appendix the 2016 program ignores, the file version unchanged until a feature changes the computed track, rule 4 in `CLAUDE.md` reworded to say so. Recommendation: yes. | before D5 is merged |
-| 18 | A short session in NoLimits 2 for the experiments of R12 (an `owner` issue with exact steps). | before N3, Stage 4 |
-| 19 | The order after the train: Stage 5 (radius, comfort, imported tracks, knock-on view, solver, automation) as it was. Recommendation: yes, unless the solver matters more than the train's numbers. | before Stage 4 is cut |
+| 13 | The split: Stage 3 shows the train and changes no design; the design following a chosen car (P2) comes in Stage 4 with the real numbers. Recommendation: yes. | given 2026-11-13: yes |
+| 14 | The seat check as proposed: a seat map that shows the whole ride by default and the moment at the cursor as a second mode, colour by test, a ride strip, the track coloured by the worst seat; the train drawn in 3D in Stage 4. Recommendation: yes. | given 2026-11-13: yes, as proposed |
+| 15 | No train by default: a project has no train until one is ticked in Track Properties. Recommendation: yes. | given 2026-11-13: yes |
+| 16 | The train's centre as the default reference. Recommendation: yes. | given 2026-11-13: yes |
+| 17 | The saved file now: the train's settings in an appendix the 2016 program ignores, the file version unchanged until a feature changes the computed track, rule 4 in `CLAUDE.md` reworded to say so. Recommendation: yes. | given 2026-11-13: yes; rule 4 reworded the same day. The check on the 2016 binary is still owed by F4 |
+| 18 | A short session in NoLimits 2 for the experiments of R12 (an `owner` issue with exact steps). | given 2026-11-13: the owner runs the session himself, from the kit N3a prepares; before N3, Stage 4 |
+| 19 | The order after the train: Stage 5 (radius, comfort, imported tracks, knock-on view, solver, automation) as it was. Recommendation: yes, unless the solver matters more than the train's numbers. | given 2026-11-13: yes |

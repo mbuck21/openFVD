@@ -1,6 +1,6 @@
 # Stage 3 build plan: the train on the finished track
 
-Written 2026-11-13 by the planning session. **Nothing of Stage 3 is built.** This is the plan a fresh lead session builds from: the pieces, their order, what each must do and how it is proved. The reasons are in decision record 0014 (`docs/decisions/0014-stage-3-the-train-on-the-finished-track.md`, provisional until the owner answers its choices); the place of the stage among the others is in `docs/roadmap.md`.
+Written 2026-11-13 by the planning session. **Nothing of Stage 3 is built.** This is the plan a fresh lead session builds from: the pieces, their order, what each must do and how it is proved. The reasons are in decision record 0014 (`docs/decisions/0014-stage-3-the-train-on-the-finished-track.md`, accepted: the owner took all eight of its recommendations on 2026-11-13); the place of the stage among the others is in `docs/roadmap.md`.
 
 Read first: `CLAUDE.md`, decision record 0014, then the research the stage stands on: R7 (`docs/research/r7-train-against-point.md`, with its prototype), R3 and R13 (force limits), R12 (NoLimits 2), R8 section 1 (the energy rule).
 
@@ -19,20 +19,20 @@ He asked that every part be optional and that his sketch of the screens not be t
 
 **Not in this stage** (Stage 4): the design itself following a car, real train dimensions, the comparison against NoLimits 2, the train drawn in 3D, the energy margin.
 
-## 2. The owner's choices, and which piece waits for which
+## 2. The owner's choices: all eight accepted
 
-Decision record 0014 ends with eight choices, each with a recommendation. Build on the recommendation where the table says so; the answer changes a default or a label, not the structure.
+Decision record 0014 ends with eight choices. The owner accepted every recommendation on 2026-11-13, so **no piece of the stage waits for an answer.** What each answer means for the build:
 
-| Choice | Recommendation | Gates |
+| Choice | Answer | For the build |
 |---|---|---|
-| 1. Stage 3 shows the train; designing for a car is Stage 4 | yes | what happens after X1; nothing in Stage 3 |
-| 2. The seat check as proposed (seat map of the whole ride, cursor mode, colour by test, ride strip, track coloured by the worst seat; 3D train in Stage 4) | yes | V2. Do not build V2 before the answer |
-| 3. No train by default | yes | V1 (a default; build on the recommendation) |
-| 4. The train's centre as the default reference | yes | D5 (a default; build on the recommendation) |
-| 5. Buy ASTM F2291-26b and type the uncertain numbers into the limit file | yes | nothing; the limit file is data and can be corrected any time |
-| 6. Train settings in an appendix the 2016 program ignores; rule 4 reworded | yes | merging D5. F4 can be built and merged before the answer: it saves nothing by itself |
-| 7. A session in NoLimits 2 | when convenient | Stage 4 (N3). N3a prepares it |
-| 8. The order after the train | the old Stage 3 remainder | nothing in Stage 3 |
+| 1. Stage 3 shows the train; designing for a car is Stage 4 | yes | nothing in Stage 3 changes a design; X1 is a trial by script only |
+| 2. The seat check as proposed (seat map of the whole ride, cursor mode, colour by test, ride strip, track coloured by the worst seat; 3D train in Stage 4) | yes | V2 is built as described |
+| 3. No train by default | yes | the default in D5 and V1 |
+| 4. The train's centre as the default reference | yes | the default in D5 |
+| 5. Buy ASTM F2291-26b and type the uncertain numbers into the limit file | yes | once A3a's limit file is merged, file an `owner` issue: which numbers of the file to check, by the file's own names, and how to mark a number as checked. Do not ask him to send the text. The check runs on the public numbers, marked, until then |
+| 6. Train settings in an appendix the 2016 program ignores; rule 4 reworded | yes | rule 4 in `CLAUDE.md` is reworded. D5 may be merged once F4's check on the 2016 binary has been seen to pass; if that check fails, stop and go back to the owner |
+| 7. A session in NoLimits 2 | yes, the owner's own session | N3a prepares the kit and files the `owner` issue; needed before Stage 4 (N3) |
+| 8. The order after the train | the old Stage 3 remainder, as Stage 5 | nothing in Stage 3 |
 
 ## 3. What is already known about the code
 
@@ -54,7 +54,7 @@ Found while planning; each saves the builder a search.
 
 ## 4. The pieces
 
-Order: **wave 1** U1, P1, A3a, F4, N3a (independent; they share only one-line additions to `core/core.pri`, `resources.qrc` and the command table of `cli/`). **Wave 2** D5 (after F4 and P1) and A3b (after A3a). **Wave 3** A4 (after P1, A3a, D5). **Wave 4** V1 and V2 (after A4; V2 after the owner's choice 2). **X1** any time after P1. Then the closing.
+Order: **wave 1** U1, P1, A3a, F4, N3a (independent; they share only one-line additions to `core/core.pri`, `resources.qrc` and the command table of `cli/`). **Wave 2** D5 (after F4 and P1) and A3b (after A3a). **Wave 3** A4 (after P1, A3a, D5). **Wave 4** V1 and V2 (after A4). **X1** any time after P1. Then the closing.
 
 Models as `docs/development-workflow.md` says: Opus for the physics, the limits and the file format; Sonnet otherwise.
 
@@ -100,6 +100,7 @@ New files `core/forcelimits.*`, `data/limits/astm-f2291-public.json` (embedded t
 - The main version stays `v0.77`. The first addition that changes a computed track (Stage 4's design-for-a-car) bumps it.
 - A track's additions are part of its state (`core/trackstate.*`), and the text form (`core/projecttext.*`, `docs/project-text-format.md`) carries them with an exact round trip. The JSON written must be deterministic.
 - `fvdcore additions <project> --set key=<json> | --remove key | --show`, so a test file can be made by hand.
+- The row "New value saved in the project" in `core/CLAUDE.md` is rewritten to name the appendix, as rule 4 in `CLAUDE.md` now does.
 - **Proof:** no `FVX` in any re-saved baseline project; save, load, save gives the same bytes; each kind of damage handled; unknown keys survive a track deletion; undo and redo of an addition; the text round trips; the bytes up to `EOP` equal the same project without additions. **And on the 2016 binary itself, by the lead:** a project with an appendix opened in a copy of `bin/win64/FVD.exe` outside the repository opens and exports the same files as without it. Until that is seen, the claim that the 2016 program ignores the appendix is read from the code only.
 
 ### N3a: the kit for the owner's NoLimits 2 session (Sonnet)
@@ -134,7 +135,7 @@ A check `forceLimits` in the check registry: the design point's three forces (th
 - **3D:** the train measures in "colour by measure".
 - **Proof:** the baseline and the undo check unchanged; a batch scenario that ticks a train and reads the ride sheet's text; tried on screen by the lead.
 
-### V2: the Train panel (Sonnet; after the owner's choice 2)
+### V2: the Train panel (Sonnet)
 
 A tab beside the ride sheet, refreshed by the same timer.
 
@@ -150,7 +151,7 @@ By script, no change to the program: R7's `redesign.py` repeated design (design 
 
 ### Closing
 
-The whole verification from an empty `build` folder, as listed under "Verified" in `STATUS.md` for Stage 2, with the new tests added and the owner's project in every check that takes a folder; the 2016-binary check of F4; `STATUS.md` rewritten; decision record 0014 moved from provisional to accepted with the owner's answers written in; rule 4 in `CLAUDE.md` reworded if the owner agreed to choice 6; the fork's section of `README.md`; the final review of the integration pull request; the report with what the owner must do before merging.
+The whole verification from an empty `build` folder, as listed under "Verified" in `STATUS.md` for Stage 2, with the new tests added and the owner's project in every check that takes a folder; the 2016-binary check of F4; `STATUS.md` rewritten; decision record 0014 (accepted since 2026-11-13) brought up to date with what was built; the last sentence of rule 4 in `CLAUDE.md` ("until F4 is built...") taken out once the check on the 2016 binary has passed; the `owner` issues for the ASTM numbers and the NoLimits 2 session filed, if not yet; the fork's section of `README.md`; the final review of the integration pull request; the report with what the owner must do before merging.
 
 ## 5. How the work runs
 
