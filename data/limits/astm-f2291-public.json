@@ -215,26 +215,29 @@
     "axes": ["x", "z"],
     "rule": "From the trace filtered at restraint_filter. A point belongs to the lowest area whose region contains it or lies within line_tolerance_g of it (on a boundary the lower area may be chosen: A, F2291-21 Fig. 2 note 1). Each region below is that area together with every lower one; outside region 4 is area 5. Information only: the area says which restraint class the ride needs; it is not a pass or fail.",
     "source": "A (F2291-21 Fig. 2, 6.4.3.2, 6.4.3.3); C; R Fig. 6.1 (all three agree); N6 Fig. 2 (grid values)",
-    "confidence": "high for the grid values; the corners marked approximate are read to +-0.05 g",
+    "confidence_rule": "Each region has its own confidence: high when its corners are all grid values (two sources agree), at most medium when a corner is marked approximate (read to +-0.05 g), low when a corner is marked open (not legible in any source). The loader refuses a region rated higher than its corners allow. The 20 g corners only close the regions (FVD).",
     "regions": [
-      { "id": "restraint_areas.area_1", "area": 1, "class": "Class 1, no restraint required", "checked": null,
+      { "id": "restraint_areas.area_1", "area": 1, "class": "Class 1, no restraint required",
+        "source": "A (F2291-21 Fig. 2); C; R Fig. 6.1; N6 Fig. 2 (grid values -0.2 and +0.2); the diagonal's corners read off the drawings; the corner at (0.2, 0.35) is FVD's", "confidence": "low", "checked": null,
         "points": [
           { "ax": -0.2, "az": 20.0 },
           { "ax": -0.2, "az": 1.05, "approximate": true },
           { "ax": 0.0,  "az": 0.7,  "approximate": true },
-          { "ax": 0.2,  "az": 0.35, "approximate": true, "note": "FVD: R3 gives 'a diagonal to about (0, 0.7); then ax = +0.2 down to az = +0.2'; the diagonal is continued to ax = +0.2 here. OPEN: the corner is not legible in any source" },
+          { "ax": 0.2,  "az": 0.35, "open": true, "note": "FVD: R3 gives 'a diagonal to about (0, 0.7); then ax = +0.2 down to az = +0.2'; the diagonal is continued to ax = +0.2 here. OPEN: the corner is not legible in any source" },
           { "ax": 0.2,  "az": 0.2 },
           { "ax": 20.0, "az": 0.2 },
           { "ax": 20.0, "az": 20.0 }
         ] },
-      { "id": "restraint_areas.area_2", "area": 2, "class": "Class 2 (or none with handholds and footrests: A, F2291-21 6.4.3.5)", "checked": null,
+      { "id": "restraint_areas.area_2", "area": 2, "class": "Class 2 (or none with handholds and footrests: A, F2291-21 6.4.3.5)",
+        "source": "A (F2291-21 Fig. 2); C; R Fig. 6.1; N6 Fig. 2 (grid values -0.7 and +0.2)", "confidence": "high", "checked": null,
         "points": [
           { "ax": -0.7, "az": 20.0 },
           { "ax": -0.7, "az": 0.2 },
           { "ax": 20.0, "az": 0.2 },
           { "ax": 20.0, "az": 20.0 }
         ] },
-      { "id": "restraint_areas.area_3", "area": 3, "class": "Class 3", "checked": null,
+      { "id": "restraint_areas.area_3", "area": 3, "class": "Class 3",
+        "source": "A (F2291-21 Fig. 2); C; R Fig. 6.1; N6 Fig. 2 (grid values -1.2, -0.7, +0.2); the end of the diagonal at (0, 0) read off the drawings", "confidence": "medium", "checked": null,
         "points": [
           { "ax": -1.2, "az": 20.0 },
           { "ax": -1.2, "az": 0.2 },
@@ -243,7 +246,8 @@
           { "ax": 20.0, "az": 0.0 },
           { "ax": 20.0, "az": 20.0 }
         ] },
-      { "id": "restraint_areas.area_4", "area": 4, "class": "Class 4", "checked": null,
+      { "id": "restraint_areas.area_4", "area": 4, "class": "Class 4",
+        "source": "A (F2291-21 Fig. 2); C; R Fig. 6.1; N6 Fig. 2 (grid value -1.8); the corner at (0.7, -0.2) read off the drawings", "confidence": "medium", "checked": null,
         "points": [
           { "ax": -1.8, "az": 20.0 },
           { "ax": -1.8, "az": 0.0 },

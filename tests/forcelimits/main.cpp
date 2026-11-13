@@ -538,6 +538,23 @@ static void checkRestraint(const forceLimits& s)
               r.iRestraintArea == traces[i].area && r.iRestraintSample > 1000 && r.iRestraintSample < 1300,
               QString("area %1 first at sample %2").arg(r.iRestraintArea).arg(r.iRestraintSample));
     }
+
+    // each region has its own confidence, as its corners allow
+    check("region confidences: area 1 low (an open corner), 2 high (grid values), 3 and 4 medium (approximate corners)",
+          s.lRegions.size() == 4 && s.lRegions.at(0).sConfidence == "low" && s.lRegions.at(1).sConfidence == "high"
+          && s.lRegions.at(2).sConfidence == "medium" && s.lRegions.at(3).sConfidence == "medium");
+    bool listedAsFile = false;
+    for (int i = 0; i < s.lNumbers.size(); ++i)
+        if (s.lNumbers.at(i).sId == "restraint_areas.area_1" && s.lNumbers.at(i).sConfidence == "low")
+            listedAsFile = true;
+    check("the listing gives restraint_areas.area_1 as low", listedAsFile);
+    const limitResult rest = run(restTrace(0.01, 1000), s, "base", false, true);
+    forceTrace braking = restTrace(0.01, 3000);
+    setRange(braking.gx, 1000, 1000, -1.0);
+    const limitResult rb = run(braking, s, "base", false, true);
+    check("the restraint area carries the confidence of its boundaries: rest (area 1) low, braking (area 3) medium",
+          rest.sRestraintConfidence == "low" && rb.iRestraintArea == 3 && rb.sRestraintConfidence == "medium",
+          rest.sRestraintConfidence + ", " + rb.sRestraintConfidence);
 }
 
 static double amplitude(const limitFilter& f, double freq, double dt, double seconds)
@@ -653,6 +670,8 @@ static void checkBrokenFiles(const QString& path, const forceLimits& s)
           QJsonValue(QString("x_neg_flat")), "restraint_kinds.kinds.prone.x_neg_curve" },
         { "a limit number that is text", QStringList() << "reversal_xy" << "factor" << "value",
           QJsonValue(QString("half")), "reversal_xy.factor.value" },
+        { "a region rated higher than its approximate corner allows", QStringList() << "restraint_areas" << "regions" << "[2]" << "confidence",
+          QJsonValue(QString("high")), "restraint_areas.regions[2].confidence" },
     };
     for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
@@ -693,6 +712,18 @@ static void checkBrokenFiles(const QString& path, const forceLimits& s)
             listed = true;
     check("a number marked \"checked\" in the file is listed so and its findings say \"checked\"",
           loaded && listed && f && f->sConfidence == "checked", error);
+
+    // a restraint region is marked the same way
+    const QJsonObject region = setPath(root, QStringList() << "restraint_areas" << "regions" << "[1]" << "checked",
+                                       QJsonValue(QString("F2291-26b region mark")));
+    forceLimits g;
+    const bool regionLoaded = forceLimits::load(writeFile(dir, "region.json", QJsonDocument(region).toJson()), g, &error);
+    bool regionListed = false;
+    for (int i = 0; i < g.lNumbers.size(); ++i)
+        if (g.lNumbers.at(i).sId == "restraint_areas.area_2" && g.lNumbers.at(i).sChecked == "F2291-26b region mark")
+            regionListed = true;
+    check("a restraint region marked \"checked\" is listed so and reports \"checked\"",
+          regionLoaded && regionListed && g.lRegions.at(1).confidence() == "checked", error);
     Q_UNUSED(s);
 }
 

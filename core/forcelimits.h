@@ -101,6 +101,10 @@ struct limitRegion
     int iArea;              // 1 to 4: the region holds this area and every lower one
     QString sClass;
     QList<limitPolygonPoint> lPoints;
+    QString sSource;
+    QString sConfidence;    // at most what its corners allow (approximate: medium, open: low)
+    QString sChecked;
+    QString confidence() const { return sChecked.isEmpty() ? sConfidence : QStringLiteral("checked"); }
 };
 
 struct limitRestraintKind
@@ -191,7 +195,6 @@ public:
 
     // restraint areas
     QList<limitRegion> lRegions;            // areas 1 to 4 in order
-    QString sRestraintAreasConfidence;
 };
 
 // ---------------------------------------------------------- input, options
@@ -285,7 +288,8 @@ struct limitResult
 
     QVector<qint8> lRestraintArea;  // per sample, 1 to 5, from the 1 Hz trace
     int iRestraintArea;         // the highest area reached (information, not a finding)
-    int iRestraintSample;       // where it is first reached
+    int iRestraintSample;       // where it is first reached, -1 when the step did not run
+    QString sRestraintConfidence;   // of the boundaries that decide that area and of the 1 Hz filter's numbers
 
     double dFilterDelay;        // s: the low-frequency delay of the 5 Hz filter (taken out)
     int iFilterShift;           // the same in whole samples

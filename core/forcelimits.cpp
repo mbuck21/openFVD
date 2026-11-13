@@ -289,9 +289,9 @@ bool readRegion(fileReader& rd, const QJsonValue& v, int index, limitRegion& out
         return rd.fail(here.left(here.size() - 1), "must be an object");
     const QJsonObject o = v.toObject();
     out = limitRegion();
-    QString checkedNote;
     if (!rd.string(o, "id", here, out.sId) || !rd.uniqueId(out.sId, here) || !rd.integer(o, "area", here, out.iArea)
-     || !rd.string(o, "class", here, out.sClass) || !rd.checked(o, here, checkedNote))
+     || !rd.string(o, "class", here, out.sClass) || !rd.string(o, "source", here, out.sSource)
+     || !rd.confidence(o, here, out.sConfidence) || !rd.checked(o, here, out.sChecked))
         return false;
     if (out.iArea != index + 1)
         return rd.fail(here + "area", QString("must be %1 (areas 1 to 4 in order)").arg(index + 1));
@@ -299,6 +299,9 @@ bool readRegion(fileReader& rd, const QJsonValue& v, int index, limitRegion& out
     if (!pv.isArray() || pv.toArray().size() < 3)
         return rd.fail(here + "points", "must be a list of at least three corners");
     const QJsonArray arr = pv.toArray();
+    // the best confidence the corners allow: an approximate corner caps it at
+    // medium, an open one at low
+    QString allowed = "high";
     for (int i = 0; i < arr.size(); ++i)
     {
         const QString ph = QString("%1points[%2].").arg(here).arg(i);
@@ -308,20 +311,32 @@ bool readRegion(fileReader& rd, const QJsonValue& v, int index, limitRegion& out
             return rd.fail(ph + "ax", "must be a number");
         if (!az.isDouble() || !std::isfinite(az.toDouble()))
             return rd.fail(ph + "az", "must be a number");
+        const QJsonValue approx = po.value("approximate"), open = po.value("open");
+        if (!approx.isUndefined() && !approx.isBool())
+            return rd.fail(ph + "approximate", "must be true or false");
+        if (!open.isUndefined() && !open.isBool())
+            return rd.fail(ph + "open", "must be true or false");
+        if (open.toBool())
+            allowed = "low";
+        else if (approx.toBool() && allowed == "high")
+            allowed = "medium";
         limitPolygonPoint p;
         p.dAx = ax.toDouble();
         p.dAz = az.toDouble();
         out.lPoints.append(p);
     }
+    if (confidenceRank(out.sConfidence) > confidenceRank(allowed))
+        return rd.fail(here + "confidence", QString("must be at most %1: a corner is marked %2")
+                       .arg(allowed, allowed == "low" ? "open" : "approximate"));
     limitListed row;
     row.sId = out.sId;
     QStringList corners;
     for (int i = 0; i < out.lPoints.size(); ++i)
         corners << QString("(%1, %2)").arg(numText(out.lPoints.at(i).dAx), numText(out.lPoints.at(i).dAz));
     row.sValue = "corners (ax, az) " + corners.join(" ");
-    row.sConfidence = "high";
-    row.sSource = "restraint_areas.source; corners marked approximate are read to +-0.05 g";
-    row.sChecked = checkedNote;
+    row.sConfidence = out.sConfidence;
+    row.sSource = out.sSource;
+    row.sChecked = out.sChecked;
     rd.listRow(row);
     return true;
 }
@@ -656,8 +671,6 @@ bool forceLimits::load(const QString& path, forceLimits& out, QString* error)
     {
         QJsonObject ra;
         if (!rd.object(root, "restraint_areas", "", ra))
-            return false;
-        if (!rd.string(ra, "confidence", "restraint_areas.", out.sRestraintAreasConfidence))
             return false;
         const QJsonValue rv = ra.value("regions");
         if (!rv.isArray() || rv.toArray().size() != 4)
@@ -1528,6 +1541,17 @@ bool limitStepRestraint(const forceTrace& raw, const forceLimits& s, limitResult
             r.iRestraintSample = i;
         }
     }
+    // area k is decided by region k (inside it) and region k-1 (not inside
+    // that); area 5 by region 4
+    QString conf = s.lowerConfidence(s.restraintFilterCorner.confidence(), s.restraintLineTolerance.confidence());
+    for (int k = 0; k < s.lRegions.size(); ++k)
+    {
+        const int a = s.lRegions.at(k).iArea;
+        if (a == r.iRestraintArea || a == r.iRestraintArea - 1)
+            conf = s.lowerConfidence(conf, s.lRegions.at(k).confidence());
+    }
+    if (r.iRestraintArea > 0)
+        r.sRestraintConfidence = conf;
     return true;
 }
 
