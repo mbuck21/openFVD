@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "id": "astm-f2291-public",
+  "name": "ASTM F2291 acceleration limits as the public sources give them",
+  "standard": "ASTM F2291",
+  "edition": "F2291-23b (curves, as Rohde 2024 redraws them); rules also from F2291-06a (2006)",
+  "edition_note": "TRANSCRIBED FROM PUBLIC SECONDARY SOURCES, not from the standard, and not checked against any edition of it. The curves describe F2291-23b as Rohde (2024) redraws it, with Cargill (2019) and the publisher's preview of F2291-21 as second sources; several rules are confirmed by the 2006 edition's text (F2291-06a). The current edition is F2291-26b. Research notes: docs/research/r3-force-limits.md (R3) and docs/research/r13-force-limits-second-sources.md (R13).",
+  "disclaimer": "A design aid for a hobby tool, not a certification. A pass means only: within the limits as transcribed here, at the points the program models.",
+  "how_to_check": "Every number below has an id, a source and a confidence, and a field 'checked' that is null. When you have compared a number with your own copy of the standard, correct the value if needed and replace null with a short text: the edition and where you found it, and the date, for example \"F2291-26b Fig. 8, 2026-12-01\". The program then reports that number's confidence as 'checked'. Leave 'source' as it is. A number the sources leave open has the value null. fvdcore limits --file <this file> shows the file as the program reads it.",
+  "sources": {
+    "R": "M. Rohde, Some Details about the Development of Acceleration Limits for Amusement Rides, 2nd ed., March 2024 (describes F2291-23b and EN 13814:2019). 'R sec.' is a section of this paper, not of the standard",
+    "C": "R. S. Cargill II, Amusement Rides: How much thrill is too much?, PSPE seminar slides, September 2019 (F2291, edition not stated)",
+    "A": "ASTM F2291-21, the publisher's 8-page preview",
+    "N6": "ASTM F2291-06a (2006), full text posted by Public.Resource.Org on archive.org (text layer read; figure numbers mostly not legible)",
+    "P": "T. P. Smith, Human Factors Review of Restraint Failures on Mobile Amusement Rides, US CPSC, February 2005 (F2291-04)",
+    "S": "S. Sicat, Wearable Technology for Design and Safety Evaluation of Rider Acceleration, ISOES 2018",
+    "W": "web.de, Wie beeinflussen Achterbahnen unsere Koerperfunktionen?, 25 April 2026 (EN 13814, popular press)",
+    "PE": "A. Pendrill and D. Eager, Physics Education 55 (2020) 065012 (quotes ISO/TS 17929:2014, not F2291)",
+    "LE": "Leicester Journal of Physics Special Topics student note citing F2291-24 (weak)",
+    "FVD": "not from a source: a choice made in FVD++ where the sources leave a rule open (the note beside it says what)"
+  },
+  "confidence_scale": "high: two independent sources agree; medium: one good source; low: read off one drawing only, a weak source, or an FVD++ choice. A number whose 'checked' is filled in is reported as 'checked'.",
+  "units": {
+    "acceleration": "g, specific force with gravity included (a rider sitting still on level track has z = +1)",
+    "time": "s",
+    "axes": "patron axes (R3 section 1): +x pressed into the seat back (eyes back), +y the sign of the program's lateral force, +z pressed into the seat (eyes down)"
+  },
+
+  "filter": {
+    "kind": "butterworth", "order": 4, "passes": 1,
+    "corner_hz": { "id": "filter.corner_hz", "value": 5.0, "source": "R sec. 5.2; S; A (F2291-21 3.1.8: the corner is the -3 dB point)", "confidence": "high", "checked": null },
+    "note": "The standard filters measured data. FVD++ also filters its computed trace (its 1 ms kinks at section joins) and reports places with the filter's delay taken out; both are FVD++'s choices."
+  },
+  "restraint_filter": {
+    "kind": "butterworth", "order": 4, "passes": 1,
+    "corner_hz":        { "id": "restraint_filter.corner_hz", "value": 1.0, "source": "R sec. 5.2, citing F2291-23b X1.2", "confidence": "medium", "checked": null },
+    "line_tolerance_g": { "id": "restraint_filter.line_tolerance_g", "value": 0.05, "source": "R sec. 5.2, citing F2291-23b X1.2 (the diagram's lines are 0.1 g thick)", "confidence": "medium", "checked": null }
+  },
+  "min_event_s":    { "id": "min_event_s", "value": 0.2, "source": "A (F2291-21 3.1.1, 3.1.2); R sec. 3 and ch. 8; N6 (F2291-06a 7.1.4.2: impacts under 200 ms not addressed)", "confidence": "high", "checked": null },
+  "max_duration_s": { "id": "max_duration_s", "value": 90.0, "source": "R sec. 7.1, 7.2.3.1; N6 (F2291-06a 7.1.4.6: exposure over 90 s not addressed)", "confidence": "high", "checked": null },
+  "slice_step_g":   { "id": "slice_step_g", "value": 0.1, "source": "R sec. 3, Fig. 7.8a; C (slides of the standard's Fig. X2.5, X2.6, edition not stated)", "confidence": "high", "checked": null },
+
+  "curves": {
+    "z_pos": {
+      "name": "+Gz (eyes down)", "axis": "z", "direction": "positive",
+      "points": [
+        { "id": "z_pos@0.2s",  "s": 0.2,  "g": 6.0, "source": "R Fig. 7.4, text p.27; W; PE (ISO TS), LE (F2291-24): 6 g for 1 s", "confidence": "high", "checked": null },
+        { "id": "z_pos@1.0s",  "s": 1.0,  "g": 6.0, "source": "R Fig. 7.4, text p.27; W; PE (ISO TS), LE (F2291-24): 6 g for 1 s", "confidence": "high", "checked": null },
+        { "id": "z_pos@2.0s",  "s": 2.0,  "g": 4.0, "source": "R Fig. 7.4, text p.27 (PE's ISO TS has 5 g at 2 s; a different document)", "confidence": "medium", "checked": null },
+        { "id": "z_pos@4.0s",  "s": 4.0,  "g": 4.0, "source": "R Fig. 7.4", "confidence": "medium", "checked": null },
+        { "id": "z_pos@5.0s",  "s": 5.0,  "g": 3.0, "source": "R Fig. 7.4", "confidence": "medium", "checked": null },
+        { "id": "z_pos@11.8s", "s": 11.8, "g": 3.0, "source": "R Fig. 7.4 (11.8 printed); N6 Fig. 10 (11.8 legible, the level not)", "confidence": "medium", "checked": null },
+        { "id": "z_pos@12.0s", "s": 12.0, "g": 2.0, "source": "R Fig. 7.4, text p.27; N6 Fig. 10 (12 legible, the level not)", "confidence": "medium", "checked": null },
+        { "id": "z_pos@40.0s", "s": 40.0, "g": 2.0, "source": "R Fig. 7.4 ('2.0 g, max. 40 s'); N6 Fig. 10 (40 legible)", "confidence": "medium", "checked": null }
+      ],
+      "after_last": "hold",
+      "beyond_last": { "id": "z_pos.beyond_40s", "value": null, "source": "R text p.27 only ('after 40 seconds 1 g ... must be assured'); N6 says nothing about after 40 s", "confidence": "low", "checked": null,
+        "note": "OPEN: what applies to +Gz after 40 s is not known. Not used: the 2.0 g holds to max_duration_s." }
+    },
+    "z_pos_after_neg": {
+      "name": "+Gz after airtime (push-pull)", "axis": "z", "direction": "positive",
+      "points": [
+        { "id": "z_pos_after_neg@0.2s", "s": 0.2, "g": 5.0, "source": "R Fig. 7.4 and 7.23 (read off a small drawing)", "confidence": "low", "checked": null },
+        { "id": "z_pos_after_neg@1.5s", "s": 1.5, "g": 5.0, "source": "R Fig. 7.4 and 7.23 (read off a small drawing)", "confidence": "low", "checked": null },
+        { "id": "z_pos_after_neg@2.0s", "s": 2.0, "g": 4.0, "source": "R Fig. 7.4 (read off a small drawing)", "confidence": "low", "checked": null },
+        { "id": "z_pos_after_neg@2.5s", "s": 2.5, "g": 2.0, "source": "R Fig. 7.4 (read off a small drawing)", "confidence": "low", "checked": null },
+        { "id": "z_pos_after_neg@6.0s", "s": 6.0, "g": 2.0, "source": "R Fig. 7.4 (read off a small drawing)", "confidence": "low", "checked": null }
+      ],
+      "after_last": "hold",
+      "trigger_s":    { "id": "z_pos_after_neg.trigger_s", "value": 3.0, "source": "R sec. 7.4.3.1 ('3 or more seconds'); N6 (F2291-06a 7.1.7.1 'more than 3 s', Fig. 10 '3 sec or more')", "confidence": "high", "checked": null },
+      "neg_below_g":  { "id": "z_pos_after_neg.neg_below_g", "value": 0.0, "source": "R sec. 7.2.5.3; N6 (F2291-06a 7.1.7.1, 'negative-Gz exposure')", "confidence": "medium", "checked": null },
+      "window_s":     { "id": "z_pos_after_neg.window_s", "value": 6.0, "source": "R sec. 7.2.5.3, 7.4.3.1, Fig. 7.23; N6 (F2291-06a 7.1.7.1)", "confidence": "high", "checked": null },
+      "note": "Judged instead of z_pos for a +Gz event that starts within window_s after a stretch of trigger_s or more with z below neg_below_g."
+    },
+    "z_neg": {
+      "name": "-Gz (eyes up, airtime)", "axis": "z", "direction": "negative",
+      "points": [
+        { "id": "z_neg@0.2s", "s": 0.2, "g": -2.0, "source": "R Fig. 7.4, Table 7.1; N6 egg figures (base -2.0)", "confidence": "high", "checked": null },
+        { "id": "z_neg@0.5s", "s": 0.5, "g": -1.5, "source": "R Fig. 7.4", "confidence": "medium", "checked": null },
+        { "id": "z_neg@4.0s", "s": 4.0, "g": -1.5, "source": "R Fig. 7.4", "confidence": "medium", "checked": null },
+        { "id": "z_neg@7.0s", "s": 7.0, "g": -1.1, "source": "R Fig. 7.4, text p.28 (-1.1 printed)", "confidence": "medium", "checked": null }
+      ],
+      "after_last": "hold"
+    },
+    "z_neg_extended": {
+      "name": "-Gz extended (bungee line, special restraints, ASTM only)", "axis": "z", "direction": "negative",
+      "points": [
+        { "id": "z_neg_extended@0.2s", "s": 0.2, "g": -2.8, "source": "R Fig. 7.4, Table 7.1 ('Extended'); N6 egg figures 13, 16, 18 ('Extended limit')", "confidence": "high", "checked": null },
+        { "id": "z_neg_extended@1.0s", "s": 1.0, "g": -2.2, "source": "R Fig. 7.4 (printed)", "confidence": "medium", "checked": null },
+        { "id": "z_neg_extended@3.0s", "s": 3.0, "g": -1.5, "source": "R Fig. 7.4, text p.28", "confidence": "medium", "checked": null }
+      ],
+      "after_last": "then",
+      "then": "z_neg",
+      "note": "Used only when the extended line is allowed (special restraints, addressed in the ride analysis: N6 Fig. 9 note). Not in EN 13814."
+    },
+    "y": {
+      "name": "Gy (lateral, both directions)", "axis": "y", "direction": "both",
+      "points": [
+        { "id": "y@0.2s", "s": 0.2, "g": 3.0, "source": "R Fig. 7.1, Table 7.1; C Fig. X2.6", "confidence": "high", "checked": null },
+        { "id": "y@1.0s", "s": 1.0, "g": 3.0, "source": "R Fig. 7.1 (the level also C Fig. X2.6; the time R only)", "confidence": "medium", "checked": null },
+        { "id": "y@2.0s", "s": 2.0, "g": 2.0, "source": "R Fig. 7.1 ('2,0 g' printed); C Fig. X2.6 (the level; the time R only)", "confidence": "medium", "checked": null }
+      ],
+      "after_last": "hold"
+    },
+    "x_pos": {
+      "name": "+Gx (eyes back, launches)", "axis": "x", "direction": "positive",
+      "points": [
+        { "id": "x_pos@0.2s",  "s": 0.2,  "g": 6.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_pos@1.0s",  "s": 1.0,  "g": 6.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_pos@2.0s",  "s": 2.0,  "g": 4.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_pos@4.0s",  "s": 4.0,  "g": 4.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_pos@5.0s",  "s": 5.0,  "g": 3.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_pos@11.8s", "s": 11.8, "g": 3.0, "source": "R Fig. 7.2; C Fig. 6 (11.8 printed in both)", "confidence": "high", "checked": null },
+        { "id": "x_pos@12.0s", "s": 12.0, "g": 2.5, "source": "R Fig. 7.2; C Fig. 6 ('2.5 g' printed in both); N6 Fig. 6 ('2.5' and '12')", "confidence": "high", "checked": null }
+      ],
+      "after_last": "hold",
+      "note": "R's worked example (sec. 7.2.6) says 2 g at 12 s; both figures and the 2006 figure say 2.5 g, which is taken (R13)."
+    },
+    "x_neg_base": {
+      "name": "-Gx (eyes front), base case", "axis": "x", "direction": "negative",
+      "points": [
+        { "id": "x_neg_base@0.2s", "s": 0.2, "g": -2.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_neg_base@0.5s", "s": 0.5, "g": -1.5, "source": "R Fig. 7.2; C Fig. 6 (-1.5 printed in both; the 0.5 s read off)", "confidence": "medium", "checked": null }
+      ],
+      "after_last": "hold"
+    },
+    "x_neg_otsr": {
+      "name": "-Gx (eyes front), over-the-shoulder restraint", "axis": "x", "direction": "negative",
+      "points": [
+        { "id": "x_neg_otsr@0.2s", "s": 0.2, "g": -2.0, "source": "R Fig. 7.2; C Fig. 6 (printed); N6 Fig. 7 (the line, notes)", "confidence": "high", "checked": null }
+      ],
+      "after_last": "hold"
+    },
+    "x_neg_prone": {
+      "name": "-Gx (eyes front), prone", "axis": "x", "direction": "negative",
+      "points": [
+        { "id": "x_neg_prone@0.2s", "s": 0.2, "g": -3.5, "source": "R Fig. 7.2, Table 7.1; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_neg_prone@2.0s", "s": 2.0, "g": -3.5, "source": "R Fig. 7.2, Table 7.1; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_neg_prone@3.0s", "s": 3.0, "g": -2.5, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_neg_prone@4.0s", "s": 4.0, "g": -2.5, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null },
+        { "id": "x_neg_prone@5.0s", "s": 5.0, "g": -2.0, "source": "R Fig. 7.2; C Fig. 6", "confidence": "high", "checked": null }
+      ],
+      "after_last": "hold"
+    }
+  },
+  "interpolation": "straight lines in g against s between points; the first value from min_event_s to the first point; after the last point the last value holds (or the 'then' curve applies) up to max_duration_s, and beyond it the value at max_duration_s",
+
+  "restraint_kinds": {
+    "kinds": {
+      "base":  { "name": "base case (lap bar or similar, Class 4 or 5)", "x_neg_curve": "x_neg_base",  "egg_x_neg_curve": "x_neg_base" },
+      "otsr":  { "name": "over-the-shoulder",                            "x_neg_curve": "x_neg_otsr",  "egg_x_neg_curve": "x_neg_otsr" },
+      "prone": { "name": "prone",                                        "x_neg_curve": "x_neg_prone", "egg_x_neg_curve": "x_neg_prone" }
+    },
+    "aliases": { "lapbar": "base", "vest": "base", "other": "base", "": "base" },
+    "source": "N6 (F2291-06a 7.1.4.7: the three basic restraint types; Figs. 11 to 18 titled x 'Base/OTS' and x 'Prone' for the eggs); R Fig. 7.2; C Fig. 6 (the three -Gx lines)",
+    "confidence": "high",
+    "note": "The aliases map the train catalogue's restraint words: lap bar, vest, other and none take the base case (FVD: R13 calls a lap bar without shoulder restraint the base case an inference; vest is not covered by any source)."
+  },
+
+  "combination": {
+    "rule": "quarter-ellipse per quadrant on the filtered instantaneous values: (a/A)^2 + (b/B)^2 <= 1, centred at (0,0); A and B are the min_event_s limits of the curve for each component's sign times radius_factor (the -x radius from the restraint kind's egg_x_neg_curve, the -z radius from z_neg, or from z_neg_extended when the extended line is allowed)",
+    "radii": {
+      "x_pos": "x_pos", "y": "y", "z_pos": "z_pos", "z_neg": "z_neg", "z_neg_extended": "z_neg_extended",
+      "source": "R sec. 7.2.8.2, Table 7.1, formulas (1)-(3); N6 (F2291-06a 7.1.5.1, figure titles: z 'Base', z 'Extended', y 'Base')", "confidence": "high"
+    },
+    "pairs": [
+      { "axes": "xz", "source": "R sec. 7.2.8.2, Table 7.1, formulas (1)-(3), Fig. 7.15; C (the standard's Fig. 11, edition not stated); N6 (F2291-06a 7.1.5.1)", "confidence": "high" },
+      { "axes": "xy", "source": "R sec. 7.2.8.2, formulas (1)-(3), Fig. 7.15; N6 (F2291-06a 7.1.5.1)", "confidence": "medium" },
+      { "axes": "yz", "source": "R sec. 7.2.8.2, formulas (1)-(3), Fig. 7.15; N6 (F2291-06a 7.1.5.1)", "confidence": "medium" }
+    ],
+    "radius_factor": { "id": "combination.radius_factor", "value": 1.0, "source": "R sec. 7.2.8.2 (no factor in R's account of F2291-23b); N6 (F2291-06a 7.1.5.1: radii are the 200 ms limits x 1.1)", "confidence": "low", "checked": null,
+      "note": "CONTRADICTED between sources (R13 item 7): the 2006 edition has 1.1, Rohde's account of 23b has none. 1.0 is the stricter reading (decision record 0014 point 9). Your copy settles it." },
+    "sustained_s": { "id": "combination.sustained_s", "value": 0.2, "source": "FVD: an egg is judged on the value held for at least this long (the same 0.2 s below which the standard does not address impacts), so a spike shorter than that is not a finding", "confidence": "low", "checked": null },
+    "three_axis": "Rohde's (ax/A)^2 + (ay/B)^2 + (az/C)^2 <= 1 is in neither standard (R formula (4)); not encoded"
+  },
+
+  "reversal_xy": {
+    "axes": ["x", "y"],
+    "max_peak_gap_s":    { "id": "reversal_xy.max_peak_gap_s", "value": 0.2, "source": "R sec. 7.4.2, citing F2291-23b 7.1.6.1; N6 (F2291-06a 7.1.6.1, Fig. 19)", "confidence": "high", "checked": null },
+    "factor":            { "id": "reversal_xy.factor", "value": 0.5, "source": "R sec. 7.4.2, citing F2291-23b 7.1.6.1; N6 (F2291-06a 7.1.6.1, Fig. 19: on both peaks)", "confidence": "high", "checked": null },
+    "min_event_s":       { "id": "reversal_xy.min_event_s", "value": 0.2, "source": "R sec. 7.4.2; N6 (F2291-06a 7.1.6.1 'sustained events', 7.1.4.2)", "confidence": "high", "checked": null },
+    "event_threshold_g": { "id": "reversal_xy.event_threshold_g", "value": 0.1, "source": "FVD: an event in one direction is a stretch at or beyond this value (one slice step), so noise around zero does not split it", "confidence": "low", "checked": null },
+    "note": "A 2023 ballot was to reword this clause after 23b (R13 item 12), so the current text may differ. Each event's peak is its largest value; of equal values, the one nearest the other event (the stricter reading). The halved limit is that direction's limit at min_event_s. A stricter peak-to-peak criterion (R pp.44-45) is not adopted; not encoded."
+  },
+
+  "weightless_to_pos_z": {
+    "weightless_at_or_below_g": { "id": "weightless_to_pos_z.weightless_at_or_below_g", "value": 0.0,   "source": "R sec. 7.4.3.2, Fig. 7.24; N6 (F2291-06a 7.1.7.2: 'weightless (0 g) and more negative')", "confidence": "high", "checked": null },
+    "min_weightless_s":         { "id": "weightless_to_pos_z.min_weightless_s", "value": 0.2,   "source": "R sec. 7.4.3.2, Fig. 7.24; N6 (F2291-06a 7.1.4.2, the definition of sustained)", "confidence": "high", "checked": null },
+    "threshold_g":              { "id": "weightless_to_pos_z.threshold_g", "value": 2.0,   "source": "R sec. 7.4.3.2, Fig. 7.24; N6 (F2291-06a 7.1.7.2, Fig. 20)", "confidence": "high", "checked": null },
+    "min_rise_s":               { "id": "weightless_to_pos_z.min_rise_s", "value": 0.133, "source": "R sec. 7.4.3.2, Figs. 7.24, 7.25 (the flow chart: a faster rise fails); N6 (F2291-06a 7.1.7.2, Fig. 20: 133 ms, onset below 15 g/s)", "confidence": "high", "checked": null },
+    "note": "The rise is timed from where z leaves the weightless level to where it first reaches threshold_g, both found between samples by straight lines."
+  },
+
+  "conditions": [
+    { "applies": "x_pos above 1.5 g", "needs": "a headrest, unless the onset is below 5 g/s (then 2.0 g without one); without a headrest at most 4 s above 1.5 g", "source": "R and C (figure notes); N6 Fig. 6", "confidence": "high", "encoded": false },
+    { "applies": "x_neg_prone", "needs": "onset below 15 g/s and a padded restraint", "source": "R and C (figure notes); N6 Fig. 7", "confidence": "high", "encoded": false },
+    { "applies": "x_neg_otsr", "needs": "the restraint minimises forward motion", "source": "R and C (figure notes); N6 Fig. 7", "confidence": "high", "encoded": false },
+    { "applies": "y, bench seats without dividers", "needs": "seating order from smaller to larger rider above 0.7 g sustained lateral", "source": "R sec. 7.2.3.2; N6 Fig. 8 note", "confidence": "high", "encoded": false }
+  ],
+
+  "children": {
+    "informative": true,
+    "applied": false,
+    "kind": "multiplier_by_min_height",
+    "height_unit": "in",
+    "points": [
+      { "id": "children@32in", "height": 32, "multiplier": 0.6, "source": "R sec. 7.5, Fig. 7.28 (reproduces F2291-23b Fig. X8.1, informative Appendix X8)", "confidence": "medium", "checked": null },
+      { "id": "children@48in", "height": 48, "multiplier": 1.0, "source": "R sec. 7.5, Fig. 7.28 (reproduces F2291-23b Fig. X8.1, informative Appendix X8)", "confidence": "medium", "checked": null }
+    ],
+    "z_applies_to": "difference from 1 g (R sec. 7.5; confidence low; how it applies to the negative limits is OPEN)",
+    "note": "Informative in the standard and not in the 2006 edition; the engine does not apply it."
+  },
+
+  "restraint_areas": {
+    "axes": ["x", "z"],
+    "rule": "From the trace filtered at restraint_filter. A point belongs to the lowest area whose region contains it or lies within line_tolerance_g of it (on a boundary the lower area may be chosen: A, F2291-21 Fig. 2 note 1). Each region below is that area together with every lower one; outside region 4 is area 5. Information only: the area says which restraint class the ride needs; it is not a pass or fail.",
+    "source": "A (F2291-21 Fig. 2, 6.4.3.2, 6.4.3.3); C; R Fig. 6.1 (all three agree); N6 Fig. 2 (grid values)",
+    "confidence": "high for the grid values; the corners marked approximate are read to +-0.05 g",
+    "regions": [
+      { "id": "restraint_areas.area_1", "area": 1, "class": "Class 1, no restraint required", "checked": null,
+        "points": [
+          { "ax": -0.2, "az": 20.0 },
+          { "ax": -0.2, "az": 1.05, "approximate": true },
+          { "ax": 0.0,  "az": 0.7,  "approximate": true },
+          { "ax": 0.2,  "az": 0.35, "approximate": true, "note": "FVD: R3 gives 'a diagonal to about (0, 0.7); then ax = +0.2 down to az = +0.2'; the diagonal is continued to ax = +0.2 here. OPEN: the corner is not legible in any source" },
+          { "ax": 0.2,  "az": 0.2 },
+          { "ax": 20.0, "az": 0.2 },
+          { "ax": 20.0, "az": 20.0 }
+        ] },
+      { "id": "restraint_areas.area_2", "area": 2, "class": "Class 2 (or none with handholds and footrests: A, F2291-21 6.4.3.5)", "checked": null,
+        "points": [
+          { "ax": -0.7, "az": 20.0 },
+          { "ax": -0.7, "az": 0.2 },
+          { "ax": 20.0, "az": 0.2 },
+          { "ax": 20.0, "az": 20.0 }
+        ] },
+      { "id": "restraint_areas.area_3", "area": 3, "class": "Class 3", "checked": null,
+        "points": [
+          { "ax": -1.2, "az": 20.0 },
+          { "ax": -1.2, "az": 0.2 },
+          { "ax": -0.7, "az": 0.2 },
+          { "ax": 0.0,  "az": 0.0, "approximate": true },
+          { "ax": 20.0, "az": 0.0 },
+          { "ax": 20.0, "az": 20.0 }
+        ] },
+      { "id": "restraint_areas.area_4", "area": 4, "class": "Class 4", "checked": null,
+        "points": [
+          { "ax": -1.8, "az": 20.0 },
+          { "ax": -1.8, "az": 0.0 },
+          { "ax": 0.0,  "az": 0.0 },
+          { "ax": 0.7,  "az": -0.2, "approximate": true },
+          { "ax": 20.0, "az": -0.2 },
+          { "ax": 20.0, "az": 20.0 }
+        ] }
+    ],
+    "area_5": "Class 5: everything outside region 4 (ax below -1.8 g, or az below 0 with ax <= 0, or below the area 4 band with ax > 0). Any sustained airtime is area 5."
+  }
+}

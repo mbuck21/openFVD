@@ -64,6 +64,7 @@ static const command* const table[] = {
     &cmdImport,
     &cmdSession,
     &cmdCommands,
+    &cmdLimits,
     &cmdSelftest,
     &cmdHelp,
 };
