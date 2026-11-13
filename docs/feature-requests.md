@@ -368,6 +368,6 @@ Research first (roadmap R9, Stage 2): typical accelerations and speeds of LSM an
 
 **Asked for** (2026-11-13). "Make the program default to English units."
 
-**Where it stands in the code.** Units are one program option (metres and m/s, metres and km/h, or feet and mph), chosen in Edit > Options and kept in `options.cfg` beside the program. Nothing about units is saved in a project; the model is metric throughout. A fresh install starts in metres and m/s.
+**Where it stands in the code.** Units are one program option (metres and m/s, metres and km/h, or feet and mph), chosen in Edit > Options and kept in `options.cfg` beside the program. Nothing about units is saved in a project; the model is metric throughout. Since piece U1 a fresh install starts in feet and mph, an existing `options.cfg` keeps its value, batch mode always computes in metric, and the length and speed boxes keep their metric limits in every unit.
 
 **What it needs** (roadmap U1, Stage 3). The default of a fresh install becomes feet and mph; an existing `options.cfg` keeps its choice; the switch stays. Batch mode always computes in metric, so the comparison with the 2016 binary does not depend on the option.

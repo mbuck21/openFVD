@@ -276,12 +276,19 @@ int batchRunner::runRideSheet()
             if(secs[i]->type == curved) { names[0] = "curvedRadiusBox"; names[1] = "curvedSpeedBox"; }
             if(!names[0]) continue;
             driver.selectSection(i);
+            // what the box holds in the model, in m or m/s (the last column)
+            struct modelOf {
+                static QString text(section* s, int b) {
+                    if(b == 1) return QString("%1 m/s").arg(s->getSpeed(), 0, 'f', 3);
+                    return QString("%1 m").arg(s->type == straight ? s->fHLength : s->fRadius, 0, 'f', 3);
+                }
+            };
             for(int b = 0; b < 2 && driver.ok(); ++b) {
                 QDoubleSpinBox* box = driver.panelSpin(names[b]);
                 if(!box) { return finish(false, QString("no box ") + names[b]); }
-                boxLines.append(QString("section %1 | %2 | value %3 | min %4 | max %5 | track metres %6")
+                boxLines.append(QString("section %1 | %2 | value %3 | min %4 | max %5 | model %6")
                                 .arg(i+1).arg(names[b]).arg(box->value(), 0, 'f', 3).arg(box->minimum(), 0, 'f', 3)
-                                .arg(box->maximum(), 0, 'f', 3).arg(secs[i]->length, 0, 'f', 3));
+                                .arg(box->maximum(), 0, 'f', 3).arg(modelOf::text(secs[i], b)));
             }
         }
         if(!driver.ok()) return finish(false, driver.error());
