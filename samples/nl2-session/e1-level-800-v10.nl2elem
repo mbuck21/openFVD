@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+	<element>
+		<description>FVD++ Export Data</description>
+			<vertex>
+				<x>0.000000e+00</x>
+				<y>0.000000e+00</y>
+				<z>0.000000e+00</z>
+				<strict>true</strict>
+			</vertex>
+			<vertex>
+				<x>0.000000e+00</x>
+				<y>0.000000e+00</y>
+				<z>-7.999993e+02</z>
+				<strict>true</strict>
+			</vertex>
+			<roll>
+				<ux>0.000000e+00</ux>
+				<uy>1.000000e+00</uy>
+				<uz>0.000000e+00</uz>
+				<rx>1.000000e+00</rx>
+				<ry>0.000000e+00</ry>
+				<rz>0.000000e+00</rz>
+				<coord>0.000000e+00</coord>
+				<strict>false</strict>
+			</roll>
+			<roll>
+				<ux>0.000000e+00</ux>
+				<uy>1.000000e+00</uy>
+				<uz>0.000000e+00</uz>
+				<rx>1.000000e+00</rx>
+				<ry>0.000000e+00</ry>
+				<rz>0.000000e+00</rz>
+				<coord>1.000000e+00</coord>
+				<strict>false</strict>
+			</roll>
+	</element>
+</root>
