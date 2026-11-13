@@ -46,6 +46,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/research/r8-friction-and-margins.md` | R8: what `fFriction` and `fResistance` mean, real ranges, commissioning practice, proposed low, nominal and high values for the energy-margin check. | current |
 | `docs/research/r9-special-track.md` | R9: lift, launch, brake and trim numbers with sources, swing launches, switches and transfer track, what NoLimits 2 takes. | current |
 | `docs/research/r10-comfort.md` | R10: which comfort measures match "rough", published values, a proposal for the comfort measures. | current |
+| `docs/research/r12-nolimits2-train-physics.md` | R12: what is public about how NoLimits 2 simulates a train (mass, friction and drag, the train as a body, lifts and brakes, the forces and telemetry it shows), what stayed open, and five experiments for the owner to run in NoLimits 2. | current |
 | `docs/research/e1-solver-trials.md` | E1: the solver, parametric elements and pins with a slack piece tried on the real program through `fvdcore session`; scripts and tables in `docs/research/e1-trials/`. | current |
 | `docs/project-text-format.md` | The project as JSON text: the schema, units, which values are recalculated on load, the checked ranges. | current |
 | `docs/research/n1-difference-from-2016-on-an-owner-project.md` | N1: why the rebuild differs from the 2016 binary on one of the owner's projects (the C runtime's `asinhf`), and the two-line remedy for the owner to decide. | current |
