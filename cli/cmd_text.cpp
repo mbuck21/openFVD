@@ -69,6 +69,10 @@ static int runToText(const QStringList& rawArgs)
         return 1;
     }
     for(int i = 0; i < warnings.size(); ++i) fprintf(stderr, "%s\n", qPrintable(warnings.at(i)));
+    if(args.at(1) != "-" && refuseOverwritingDropped(project, args.at(1), error)) {
+        fprintf(stderr, "%s\n", qPrintable(error));
+        return 1;
+    }
     QByteArray out;
     QString result = writeProjectText(out, project.texPath, project.tracks, &project);
     if(result.startsWith("Error")) {

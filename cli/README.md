@@ -67,6 +67,13 @@ fvdcore fromtext four.json four.fvd
 The project as text (`docs/project-text-format.md`) and back. `-` means standard output (`totext`) or standard input (`fromtext`). Warnings go to standard error; a text that is refused prints the message that names the place and exits 1. An existing output file is not replaced unless `--force` is given. A project written out and read back saves the same bytes as a re-save.
 
 ```
+fvdcore additions <project.fvd> --show
+fvdcore additions <project.fvd> (--project | --track N) (--set key=<json> | --remove key) [--out <file>] [--force]
+fvdcore additions samples\baseline\four-sections.fvd --track 1 --set "note=\"made by hand\"" --out four-with-appendix.fvd
+```
+The additions a project keeps in the appendix after the end of its file (`docs/codebase-map.md`, "Saved project file"). Nothing in the program uses one yet; this makes a test file by hand. `--show` prints the document the appendix holds (`{"needs": [], "project": {...}, "tracks": [{...}, ...]}`, empty objects when there are none; with none at all the file has no appendix). With `--set` or `--remove` the key belongs to the project (`--project`) or to track N (`--track N`, 1-based); exactly one of the two is given, and keys are plain names (`train`, `note`), the same for both. `--set` takes any JSON value after the first `=` (an object, a list, a number, `true`, `null`, or a text in its double quotes) and replaces a key that is there; `--remove` of a key that is not there is an error. The project is re-saved with the change to `--out`, or over itself without `--out`; an existing file is replaced only with `--force`, as `totext` and `import` do. A project whose appendix cannot be read (damaged, or saved by a newer version) loads with a warning on stderr ("... The original file is not written over, so that it keeps its additions: save the project under another name."), without those additions; the file itself still holds them, so `additions`, `totext` and the session's `save` and `totext` refuse to write over that file, even with `--force` (give another output file, which is then written without them).
+
+```
 fvdcore import <nltrack|txt|csv> <file> <out.fvd> [--force] [--window-project] [--export-dir <dir>]
 fvdcore import csv samples\import\nl2.csv nl2.fvd
 ```

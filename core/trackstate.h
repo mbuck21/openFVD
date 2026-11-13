@@ -68,6 +68,12 @@ public:
     int smoothedUntil;              // track::smoothedUntil
     bool bAutoSmooth;               // track::bAutoSmooth
 
+    // Saved, but in the project file's appendix rather than in the bytes above:
+    // track::additions as additionsBytes() writes them (compact JSON, the same
+    // additions give the same bytes); empty for a track without additions.
+    // Shared with the previous state when unchanged, like the sections.
+    QByteArray additions;
+
     bool isNull() const { return header.isEmpty(); }
 
     // What track::saveTrack() writes for this state.
