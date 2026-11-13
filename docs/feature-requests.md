@@ -1,6 +1,6 @@
 # Feature requests
 
-The owner's list of 2026-11-10 (FR-1 to FR-9) and what has been added since (FR-10 in issue #28, FR-11 to FR-18 in issue #30), kept as given, with the architect's notes on what each one needs. The order of work is in `docs/roadmap.md`; what is built so far is in `STATUS.md`; this file is the record of what was asked for.
+The owner's list of 2026-11-10 (FR-1 to FR-9) and what has been added since (FR-10 in issue #28, FR-11 to FR-18 in issue #30, FR-19 and the owner's priorities for the train on 2026-11-13), kept as given, with the architect's notes on what each one needs. The order of work is in `docs/roadmap.md`; what is built so far is in `STATUS.md`; this file is the record of what was asked for.
 
 Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer to. Add a new request at the end with the next number; do not renumber. Piece names in the notes below (A1, G1, P1 and so on) are the roadmap's; where an older note names a stage, the table here and the roadmap are right.
 
@@ -8,22 +8,23 @@ Each request has an id (`FR-n`) that the roadmap, issues and pull requests refer
 |---|---|---|---|
 | FR-1 | Standard heartline per train type | small, after research | done in Stage 1 |
 | FR-2 | No macOS build | none (a non-goal) | deferred |
-| FR-3 | Minimum curve radius check | medium | Stage 3 |
-| FR-4 | Ride-force limits (ASTM), for every seat | large | Stage 3 at the heartline, Stage 6 at every seat |
-| FR-5 | Tooling for Claude to work the program without clicking | large, a foundation | Stages 1 to 3, the co-designer in Stage 5 |
-| FR-6 | Throughput simulation with blocks, as in NoLimits 2 | very large | Stage 7 |
-| FR-7 | Better force vector design: faster to build, no loss of detail | the main goal; ongoing | Stages 3 to 5 |
+| FR-3 | Minimum curve radius check | medium | Stage 5 |
+| FR-4 | Ride-force limits (ASTM), for every seat | large | Stage 3, at the design point and at every seat |
+| FR-5 | Tooling for Claude to work the program without clicking | large, a foundation | Stages 1 and 2, the interface in Stage 5, the co-designer in Stage 7 |
+| FR-6 | Throughput simulation with blocks, as in NoLimits 2 | very large | Stage 8 |
+| FR-7 | Better force vector design: faster to build, no loss of detail | the main goal; ongoing | Stages 5 to 7 |
 | FR-8 | Refactor and comment for agentic coding | medium, the architect's call | done in Stage 1; large files split as they are touched |
 | FR-9 | More coaster and train types | small each, ongoing | any time |
-| FR-10 | Parametric elements (for example a camelback hill) | large; research and experiments first | research done in Stage 1, trials in Stage 2, design in Stage 4, build in Stage 5 |
-| FR-11 | Simulate the train as a train | large | experiment in Stage 2, the base in Stage 3, build in Stage 6 |
-| FR-12 | Close the circuit | medium, on the solver | trial in Stage 2, build in Stage 4 |
-| FR-13 | Energy margin | small, on a new base | research in Stage 2, build in Stage 3 |
-| FR-14 | Ride rules | medium | Stage 5 |
-| FR-15 | Import and convert | very large | experiment in Stage 2, analysis in Stage 3, the fit in Stage 6 |
-| FR-16 | Launches, lifts, brakes, transfer track, switch track, swing launches | large; swing launches and switches very large | research in Stage 2; lifts, launches and brakes in Stage 4; the rest in Stage 7 |
-| FR-17 | Comfort beyond the standard | medium | research in Stage 2, build in Stage 3 |
+| FR-10 | Parametric elements (for example a camelback hill) | large; research and experiments first | research done in Stage 1, trials in Stage 2, design in Stage 6, build in Stage 7 |
+| FR-11 | Simulate the train as a train | large | experiment in Stage 2, the ride with a whole train in Stage 3, the design for a car and the numbers in Stage 4 |
+| FR-12 | Close the circuit | medium, on the solver | trial in Stage 2, build in Stage 6 |
+| FR-13 | Energy margin | small, on a new base | research in Stage 2, build in Stage 4 |
+| FR-14 | Ride rules | medium | Stage 7 |
+| FR-15 | Import and convert | very large | experiment deferred, analysis in Stage 5, the fit in Stage 8 |
+| FR-16 | Launches, lifts, brakes, transfer track, switch track, swing launches | large; swing launches and switches very large | research in Stage 2; lifts, launches and brakes in Stage 6; the rest in Stage 8 |
+| FR-17 | Comfort beyond the standard | medium | research in Stage 2, build in Stage 5 |
 | FR-18 | Ride sheet | small | Stage 2 |
+| FR-19 | English units by default | small | Stage 3 |
 
 ---
 
@@ -128,6 +129,8 @@ Zamperla Twister Coaster                    3.61      1.1
 - Research (R3), then limits as data, keyed by restraint class on the train type (D2).
 - Part 1, at the heartline (roadmap A3): the three force components over time against the duration limits and the combined-direction rule, reported through the analysis framework (A1).
 - Part 2, every seat (roadmap A4): a train placed on the track (cars, their length and coupling, seat positions across and along), and the acceleration at each seat from the motion of its car, which adds the effects of roll, pitch and yaw rates to the heartline value. The outside seats of a wide train and the ends of a long train are where this differs most. This needs seat geometry in the train definitions and is the first piece that models a whole train; FR-6 builds on the same model.
+
+**The owner's words of 2026-11-13** (the third of the three priorities for the train stage): "implementing the ASTM safe forces check (not sure how the user will be shown this but maybe thinking to show another GUI where you can scroll through the ride and it is a top down picture of the train with seats color coded to see if all seats pass ASTM standards). Maybe then also have a visualize and color code the train with each test similar to how the track can be visualized to show speed, normal force etc." With it: "please don't just take my word for how this should work, please think how someone who is using this program would utilize these features and how they could be implemented most conveniently and intuitively into the tool without being a necessary part of the tool." Decision record 0014 has the design that came of it (the seat map, the ride strip, the track coloured by the worst seat) and R13 the second look at the numbers.
 
 **A caution to keep.** This would be a design aid for a hobby tool. It is not a certification of a ride, and the program and its documents should say so wherever the check is shown.
 
@@ -244,6 +247,8 @@ Zamperla Twister Coaster                    3.61      1.1
 - The train itself (roadmap P2, Stage 6), in two steps. First the ride over the finished shape with all the cars, which shows what each car feels and changes no design. Then a setting per project that makes the design use the train's speed. It changes what a project computes, so it is off for every existing project and the baseline keeps testing the point model.
 - Car lengths and counts in the train data, entered by the owner where no source exists. FR-4's every-seat check (A4) uses the same train.
 
+**The owner's words of 2026-11-13** (the first two of the three priorities for the train stage): "full train simulation where the friction and stuff is modeled similarly to NoLimits 2", and "allow the user to choose number of cars, maybe mass (if NoLimits 2 uses that for calcs). Also allow the user to choose which car they are doing the FVD for (I think normal convention would be to use the train's center of mass along its heartline but maybe have that as an option)." And for a later stage: "getting good values for train sizes, seat placement/offsets, restraint type, correct mass and friction compared to NoLimits 2." Decision record 0014 has the design; R12 found that NoLimits 2 has no mass and uses the same two resistance numbers as this program. The roadmap's Stage 3 is the ride with a whole train, Stage 4 the numbers and the design following a chosen car.
+
 ---
 
 ## FR-12: Close the circuit
@@ -356,3 +361,13 @@ Research first (roadmap R9, Stage 2): typical accelerations and speeds of LSM an
 - It is the first thing built on the measures and findings (A1), and the proof that they work.
 
 **The owner's part.** Definitions to agree on: what counts as airtime, what counts as an inversion.
+
+---
+
+## FR-19: English units by default
+
+**Asked for** (2026-11-13). "Make the program default to English units."
+
+**Where it stands in the code.** Units are one program option (metres and m/s, metres and km/h, or feet and mph), chosen in Edit > Options and kept in `options.cfg` beside the program. Nothing about units is saved in a project; the model is metric throughout. A fresh install starts in metres and m/s.
+
+**What it needs** (roadmap U1, Stage 3). The default of a fresh install becomes feet and mph; an existing `options.cfg` keeps its choice; the switch stays. Batch mode always computes in metric, so the comparison with the 2016 binary does not depend on the option.
