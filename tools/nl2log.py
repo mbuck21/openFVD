@@ -32,7 +32,13 @@ data) and Error (type 2, a UTF-8 text). For Select Seat it names no reply, so
 a reply to it is tolerated either way: when a request waits for its reply, any
 message with an older request id is a late answer to a request nobody waited
 for and is skipped (counted, at most 16 in a row); an Error with this
-request's id stops with the server's text. Everything is logged as the server sends it:
+request's id stops with the server's text. An Error skipped that way would be
+a refused Select Seat, so right after Select Seat the recorder makes one round
+trip that waits for a reply (Get Version) and stops with the server's text if
+an Error came back; it then reads one telemetry frame and compares its car and
+seat with the request. A difference only prints a warning (whether car and
+seat are counted from 0 is a "check on screen" item), and both the requested
+and the reported numbers go into the CSV's comment lines. Everything is logged as the server sends it:
 the help page does not say which unit speed, position or g are in (that is
 what experiment E0 finds out), so no conversion is done here.
 
@@ -106,6 +112,7 @@ class Client:
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.next_id = 1
         self.skipped = []       # types of replies skipped as late
+        self.skipped_errors = []  # texts of Error replies among them
 
     def close(self):
         try:
@@ -125,6 +132,9 @@ class Client:
             if got_id < rid:
                 # a late answer to a request nobody waited for (Select Seat)
                 self.skipped.append(got_type)
+                if got_type == T_ERROR:
+                    self.skipped_errors.append(
+                        got.decode('utf-8', 'replace'))
                 skipped_now += 1
                 if skipped_now > MAX_SKIP:
                     raise ProtocolError('more than %d unexpected replies in '
@@ -161,6 +171,30 @@ class Client:
                                                 seat))
 
 
+def select_seat_checked(cli, coaster, train, car, seat, log=print):
+    """Select a seat and check the answer. Returns a note for the CSV.
+
+    Raises ProtocolError with the server's text when the server refused. A
+    telemetry frame that reports another car or seat only logs a warning."""
+    cli.select_seat(coaster, train, car, seat)
+    cli.version()       # a round trip: the answer to Select Seat is in by now
+    if cli.skipped_errors:
+        raise ProtocolError('the server refused Select Seat: '
+                            + '; '.join(cli.skipped_errors))
+    vals = cli.telemetry()
+    got = (vals[3], vals[5], vals[6], vals[7])
+    want = (coaster, train, car, seat)
+    note = ('requested coaster %d train %d car %d seat %d; telemetry reports '
+            'coaster %d train %d car %d seat %d' % (want + got))
+    if got != want:
+        log('WARNING: you asked for coaster %d train %d car %d seat %d but '
+            'telemetry reports coaster %d train %d car %d seat %d. The '
+            'numbering may start at 1, or the seat is not selectable yet '
+            '(for example before the ride starts); recording goes on.'
+            % (want + got))
+    return note
+
+
 def telemetry_row(values, t_s):
     """values: the 19 unpacked fields; returns a dict keyed by COLUMNS."""
     (flags, frame, view, coaster, style, train, car, seat) = values[:8]
@@ -174,7 +208,7 @@ def telemetry_row(values, t_s):
 
 def record(client, out_path, rate_hz=100.0, duration=None, start_speed=0.1,
            stop_after_frames=0, wait_for_play=True, log=print,
-           max_polls=None):
+           max_polls=None, note=''):
     """Poll telemetry and write new frames to out_path. Returns the row count.
 
     Recording starts when the speed first reaches start_speed (raw unit) and
@@ -193,6 +227,8 @@ def record(client, out_path, rate_hz=100.0, duration=None, start_speed=0.1,
     with open(out_path, 'w', newline='') as fh:
         fh.write('# nl2log: raw telemetry as NoLimits 2 sends it; units of '
                  'speed, position and g are not stated by its help\n')
+        if note:
+            fh.write('# seat: ' + note + '\n')
         wr = csv.DictWriter(fh, fieldnames=COLUMNS)
         wr.writeheader()
         try:
@@ -242,10 +278,12 @@ class FakeServer:
     starts in play mode after `idle` requests, and honours Select Seat."""
 
     def __init__(self, v0=20.0, frames=300, idle=5, reply_seat=False,
-                 error_text=None):
+                 error_text=None, seat_error=None, ignore_seat=False):
         self.v0, self.frames, self.idle = v0, frames, idle
         self.reply_seat = reply_seat        # answer Select Seat with OK
         self.error_text = error_text        # answer Get Telemetry with Error
+        self.seat_error = seat_error        # answer Select Seat with Error
+        self.ignore_seat = ignore_seat      # report another seat than asked
         self.seat = (0, 0, 0, 0)
         self.requests = []
         self.sock = socket.socket()
@@ -292,7 +330,12 @@ class FakeServer:
                 elif type_id == T_GET_VERSION:
                     conn.sendall(pack_message(T_VERSION, rid, bytes([2, 0, 3, 1])))
                 elif type_id == T_SELECT_SEAT:
-                    self.seat = struct.unpack('>4i', data)
+                    if self.seat_error:
+                        conn.sendall(pack_message(
+                            T_ERROR, rid, self.seat_error.encode('utf-8')))
+                        continue
+                    if not self.ignore_seat:
+                        self.seat = struct.unpack('>4i', data)
                     if self.reply_seat:
                         conn.sendall(pack_message(T_OK, rid))
                 else:
@@ -384,12 +427,50 @@ def selftest():
         port3 = srv3.port
         srv3.close()
 
+    # record mode: Select Seat refused with Error stops with the text
+    srv4 = FakeServer(idle=0, seat_error='seat 9 does not exist')
+    cli = Client('127.0.0.1', srv4.port)
+    try:
+        select_seat_checked(cli, 0, 0, 9, 0, log=lambda *_: None)
+        check(False, 'a refused Select Seat stops the recording')
+    except ProtocolError as e:
+        check('seat 9 does not exist' in str(e),
+              'a refused Select Seat stops with the server text (%s)' % e)
+    finally:
+        cli.close()
+        port4 = srv4.port
+        srv4.close()
+
+    # record mode: another car reported -> a warning, and recording goes on
+    srv5 = FakeServer(idle=0, ignore_seat=True)
+    cli = Client('127.0.0.1', srv5.port)
+    warnings = []
+    with tempfile.TemporaryDirectory() as tmp:
+        out5 = Path(tmp) / 'seat.csv'
+        try:
+            note = select_seat_checked(cli, 0, 0, 3, 1, log=warnings.append)
+            n5 = record(cli, out5, rate_hz=0, start_speed=0.1,
+                        stop_after_frames=20, log=lambda *_: None,
+                        max_polls=5000, note=note)
+        finally:
+            cli.close()
+            port5 = srv5.port
+            srv5.close()
+        head = out5.read_text().splitlines()[:3]
+        check(len(warnings) == 1 and 'car 3 seat 1' in warnings[0]
+              and 'car 0 seat 0' in warnings[0],
+              'another reported seat prints a warning naming both')
+        check(n5 > 100, 'and the recording went on (%d rows)' % n5)
+        check(head[1].startswith('# seat: requested')
+              and 'car 3 seat 1' in head[1] and 'car 0 seat 0' in head[1],
+              'requested and reported seat are in the CSV comment line')
+
     # a stream of nothing but old replies still ends in an error
     a_, b_ = socket.socketpair()
     for i in range(MAX_SKIP + 2):
         a_.sendall(pack_message(T_OK, 0))
     cl = Client.__new__(Client)
-    cl.sock, cl.next_id, cl.skipped = b_, 5, []
+    cl.sock, cl.next_id, cl.skipped, cl.skipped_errors = b_, 5, [], []
     try:
         cl.request(T_GET_TELEMETRY, want=T_TELEMETRY)
         check(False, 'endless old replies end in an error')
@@ -411,7 +492,7 @@ def selftest():
 
     srv.close()
     # nothing of ours may still be listening
-    for pt in (port, port2, port3):
+    for pt in (port, port2, port3, port4, port5):
         try:
             socket.create_connection(('127.0.0.1', pt), timeout=1.0).close()
             check(False, 'the fake server is closed')
@@ -470,14 +551,18 @@ def main():
             return
         if not args.out:
             sys.exit('give --out <file.csv> (use a path under samples/private/)')
+        note = ''
         if args.seat:
-            cli.select_seat(args.coaster, args.train, args.seat[0],
-                            args.seat[1])
+            try:
+                note = select_seat_checked(cli, args.coaster, args.train,
+                                           args.seat[0], args.seat[1])
+            except ProtocolError as e:
+                sys.exit('error: %s' % e)
         print('waiting for the train to move; press Ctrl+C to stop')
         n = record(cli, args.out, rate_hz=args.rate, duration=args.duration,
                    start_speed=args.start_speed,
                    stop_after_frames=args.stop_after,
-                   wait_for_play=not args.any_mode)
+                   wait_for_play=not args.any_mode, note=note)
         print('wrote %d rows to %s' % (n, args.out))
     finally:
         cli.close()

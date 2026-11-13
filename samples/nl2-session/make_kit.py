@@ -25,6 +25,9 @@ Writes into the output folder (default: the folder of this script):
   predictions.json and predictions.md: what this program's model says the train
   does on each, for comparison with a recording.
 
+It does not write README.md, PROCEDURE.md or notes-template.txt (those are
+written by hand).
+
 Running it twice gives the same bytes. With --check it writes into a temporary
 folder instead and compares with the files committed here (exit 1 if they
 differ).
@@ -36,9 +39,12 @@ Where the numbers come from (also said in README.md):
     here (the same two numbers, friction and resistance);
   * the valley tracks (E2) are shaped with R7's fvd2d.py, then computed by
     `fvdcore nodes`;
-  * the camelback and the lift crest (E3, E4) are R7's own projects, copied
-    byte for byte, and their train numbers come from R7's ride.py (the whole
-    train sharing one speed). The C++ ride (`fvdcore ride`, piece P1 of
+  * the camelback and the lift crest (E3, E4) are R7's shapes (tuning numbers
+    from R7's shapes.json) behind a level run-in each, so that a 9-car train
+    can stand on level track before the first curvature; the shape after the
+    run-in is checked against R7's own dump, and the train numbers come from
+    R7's ride.py (the whole train sharing one speed) on that dump, with the
+    distances shifted by the run-in. The C++ ride (`fvdcore ride`, piece P1 of
     Stage 3) is built in parallel and is not used here.
 """
 import argparse
@@ -77,6 +83,16 @@ PARAM_SETS = [
 TRAINS = [('2 cars', 2, 2.5), ('4 cars', 4, 2.5), ('9 cars', 9, 2.2)]
 
 E1_LENGTH = 800.0
+E1_TRANSPORT = 50.0                 # metres of Transport at the start
+E1_AFTER = E1_LENGTH - E1_TRANSPORT  # metres left to coast after it
+# Level run-ins. A train must stand on level track, on the Transport or the
+# Lift section, before the first curvature, and the longest train used on a
+# track (9 cars, about 20 m) must fit with room to spare for wherever
+# NoLimits 2 puts it.
+E2_TRANSPORT = 50.0                 # E2: 120 m of level before the valley
+E3_RUNIN_S = 2.0                    # E3: 60 m (2 s at 30 m/s) in front of R7's
+E3_TRANSPORT = 40.0                 #     camelback; Transport on the first 40 m
+E4_LIFT_S = 12.0                    # E4: lift of 42 m, 28 m longer than R7's
 E2_LENGTH = 600.0
 E2_MARK_BEFORE = 100.0
 E2_MARK_AFTER = 450.0
@@ -184,7 +200,7 @@ def e1_predictions():
         key = 'v%d' % v0
         res[key] = {}
         for label, f, k in PARAM_SETS:
-            table, stop = coast(v0, f, k, E1_LENGTH)
+            table, stop = coast(v0, f, k, E1_AFTER, step=150.0)
             res[key][label] = dict(
                 friction=f, drag=k,
                 speed_mps=[[rnd(s, 0), rnd(v, 3)] for s, v in table],
@@ -289,8 +305,11 @@ def e2_predictions(exe, outdir, info):
             'speed_at_%dm_mps' % E2_MARK_AFTER: rnd(sp(E2_MARK_AFTER)),
             'half_v2_loss_between_marks_m2s2': rnd(
                 (sp(E2_MARK_BEFORE) ** 2 - sp(E2_MARK_AFTER) ** 2) / 2.0
-                + G * (at_dist(rows, E2_MARK_AFTER, 'heart_y')
-                       - at_dist(rows, E2_MARK_BEFORE, 'heart_y')), 2),
+                + G * (at_dist(rows, E2_MARK_BEFORE, 'heart_y')
+                       - at_dist(rows, E2_MARK_AFTER, 'heart_y')), 2),
+            'drag_part_of_that_m2s2': rnd(sum(
+                RESISTANCE * sp(d + 0.5) ** 2 for d in range(
+                    int(E2_MARK_BEFORE), int(E2_MARK_AFTER))), 2),
             'lowest_heartline_y_m': rnd(min(ys) - ys[0], 2),
             'heartline_height_change_between_marks_m': rnd(
                 at_dist(rows, E2_MARK_AFTER, 'heart_y')
@@ -301,16 +320,97 @@ def e2_predictions(exe, outdir, info):
             hold = [r['dist_m'] for r in rows
                     if r['normal_g'] >= par[0] - 0.05]
             entry['valley_g_set'] = par[0]
-            entry['metres_within_0.05g_of_the_valley_g'] = rnd(
-                (hold[-1] - hold[0]) if hold else 0.0, 1)
+            metres = (hold[-1] - hold[0]) if hold else 0.0
+            entry['metres_within_0.05g_of_the_valley_g'] = rnd(metres, 1)
+            # what friction growing in step with the wheel load would add:
+            # g * friction * (valley g - 1) * metres held, at the program's
+            # friction
+            entry['extra_loss_if_friction_follows_load_m2s2'] = rnd(
+                G * FRICTION * (par[0] - 1.0) * metres, 1)
         res[name] = entry
     return res
 
 
 # --------------------------------------------------------- R7's own tracks --
-def r7_prediction(project, dump, fixed, crest_seat_note, trains=TRAINS):
-    sh = r7ride.Shape.from_dump(R7 / 'shapes' / dump, HEART, FRICTION,
-                                RESISTANCE, fixed_sections=fixed, name=project)
+def r7_meta(key):
+    return json.loads((R7 / 'projects' / 'shapes.json').read_text())[key]
+
+
+def e3_project(path):
+    """R7's camelback behind a level run-in held at its entry speed."""
+    meta = r7_meta('camelback')
+    steps = ms.camel_steps(meta['t2'], meta['tair'], meta['t4'])
+    w.write_project(path, [
+        w.forced_section('run-in', [(E3_RUNIN_S, 0.0)],
+                         fixed_speed=ms.CB['v0']),
+        w.forced_section('camelback', steps)],
+        speed=ms.CB['v0'], heart=HEART, friction=FRICTION,
+        resistance=RESISTANCE, name='camelback')
+
+
+def e4_project(path):
+    """R7's 0.60 g lift crest behind a longer level lift."""
+    meta = r7_meta('liftcrest-0.60')
+    drop = ms.layout_drop(meta['t1'], meta['th'], meta['crest']) + [(2.0, 0.0)]
+    w.write_project(path, [
+        w.forced_section('lift crest', [(E4_LIFT_S, 0.0)],
+                         fixed_speed=ms.LAYOUT_LIFT_SPEED),
+        w.forced_section('drop', drop)],
+        speed=ms.LAYOUT_LIFT_SPEED, heart=HEART, friction=FRICTION,
+        resistance=RESISTANCE, name='liftcrest-0.60')
+
+
+def same_shape_as_r7(exe, project, dump, sec_new, sec_old):
+    """Check that the new project, from the start of section sec_new, is R7's
+    track from the start of its section sec_old (same height and speed along
+    the way). Returns (shift in metres, worst difference)."""
+    import gzip
+    new = nodes(exe, project, 0.1)
+    with gzip.open(R7 / 'shapes' / dump, 'rt') as fh:
+        old = [{k: float(v) for k, v in row.items()}
+               for row in csv.DictReader(fh, delimiter='	')]
+    b_new = next(r['dist_m'] for r in new if r['section'] == sec_new)
+    b_old = next(r['dist_m'] for r in old if r['section'] == sec_old)
+    worst = 0.0
+    for row in old:
+        if row['section'] < sec_old:
+            continue
+        d = b_new + row['dist_m'] - b_old
+        if d > new[-1]['dist_m']:
+            break
+        worst = max(worst,
+                    abs(at_dist(new, d, 'heart_y') - row['heart_y']),
+                    abs(at_dist(new, d, 'speed_mps') - row['speed_mps']))
+    if worst > 0.15:
+        raise RuntimeError('%s does not follow the R7 shape (%.3f)'
+                           % (project, worst))
+    return b_new - b_old, worst
+
+
+def ride_dump(exe, project, path, section_from=None):
+    """Write `fvdcore nodes` of a project in the form ride.py reads. With
+    section_from, only the rows from that section on, and distances counted
+    from its start. Returns the metres cut off in front."""
+    rows = nodes(exe, project, 0.1)
+    cut = 0.0
+    if section_from:
+        rows = [r for r in rows if r['section'] >= section_from]
+        cut = rows[0]['dist_m']
+        hcut = rows[0]['heart_dist_m']
+        for r in rows:
+            r['dist_m'] -= cut
+            r['heart_dist_m'] -= hcut
+    with open(path, 'w', newline='') as fh:
+        fh.write('\t'.join(rows[0]) + '\n')
+        for r in rows:
+            fh.write('\t'.join(repr(v) for v in r.values()) + '\n')
+    return cut
+
+
+def r7_prediction(project, dump, fixed, crest_seat_note, trains=TRAINS,
+                  offset=0.0):
+    sh = r7ride.Shape.from_dump(dump, HEART, FRICTION, RESISTANCE,
+                                fixed_sections=fixed, name=project)
     if fixed:
         # a lift crest: the end of the chain section is the crest
         s_c = sh.fixed[0][1]
@@ -319,7 +419,7 @@ def r7_prediction(project, dump, fixed, crest_seat_note, trains=TRAINS):
         i_top = max(range(sh.n), key=lambda i: sh.hy[i])
         s_c = sh.s[i_top]
     pt = r7ride.point_as_train(sh)
-    point = dict(crest_dist_m=rnd(s_c, 1), crest_height_m=rnd(sh.hy[i_top], 2),
+    point = dict(crest_dist_m=rnd(s_c + offset, 1), crest_height_m=rnd(sh.hy[i_top], 2),
                  speed_mps=rnd(pt['v'][i_top]))
     f = r7ride.force_when_car_at(pt, 0, s_c)
     point['normal_g'] = rnd(f[0], 2)
@@ -366,9 +466,12 @@ def write_markdown(path, pred):
     a('')
     a('## E1 and E5: coast-down on the level 800 m straight')
     a('')
-    a('Speed (m/s) after the stated distance from the end of the transport, '
-      'for three friction and drag sets (friction in m/m, drag in 1/m). '
-      '`0` means the train has stopped.')
+    a('The track is %g m long and its first %g m are the Transport section. '
+      'Speed (m/s) after the stated distance **counted from the end of the '
+      'Transport** (so the last column, %g m, is the end of the track), for '
+      'three friction and drag sets (friction in m/m, drag in 1/m), for a '
+      'train that leaves the Transport at the start speed. `0` means the '
+      'train has stopped.' % (E1_LENGTH, E1_TRANSPORT, E1_AFTER))
     a('')
     for key in ('v10', 'v40'):
         a('Start %s m/s:' % key[1:])
@@ -390,21 +493,49 @@ def write_markdown(path, pred):
     a('')
     a('## E2: a valley against a level (entry speed %g m/s)' % E2_ENTRY)
     a('')
-    a('Marks are metres of centre line from the start of the track. If '
-      'NoLimits 2 loses the same energy per metre in a valley as on the '
-      'level (the program\'s rule), the last column is the same for all '
-      'three tracks.')
+    a('Marks are metres of centre line from the start of the track; the '
+      'first %g m are the Transport section and the valley starts after '
+      'about 120 m of level. In the program\'s own model the loss is friction '
+      '(the same on all three tracks: it is charged per metre of track) plus '
+      'air drag, and the drag is larger in a valley because the train is '
+      'faster there. So the "loss" column is NOT the same on the three '
+      'tracks: it differs by %s m^2/s^2 (1.5 g valley) and %s m^2/s^2 (4 g '
+      'valley) from the level; the "drag part" column differs by %s and %s '
+      '(the small rest is the rounding of the node steps), with the '
+      'program\'s drag of %g. **Scale those two numbers by '
+      'the drag you fitted in E1 divided by %g before reading an excess.** '
+      'An excess over the scaled number means friction grows with wheel load. '
+      'The last column shows how big that would be: friction that follows '
+      'the vertical force (g x friction x (valley g - 1) x metres held at '
+      'the valley g, with the program\'s friction %g) would add the number '
+      'in "extra if friction follows load". It is much larger than the drag '
+      'differences, so the two effects can be told apart.' % (
+          E2_TRANSPORT,
+          rnd(pred['e2']['e2-valley-1.5g']['half_v2_loss_between_marks_m2s2']
+              - pred['e2']['e2-level-600']['half_v2_loss_between_marks_m2s2'],
+              2),
+          rnd(pred['e2']['e2-valley-4g']['half_v2_loss_between_marks_m2s2']
+              - pred['e2']['e2-level-600']['half_v2_loss_between_marks_m2s2'],
+              2),
+          rnd(pred['e2']['e2-valley-1.5g']['drag_part_of_that_m2s2']
+              - pred['e2']['e2-level-600']['drag_part_of_that_m2s2'], 2),
+          rnd(pred['e2']['e2-valley-4g']['drag_part_of_that_m2s2']
+              - pred['e2']['e2-level-600']['drag_part_of_that_m2s2'], 2),
+          RESISTANCE, RESISTANCE, FRICTION))
     a('')
-    a('| track | speed at %d m | speed at %d m | v^2/2 loss between marks, '
-      'height-corrected (m^2/s^2) | peak vertical g | metres at the valley g '
-      '|' % (E2_MARK_BEFORE, E2_MARK_AFTER))
-    a('|---|---|---|---|---|---|')
+    a('| track | speed at %d m | speed at %d m | loss, v^2/2 + g y '
+      'between the marks (m^2/s^2) | drag part | peak vertical g | metres at '
+      'the valley g | extra if friction follows load (m^2/s^2) |'
+      % (E2_MARK_BEFORE, E2_MARK_AFTER))
+    a('|---|---|---|---|---|---|---|---|')
     for name, d in pred['e2'].items():
-        a('| %s | %s | %s | %s | %s | %s |' % (
+        a('| %s | %s | %s | %s | %s | %s | %s | %s |' % (
             name, d['speed_at_%dm_mps' % E2_MARK_BEFORE],
             d['speed_at_%dm_mps' % E2_MARK_AFTER],
-            d['half_v2_loss_between_marks_m2s2'], d['max_normal_g'],
-            d.get('metres_within_0.05g_of_the_valley_g', '-')))
+            d['half_v2_loss_between_marks_m2s2'],
+            d['drag_part_of_that_m2s2'], d['max_normal_g'],
+            d.get('metres_within_0.05g_of_the_valley_g', '-'),
+            d.get('extra_loss_if_friction_follows_load_m2s2', '-')))
     a('')
     a('## E3: the camelback, one train speed against the point')
     a('')
@@ -451,11 +582,12 @@ def write_markdown(path, pred):
     a('## E4b: brake trigger car')
     a('')
     a('On the level straight, a trim brake with First Car and then Middle '
-      'Car as trigger should start braking about half a train length apart: '
-      '%.1f m for 9 cars of 2.2 m, %.1f m for 4 cars of 2.5 m (car length '
-      'assumed; NoLimits 2 publishes none). The program has no model of the '
-      'brake yet, so there is no predicted speed.' % (
-          9 * 2.2 / 2.0, 4 * 2.5 / 2.0))
+      'Car as trigger should start braking about (n - 1) / 2 car lengths '
+      'apart: about %.1f m for 9 cars of 2.2 m, about %.1f m for 4 cars of '
+      '2.5 m. The gap depends on where NoLimits 2 measures a car from, and '
+      'the car length is assumed (NoLimits 2 publishes none). The program '
+      'has no model of the brake yet, so there is no predicted speed.' % (
+          8 * 2.2 / 2.0, 3 * 2.5 / 2.0))
     a('')
     path.write_text('\n'.join(L), encoding='utf-8', newline='\n')
 
@@ -470,30 +602,50 @@ def build(exe, outdir):
         projects.append(name)
     info = e2_projects(exe, outdir)
     projects += list(info)
-    for name, src in (('e3-camelback', 'camelback.fvd'),
-                      ('e4-liftcrest-0.60', 'liftcrest-0.60.fvd')):
-        shutil.copyfile(R7 / 'projects' / src, outdir / (name + '.fvd'))
-        projects.append(name)
+    e3_project(outdir / 'e3-camelback.fvd')
+    e4_project(outdir / 'e4-liftcrest-0.60.fvd')
+    projects += ['e3-camelback', 'e4-liftcrest-0.60']
     for name in projects:
         run_core(exe, 'summary', outdir / (name + '.fvd'))
         export_nl2elem(exe, outdir / (name + '.fvd'), outdir / (name + '.nl2elem'))
 
+    shift3, worst3 = same_shape_as_r7(
+        exe, outdir / 'e3-camelback.fvd', 'camelback.tsv.gz', 2, 1)
+    shift4, worst4 = same_shape_as_r7(
+        exe, outdir / 'e4-liftcrest-0.60.fvd', 'liftcrest-0.60.tsv.gz', 2, 2)
+    with tempfile.TemporaryDirectory() as tmp:
+        d3 = Path(tmp) / 'e3.tsv'
+        cut3 = ride_dump(exe, outdir / 'e3-camelback.fvd', d3, section_from=2)
+        d4 = Path(tmp) / 'e4.tsv'
+        ride_dump(exe, outdir / 'e4-liftcrest-0.60.fvd', d4)
+        e3 = r7_prediction(
+            'e3-camelback', d3, (),
+            'Speed of the whole train (one speed for all cars, R7) at the '
+            'moment the named car is at the crest, and the vertical force '
+            'that car feels there. Car lengths are assumed (R7). The track '
+            'is the R7 camelback behind a %.0f m level run-in, and the numbers '
+            'are computed on this project from the start of the camelback '
+            '(cars behind that point stand on the straight run-in, as in '
+            'R7). Distances are from the start of the track. The shape '
+            'equals the R7 one to within %.2f m or m/s.' % (cut3, worst3),
+            offset=cut3)
+        e4 = r7_prediction(
+            'e4-liftcrest-0.60', d4, (1,),
+            'Same reading as E3; the chain holds 3.5 m/s only while the rear '
+            'car is on the lift and gravity alone would be slower (R7). The '
+            'lift is the R7 one with %.0f m of level run-in in front, so the '
+            'train stands on it; the numbers are computed on this project. '
+            'The drop equals the R7 one to within %.2f m or m/s.'
+            % (shift4, worst4),
+            trains=[t for t in TRAINS if t[1] == 9])
     pred = {
         'about': 'Predicted by this program\'s model; see README.md.',
         'settings': dict(heartline_m=HEART, friction=FRICTION,
                          resistance=RESISTANCE),
         'e1': e1_predictions(),
         'e2': e2_predictions(exe, outdir, info),
-        'e3': r7_prediction(
-            'e3-camelback', 'camelback.tsv.gz', (),
-            'Speed of the whole train (one speed for all cars, R7) at the '
-            'moment the named car is at the crest, and the vertical force that '
-            'car feels there. Car lengths are R7\'s assumptions.'),
-        'e4': r7_prediction(
-            'e4-liftcrest-0.60', 'liftcrest-0.60.tsv.gz', (1,),
-            'Same reading as E3; the chain holds 3.5 m/s only while the rear '
-            'car is on the lift and gravity alone would be slower (R7).',
-            trains=[t for t in TRAINS if t[1] == 9]),
+        'e3': e3,
+        'e4': e4,
         'e5': e5_predictions(),
     }
     (outdir / 'predictions.json').write_text(

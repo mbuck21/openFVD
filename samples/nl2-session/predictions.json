@@ -12,23 +12,15 @@
       10.0
      ],
      [
-      100.0,
-      6.979
-     ],
-     [
-      200.0,
-      0.0
+      150.0,
+      4.81
      ],
      [
       300.0,
       0.0
      ],
      [
-      400.0,
-      0.0
-     ],
-     [
-      500.0,
+      450.0,
       0.0
      ],
      [
@@ -36,11 +28,7 @@
       0.0
      ],
      [
-      700.0,
-      0.0
-     ],
-     [
-      800.0,
+      750.0,
       0.0
      ]
     ],
@@ -56,23 +44,15 @@
       10.0
      ],
      [
-      100.0,
-      6.894
-     ],
-     [
-      200.0,
-      0.0
+      150.0,
+      4.657
      ],
      [
       300.0,
       0.0
      ],
      [
-      400.0,
-      0.0
-     ],
-     [
-      500.0,
+      450.0,
       0.0
      ],
      [
@@ -80,11 +60,7 @@
       0.0
      ],
      [
-      700.0,
-      0.0
-     ],
-     [
-      800.0,
+      750.0,
       0.0
      ]
     ],
@@ -100,23 +76,15 @@
       10.0
      ],
      [
-      100.0,
-      6.394
-     ],
-     [
-      200.0,
-      0.0
+      150.0,
+      3.377
      ],
      [
       300.0,
       0.0
      ],
      [
-      400.0,
-      0.0
-     ],
-     [
-      500.0,
+      450.0,
       0.0
      ],
      [
@@ -124,11 +92,7 @@
       0.0
      ],
      [
-      700.0,
-      0.0
-     ],
-     [
-      800.0,
+      750.0,
       0.0
      ]
     ],
@@ -146,36 +110,24 @@
       40.0
      ],
      [
-      100.0,
-      39.277
-     ],
-     [
-      200.0,
-      38.544
+      150.0,
+      38.912
      ],
      [
       300.0,
       37.8
      ],
      [
-      400.0,
-      37.044
-     ],
-     [
-      500.0,
-      36.275
+      450.0,
+      36.661
      ],
      [
       600.0,
       35.493
      ],
      [
-      700.0,
-      34.696
-     ],
-     [
-      800.0,
-      33.884
+      750.0,
+      34.292
      ]
     ],
     "stops_at_m": null
@@ -190,36 +142,24 @@
       40.0
      ],
      [
-      100.0,
-      38.959
-     ],
-     [
-      200.0,
-      37.912
+      150.0,
+      38.436
      ],
      [
       300.0,
       36.856
      ],
      [
-      400.0,
-      35.79
-     ],
-     [
-      500.0,
-      34.715
+      450.0,
+      35.254
      ],
      [
       600.0,
       33.627
      ],
      [
-      700.0,
-      32.525
-     ],
-     [
-      800.0,
-      31.408
+      750.0,
+      31.968
      ]
     ],
     "stops_at_m": null
@@ -234,36 +174,24 @@
       40.0
      ],
      [
-      100.0,
-      39.178
-     ],
-     [
-      200.0,
-      38.341
+      150.0,
+      38.761
      ],
      [
       300.0,
       37.489
      ],
      [
-      400.0,
-      36.621
-     ],
-     [
-      500.0,
-      35.736
+      450.0,
+      36.181
      ],
      [
       600.0,
       34.831
      ],
      [
-      700.0,
-      33.907
-     ],
-     [
-      800.0,
-      32.96
+      750.0,
+      33.436
      ]
     ],
     "stops_at_m": null
@@ -272,6 +200,7 @@
  },
  "e2": {
   "e2-level-600": {
+   "drag_part_of_that_m2s2": 5.11,
    "half_v2_loss_between_marks_m2s2": 108.07,
    "heartline_height_change_between_marks_m": 0.0,
    "length_m": 600.0,
@@ -281,6 +210,8 @@
    "speed_at_450m_mps": 24.931
   },
   "e2-valley-1.5g": {
+   "drag_part_of_that_m2s2": 5.34,
+   "extra_loss_if_friction_follows_load_m2s2": 10.6,
    "half_v2_loss_between_marks_m2s2": 108.32,
    "heartline_height_change_between_marks_m": -0.0,
    "length_m": 600.0,
@@ -292,7 +223,9 @@
    "valley_g_set": 1.5
   },
   "e2-valley-4g": {
-   "half_v2_loss_between_marks_m2s2": 109.1,
+   "drag_part_of_that_m2s2": 6.14,
+   "extra_loss_if_friction_follows_load_m2s2": 27.3,
+   "half_v2_loss_between_marks_m2s2": 109.11,
    "heartline_height_change_between_marks_m": -0.001,
    "length_m": 600.0,
    "lowest_heartline_y_m": -30.0,
@@ -304,12 +237,12 @@
   }
  },
  "e3": {
-  "note": "Speed of the whole train (one speed for all cars, R7) at the moment the named car is at the crest, and the vertical force that car feels there. Car lengths are R7's assumptions.",
+  "note": "Speed of the whole train (one speed for all cars, R7) at the moment the named car is at the crest, and the vertical force that car feels there. Car lengths are assumed (R7). The track is the R7 camelback behind a 60 m level run-in, and the numbers are computed on this project from the start of the camelback (cars behind that point stand on the straight run-in, as in R7). Distances are from the start of the track. The shape equals the R7 one to within 0.10 m or m/s.",
   "point": {
-   "crest_dist_m": 117.1,
+   "crest_dist_m": 177.0,
    "crest_height_m": 30.0,
    "normal_g": -0.2,
-   "speed_mps": 15.471
+   "speed_mps": 15.473
   },
   "trains": {
    "2 cars": {
@@ -317,7 +250,7 @@
     "cars": {
      "front": {
       "normal_g": -0.21,
-      "train_speed_mps": 15.54
+      "train_speed_mps": 15.546
      },
      "lowest_normal_g_within_25m_of_crest": {
       "front": -0.25,
@@ -325,11 +258,11 @@
      },
      "middle": {
       "normal_g": -0.21,
-      "train_speed_mps": 15.518
+      "train_speed_mps": 15.52
      },
      "rear": {
       "normal_g": -0.2,
-      "train_speed_mps": 15.496
+      "train_speed_mps": 15.494
      }
     }
    },
@@ -338,19 +271,19 @@
     "cars": {
      "front": {
       "normal_g": -0.26,
-      "train_speed_mps": 15.85
+      "train_speed_mps": 15.863
      },
      "lowest_normal_g_within_25m_of_crest": {
       "front": -0.35,
       "rear": -0.35
      },
      "middle": {
-      "normal_g": -0.22,
-      "train_speed_mps": 15.609
+      "normal_g": -0.23,
+      "train_speed_mps": 15.611
      },
      "rear": {
       "normal_g": -0.24,
-      "train_speed_mps": 15.721
+      "train_speed_mps": 15.712
      }
     }
    },
@@ -359,7 +292,7 @@
     "cars": {
      "front": {
       "normal_g": -0.45,
-      "train_speed_mps": 17.01
+      "train_speed_mps": 17.033
      },
      "lowest_normal_g_within_25m_of_crest": {
       "front": -0.6,
@@ -367,20 +300,20 @@
      },
      "middle": {
       "normal_g": -0.27,
-      "train_speed_mps": 15.929
+      "train_speed_mps": 15.931
      },
      "rear": {
       "normal_g": -0.4,
-      "train_speed_mps": 16.74
+      "train_speed_mps": 16.72
      }
     }
    }
   }
  },
  "e4": {
-  "note": "Same reading as E3; the chain holds 3.5 m/s only while the rear car is on the lift and gravity alone would be slower (R7).",
+  "note": "Same reading as E3; the chain holds 3.5 m/s only while the rear car is on the lift and gravity alone would be slower (R7). The lift is the R7 one with 28 m of level run-in in front, so the train stands on it; the numbers are computed on this project. The drop equals the R7 one to within 0.08 m or m/s.",
   "point": {
-   "crest_dist_m": 13.9,
+   "crest_dist_m": 42.0,
    "crest_height_m": 0.0,
    "normal_g": 1.0,
    "speed_mps": 3.5
@@ -399,11 +332,11 @@
      },
      "middle": {
       "normal_g": 1.0,
-      "train_speed_mps": 4.789
+      "train_speed_mps": 4.825
      },
      "rear": {
       "normal_g": 1.0,
-      "train_speed_mps": 9.012
+      "train_speed_mps": 9.063
      }
     }
    }
