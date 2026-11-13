@@ -26,7 +26,13 @@ default port 15151, switched on in Setup; all numbers big-endian). A message
 is 'N', a 2-byte type, a 4-byte request id, a 2-byte data size, the data and
 'L'. This tool uses four message types: Get Version (3, reply 4), Get
 Telemetry (5, reply 6 with 76 bytes of data), Select Seat (29, 16 bytes of
-data: coaster, train, car, seat). Everything is logged as the server sends it:
+data: coaster, train, car, seat). The help page says every message is
+answered in order and lists the server's replies, among them OK (type 1, no
+data) and Error (type 2, a UTF-8 text). For Select Seat it names no reply, so
+a reply to it is tolerated either way: when a request waits for its reply, any
+message with an older request id is a late answer to a request nobody waited
+for and is skipped (counted, at most 16 in a row); an Error with this
+request's id stops with the server's text. Everything is logged as the server sends it:
 the help page does not say which unit speed, position or g are in (that is
 what experiment E0 finds out), so no conversion is done here.
 
@@ -50,6 +56,8 @@ MAGIC_END = b'L'
 T_GET_VERSION, T_VERSION = 3, 4
 T_GET_TELEMETRY, T_TELEMETRY = 5, 6
 T_SELECT_SEAT = 29
+T_OK, T_ERROR = 1, 2
+MAX_SKIP = 16
 TELEMETRY_SIZE = 76
 DEFAULT_PORT = 15151
 
@@ -97,6 +105,7 @@ class Client:
         self.sock = socket.create_connection((host, port), timeout=timeout)
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.next_id = 1
+        self.skipped = []       # types of replies skipped as late
 
     def close(self):
         try:
@@ -110,10 +119,24 @@ class Client:
         self.sock.sendall(pack_message(type_id, rid, data))
         if want is None:
             return None
-        got_type, got_id, got = read_message(self.sock)
+        skipped_now = 0
+        while True:
+            got_type, got_id, got = read_message(self.sock)
+            if got_id < rid:
+                # a late answer to a request nobody waited for (Select Seat)
+                self.skipped.append(got_type)
+                skipped_now += 1
+                if skipped_now > MAX_SKIP:
+                    raise ProtocolError('more than %d unexpected replies in '
+                                        'a row' % MAX_SKIP)
+                continue
+            break
         if got_id != rid:
             raise ProtocolError('reply %d answers request %d, not %d'
                                 % (got_type, got_id, rid))
+        if got_type == T_ERROR and want != T_ERROR:
+            raise ProtocolError('the server answered with an error: %s'
+                                % got.decode('utf-8', 'replace'))
         if got_type != want:
             raise ProtocolError('expected a reply of type %d, got %d'
                                 % (want, got_type))
@@ -131,7 +154,9 @@ class Client:
         return struct.unpack(TELEMETRY_FORMAT, data)
 
     def select_seat(self, coaster, train, car, seat):
-        # The help page names no reply for this message, so none is waited for.
+        # The help page names no reply for this message, so none is waited
+        # for. If the server does answer (OK, or Error), the answer is skipped
+        # by request id when the next request waits for its own reply.
         self.request(T_SELECT_SEAT, struct.pack('>4i', coaster, train, car,
                                                 seat))
 
@@ -216,8 +241,11 @@ class FakeServer:
     request, so the recorder sees repeated frames and must skip them. It
     starts in play mode after `idle` requests, and honours Select Seat."""
 
-    def __init__(self, v0=20.0, frames=300, idle=5):
+    def __init__(self, v0=20.0, frames=300, idle=5, reply_seat=False,
+                 error_text=None):
         self.v0, self.frames, self.idle = v0, frames, idle
+        self.reply_seat = reply_seat        # answer Select Seat with OK
+        self.error_text = error_text        # answer Get Telemetry with Error
         self.seat = (0, 0, 0, 0)
         self.requests = []
         self.sock = socket.socket()
@@ -254,7 +282,10 @@ class FakeServer:
                 except (ProtocolError, OSError):
                     return
                 self.requests.append(type_id)
-                if type_id == T_GET_TELEMETRY:
+                if type_id == T_GET_TELEMETRY and self.error_text:
+                    conn.sendall(pack_message(
+                        T_ERROR, rid, self.error_text.encode('utf-8')))
+                elif type_id == T_GET_TELEMETRY:
                     conn.sendall(pack_message(T_TELEMETRY, rid,
                                               self._telemetry(n)))
                     n += 1
@@ -262,6 +293,8 @@ class FakeServer:
                     conn.sendall(pack_message(T_VERSION, rid, bytes([2, 0, 3, 1])))
                 elif type_id == T_SELECT_SEAT:
                     self.seat = struct.unpack('>4i', data)
+                    if self.reply_seat:
+                        conn.sendall(pack_message(T_OK, rid))
                 else:
                     return
 
@@ -318,6 +351,53 @@ def selftest():
             'position read back')
         check(T_GET_TELEMETRY in srv.requests, 'server saw Get Telemetry')
 
+    # Select Seat answered with OK: the late answer must be skipped
+    srv2 = FakeServer(reply_seat=True)
+    cli = Client('127.0.0.1', srv2.port)
+    try:
+        cli.select_seat(0, 0, 3, 1)
+        cli.select_seat(0, 0, 4, 1)
+        for _ in range(7):         # the fake server idles for 5 requests
+            vals = cli.telemetry()
+        check(cli.skipped == [T_OK, T_OK], 'late OK replies to Select Seat '
+              'skipped (%s)' % cli.skipped)
+        check(vals[6] == 4 and vals[7] == 1, 'telemetry read after them '
+              '(car 4, seat 1)')
+    except ProtocolError as e:
+        check(False, 'Select Seat with an OK reply: %s' % e)
+    finally:
+        cli.close()
+        port2 = srv2.port
+        srv2.close()
+
+    # Get Telemetry answered with Error: the server's text is reported
+    srv3 = FakeServer(error_text='no coaster loaded')
+    cli = Client('127.0.0.1', srv3.port)
+    try:
+        cli.telemetry()
+        check(False, 'an Error reply raises')
+    except ProtocolError as e:
+        check('no coaster loaded' in str(e),
+              'an Error reply raises with the server text (%s)' % e)
+    finally:
+        cli.close()
+        port3 = srv3.port
+        srv3.close()
+
+    # a stream of nothing but old replies still ends in an error
+    a_, b_ = socket.socketpair()
+    for i in range(MAX_SKIP + 2):
+        a_.sendall(pack_message(T_OK, 0))
+    cl = Client.__new__(Client)
+    cl.sock, cl.next_id, cl.skipped = b_, 5, []
+    try:
+        cl.request(T_GET_TELEMETRY, want=T_TELEMETRY)
+        check(False, 'endless old replies end in an error')
+    except ProtocolError:
+        check(True, 'endless old replies end in an error')
+    a_.close()
+    b_.close()
+
     # bad framing is reported, not swallowed
     a, b = socket.socketpair()
     a.sendall(b'X' + bytes(9))
@@ -331,11 +411,12 @@ def selftest():
 
     srv.close()
     # nothing of ours may still be listening
-    try:
-        socket.create_connection(('127.0.0.1', port), timeout=1.0).close()
-        check(False, 'the fake server is closed')
-    except OSError:
-        check(True, 'the fake server is closed (port %d refuses)' % port)
+    for pt in (port, port2, port3):
+        try:
+            socket.create_connection(('127.0.0.1', pt), timeout=1.0).close()
+            check(False, 'the fake server is closed')
+        except OSError:
+            check(True, 'the fake server is closed (port %d refuses)' % pt)
     print('PASS' if not failures else 'FAIL (%d)' % len(failures))
     return 0 if not failures else 1
 
@@ -379,6 +460,8 @@ def main():
         if args.probe:
             print('version bytes:', cli.version())
             vals = cli.telemetry()
+            print('late replies skipped: %d %s' % (
+                len(cli.skipped), cli.skipped))
             for name, v in zip(['flags', 'frame', 'view', 'coaster', 'style',
                                 'train', 'car', 'seat', 'speed', 'x', 'y', 'z',
                                 'qx', 'qy', 'qz', 'qw', 'gx', 'gy', 'gz'],
