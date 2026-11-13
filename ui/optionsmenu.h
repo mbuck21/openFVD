@@ -39,6 +39,7 @@ enum eMeasures
 };
 
 class QColorDialog;
+class QDoubleSpinBox;
 
 namespace Ui {
 class optionsMenu;
@@ -55,6 +56,9 @@ public:
     QString getLengthString();
     double getSpeedFactor();
     double getLengthFactor();
+    // Gives a box that shows a length or a speed the form's own (metric) limits
+    // times the unit factor, so a limit in metres stays that limit in feet.
+    static void setBoxRange(QDoubleSpinBox* box, double factor);
     void saveToOptionsFile();
     bool loadFromOptionsFile();
     void setGLVersionString(QString version);

@@ -149,6 +149,14 @@ MainWindow* batchRunner::createHiddenWindow()
 #endif
     qApp->installEventFilter(new noShowFilter(qApp));
     MainWindow* w = new MainWindow(); // never deleted: ~MainWindow() calls exit(0)
+    // Batch output is always metric (m/s, m), whatever options.cfg says: the
+    // scripted scenarios convert typed values with the options' factors, and a
+    // trip to feet and back moves the last digit of a float, which would break
+    // the exact comparison with the 2016 binary. Only the value in memory is
+    // set; nothing in batch mode saves the options, so options.cfg is untouched.
+    // The hidden Options dialog's measureBox still shows the file's value: do
+    // not read that combo in batch mode.
+    w->mOptions->measures = metricMPS;
     glView->initializeWithoutShowing();
 #ifdef Q_OS_WIN
     LockSetForegroundWindow(LSFW_UNLOCK);
@@ -217,8 +225,9 @@ int batchRunner::runExport()
 // as text to <outdir>/<stem>.ridesheet.txt (compared with `fvdcore summary`).
 int batchRunner::runRideSheet()
 {
-    if(lArgs.size() != 3) {
-        qWarning("usage: FVD.exe --batch-ride-sheet <project.fvd> <outdir>");
+    bool unitCheck = lArgs.size() == 4 && lArgs.at(3) == "--english-boxes";
+    if(lArgs.size() != 3 && !unitCheck) {
+        qWarning("usage: FVD.exe --batch-ride-sheet <project.fvd> <outdir> [--english-boxes]");
         return 1;
     }
     QString projectFile = lArgs.at(1);
@@ -252,6 +261,41 @@ int batchRunner::runRideSheet()
     w->openTab(w->project->trackList[0]);
     w->mRideSheet->setTrack(w->curTrack());
     w->mRideSheet->refreshNow();
+
+    // --english-boxes: with the units in feet and mph, select every straight and
+    // curved section of track 1 and write what the length, radius and speed boxes
+    // of the track panel show (value, minimum, maximum), for the check of docs/testing.md.
+    QStringList boxLines;
+    if(unitCheck) {
+        w->mOptions->measures = english;
+        batchDriver driver(w);
+        QList<section*>& secs = w->project->trackList[0]->trackData->lSections;
+        for(int i = 0; i < secs.size() && driver.ok(); ++i) {
+            const char* names[2] = {NULL, NULL};
+            if(secs[i]->type == straight) { names[0] = "straightLengthBox"; names[1] = "straightSpeedBox"; }
+            if(secs[i]->type == curved) { names[0] = "curvedRadiusBox"; names[1] = "curvedSpeedBox"; }
+            if(!names[0]) continue;
+            driver.selectSection(i);
+            // what the box holds in the model, in m or m/s (the last column)
+            struct modelOf {
+                static QString text(section* s, int b) {
+                    if(b == 1) return QString("%1 m/s").arg(s->getSpeed(), 0, 'f', 3);
+                    return QString("%1 m").arg(s->type == straight ? s->fHLength : s->fRadius, 0, 'f', 3);
+                }
+            };
+            for(int b = 0; b < 2 && driver.ok(); ++b) {
+                QDoubleSpinBox* box = driver.panelSpin(names[b]);
+                if(!box) { return finish(false, QString("no box ") + names[b]); }
+                boxLines.append(QString("section %1 | %2 | value %3 | min %4 | max %5 | model %6")
+                                .arg(i+1).arg(names[b]).arg(box->value(), 0, 'f', 3).arg(box->minimum(), 0, 'f', 3)
+                                .arg(box->maximum(), 0, 'f', 3).arg(modelOf::text(secs[i], b)));
+            }
+        }
+        if(!driver.ok()) return finish(false, driver.error());
+        if(!writeLines(dir.filePath(stem + ".boxes.txt"), boxLines)) {
+            return finish(false, QString("cannot write ") + stem + ".boxes.txt");
+        }
+    }
 
     if(!writeLines(dir.filePath(stem + ".ridesheet.txt"), w->mRideSheet->textLines())) {
         return finish(false, QString("cannot write ") + stem + ".ridesheet.txt");
@@ -530,10 +574,8 @@ int batchRunner::runMakeFixtures()
     if(!w) {
         return finish(false, QString("could not set up OpenGL"));
     }
-    if(w->mOptions->getLengthFactor() != 1.0 || w->mOptions->getSpeedFactor() != 1.0) {
-        lReport.append(QString("note: the options use %1 and %2; the values were converted")
-                       .arg(w->mOptions->getLengthString().trimmed()).arg(w->mOptions->getSpeedString().trimmed()));
-    }
+    // createHiddenWindow() made the options metric; the scenarios type metres.
+    lenAssert(w->mOptions->getLengthFactor() == 1.0 && w->mOptions->getSpeedFactor() == 1.0);
 
     // A scenario that fails is reported and not saved; the others still run.
     QString firstError;
