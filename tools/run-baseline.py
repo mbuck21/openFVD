@@ -269,8 +269,10 @@ def run_project(exe: Path, project: Path, ref_infix: str, record: bool,
         return all_ok
 
 
-def run_batch(exe: Path, args: list, work: Path, limit: int = TIME_LIMIT_S):
+def run_batch(exe: Path, args: list, work: Path, limit: int = None):
     """Runs FVD.exe with batch arguments in work. Returns the exit code, or None after the time limit."""
+    if limit is None:
+        limit = TIME_LIMIT_S    # read here, not as a default value: --time-factor changes it
     try:
         proc = subprocess.run([str(exe)] + args, cwd=work, timeout=limit,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -503,7 +505,21 @@ def main() -> int:
                         help="export with fvdcore (cli/, core/ alone; build/dist/fvdcore.exe) instead of FVD.exe --batch-export")
     parser.add_argument("--core-exe", type=Path,
                         help="the fvdcore to test (default: where tools/run-tests.sh builds it)")
+    parser.add_argument("--time-factor", type=float, default=1.0,
+                        help="multiply every time limit by this (1 or more), for a PC that is busy with other "
+                             "builds; a comparison is never loosened by it")
     args = parser.parse_args()
+
+    if not (1.0 <= args.time_factor <= 100.0):
+        print("--time-factor must be between 1 and 100")
+        print("FAIL")
+        return 1
+    global TIME_LIMIT_S, UNDO_TIME_LIMIT_S
+    TIME_LIMIT_S = int(round(TIME_LIMIT_S * args.time_factor))
+    UNDO_TIME_LIMIT_S = int(round(UNDO_TIME_LIMIT_S * args.time_factor))
+    if args.time_factor != 1.0:
+        print(f"time limits multiplied by {args.time_factor:g}: {TIME_LIMIT_S} s per run, "
+              f"{UNDO_TIME_LIMIT_S} s per undo check")
 
     if args.core and (args.undo_check or args.fixtures):
         print("--core does not combine with --undo-check or --fixtures: "
