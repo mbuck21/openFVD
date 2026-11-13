@@ -8,7 +8,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## Focus
 
-- **Stage 2 of the roadmap is finished: "reach and measure".** The program can be driven and measured without a person, every edit of a track is a named command, and the questions behind the newer requests were answered by experiment. It was built in 29 pull requests into the integration branch (#47 to #79) under decision records 0011, 0012 and 0013.
+- **Stage 2 of the roadmap is finished: "reach and measure".** The program can be driven and measured without a person, every edit of a track is a named command, and the questions behind the newer requests were answered by experiment. It was built in 30 pull requests into the integration branch (#47 to #81) under decision records 0011, 0012 and 0013.
 - **Saved files did not change, and every project still computes exactly as the 2016 program does.** The comparison with the 2016 binary passes with no tolerance, the owner's own project included.
 - **Stage 3 is next and not started:** "see the ride, aim a section" (`docs/roadmap.md`): the radius and force checks, comfort measures, riding the finished track, the energy margin, the forces of an imported track, the knock-on table, the Solve button, and the automation interface. It waits for the owner's word, and for the owner's answer on one change of order (below).
 
@@ -25,6 +25,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 - **Research and experiments** in `docs/research/`: friction, resistance and margins (R8), special track (R9), comfort (R10), a whole train against a point (R7), and the solver, elements and pins tried on the real program (E1). What they found is under "What Stage 2 found" in `docs/roadmap.md`.
 
 Open issues:
+- #80 (`claude`): time what an edit costs in the 3D view with measures and findings on; the final review of pull request #46 asked.
 - #72 (`owner`): the two start-rate boxes come back about 2 percent larger. Leave or make them agree (below).
 - #65 (`owner`): NoLimits 2 tracks as CSV, for the deferred import experiment (R11).
 - #64 (`claude`): undo for adding, deleting and importing a track (a project-level history). Not in the plan yet.
@@ -71,7 +72,7 @@ The full list, with when each answer is needed, is the last section of `docs/roa
 - **By a person.** How editing feels, above all on a long ride, is the owner's to judge.
 - **On screen:** the findings tint in the 3D view and on the plot, the colour picker, and the boxes going back to the model's values when a command is refused. The batch checks cover the model side of each; the lead's view of the middle of the screen was blocked.
 - **An export opened in NoLimits 2.** The exported files are the 2016 program's byte for byte, so nothing new is expected (#13 holds the checks deferred from the baseline).
-- **The cost of redrawing the 3D track per edit,** apart from the model's recompute, was not measured on its own; the status bar's figure is the recompute.
+- **The cost of redrawing the 3D track per edit,** apart from the model's recompute, was not measured on its own; the status bar's figure is the recompute (issue #80).
 - **Nine commands the batch undo check does not reach through the windows** are checked on the model only (`tests/commands`).
 
 ## Watch-outs
