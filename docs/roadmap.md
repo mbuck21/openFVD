@@ -1,6 +1,6 @@
 # Roadmap
 
-Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is finished** (2026-11-12, on the integration branch `claude/stage-2`; decision records 0011, 0012 and 0013) and reaches `master` when the owner merges pull request #46. Stage 3 is next.
+Written 2026-11-10 by the lead session, as architect (decision record 0006), from the owner's requests in `docs/feature-requests.md`. **Reworked the same day, after Stage 1, to take in FR-10 to FR-18** (issues #28 and #30; decision record 0010 says what changed and why). Stage 1 is finished and in `master`. **Stage 2 is finished** (2026-11-12, on the integration branch `claude/stage-2`; decision records 0011, 0012 and 0013) and in `master` through pull request #46, merged at the owner's word. Stage 3 is next.
 
 The roadmap says what has to come before what, and what can run side by side. Rewrite a stage's section when its plan changes; move a finished stage to a short summary. Each stage runs on its own integration branch (decision record 0004). The order of the requests is the owner's to change; the last section lists what is asked of the owner and by when.
 
@@ -293,6 +293,6 @@ Everything about how to build this is the architect's call. These are not; each 
 | 7 | For elements (R6, section 4.4): which numbers define the camelback, whether elements hold position by default, which elements come first. | in E2, Stage 4 |
 | 8 | After R7: whether the train's physics becomes the default for new projects. | before P2's second step |
 | 9 | How much NoLimits 2 block-script compatibility is worth (R4 recommends the standard automatic behaviour). | before Stage 7 |
-| 10 | The word to start Stage 3, after merging pull request #46. | now |
+| 10 | The word to start Stage 3. | now |
 | 11 | Whether P2's first step (ride the finished track with a whole train, report every car) moves to right after Stage 3, as R7 recommends. Recommendation: yes. | before Stage 4 is cut |
 | 12 | Issue #72: a typed start rate comes back about 2 percent larger, as in the 2016 program. Leave it, or make the two conversions agree. Recommendation: leave it. | any time; no answer means it stays |
