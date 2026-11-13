@@ -13,6 +13,7 @@ SOURCES += \
     $$PWD/cmd_export.cpp \
     $$PWD/cmd_help.cpp \
     $$PWD/cmd_import.cpp \
+    $$PWD/cmd_limits.cpp \
     $$PWD/cmd_measures.cpp \
     $$PWD/cmd_nodes.cpp \
     $$PWD/cmd_selftest.cpp \

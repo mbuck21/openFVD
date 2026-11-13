@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/data/limits">
+        <file>astm-f2291-public.json</file>
+    </qresource>
+</RCC>

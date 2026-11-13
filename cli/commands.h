@@ -59,6 +59,7 @@ extern const command cmdFromText;
 extern const command cmdImport;
 extern const command cmdSession;
 extern const command cmdCommands;
+extern const command cmdLimits;
 extern const command cmdSelftest;
 extern const command cmdHelp;
 

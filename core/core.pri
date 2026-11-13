@@ -19,6 +19,7 @@ SOURCES += \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
     $$PWD/finding.cpp \
+    $$PWD/forcelimits.cpp \
     $$PWD/function.cpp \
     $$PWD/fvdmath.cpp \
     $$PWD/measure.cpp \
@@ -46,6 +47,7 @@ HEADERS += \
     $$PWD/elementfile.h \
     $$PWD/exportfuncs.h \
     $$PWD/finding.h \
+    $$PWD/forcelimits.h \
     $$PWD/function.h \
     $$PWD/fvdmath.h \
     $$PWD/measure.h \
@@ -68,3 +70,6 @@ HEADERS += \
     $$PWD/tracklistener.h \
     $$PWD/trackstate.h \
     $$PWD/traintype.h
+
+# The force-limit data (core/forcelimits.h), embedded in every program built from core/, fvdcore included.
+RESOURCES += $$PWD/../data/limits/limits.qrc
