@@ -1,0 +1,27 @@
+NoLimits 2 session notes (copy to samples/private/notes.txt and fill in)
+
+Date:
+NoLimits 2 version (Help, About):
+Licence (Standard / Professional):
+Coaster style:
+Physics Model shown in Coaster Properties, Mode tab:
+Where the element file is imported (menu path):
+How a train is started / reset:
+
+E0 units
+  Transport Speed setting -> speed F2 shows (write the unit F2 uses):
+    10 ->
+    20 ->
+    40 ->
+  Telemetry speed (nl2log --probe) next to F2 speed:
+  Position unit (metres? how you checked):
+  Does F2 follow the Metric / Imperial switch (Setup, Others)?
+
+Cars allowed for this style (smallest, largest):
+Car and seat numbers nl2log reports for the middle car, middle seat:
+
+Per run (file name: what was set, anything odd):
+
+Fits (from nl2fit): friction, drag, for each pair of runs:
+
+Things that did not work or that you had to guess:
