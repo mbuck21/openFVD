@@ -161,7 +161,7 @@ Done on `claude/stage-1` in eighteen planned pieces and four that came up on the
 
 ## Stage 2: reach and measure (finished 2026-11-12)
 
-Done on `claude/stage-2` in 29 pull requests into the integration branch (#47 to #79): the planned pieces, three fixes that came up on the way, one piece added at the end (T1-U11) and the closing documents. Decision records 0011, 0012 and 0013; `STATUS.md` has what was verified.
+Done on `claude/stage-2` in 30 pull requests into the integration branch (#47 to #81): the planned pieces, three fixes that came up on the way, one piece added at the end (T1-U11) and the closing documents. Decision records 0011, 0012 and 0013; `STATUS.md` has what was verified.
 
 | Piece | What it delivered |
 |---|---|
