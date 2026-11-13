@@ -105,8 +105,11 @@ bool anchorChanged(track* t, QString* error)
     return true;
 }
 
-// on_xBox_valueChanged(): the x of startPos that puts the anchor's heartline
-// point at x, with the yaw, pitch and roll as they are. Nothing is recomputed:
+// on_xBox_valueChanged(): the x of startPos that puts the anchor's track
+// point (the centre of the rails, mnode::vPosHeart(), what the X box shows)
+// at x, with the yaw, pitch and roll as they are. startPos itself is the
+// heartline point of the anchor, fHeart from it along the anchor's normal.
+// Nothing is recomputed:
 // startPos only places the track in the scene (the exports do not use it).
 bool applySetPositionX(track* t, const commandTarget&, const commandArgs& args, QString*)
 {
@@ -140,7 +143,7 @@ bool applySetPositionZ(track* t, const commandTarget&, const commandArgs& args, 
 }
 
 // The end of the roll, pitch and yaw slots: startPos again, so that the
-// heartline point at the start stays where the X, Y and Z boxes show it
+// track point at the start stays where the X, Y and Z boxes show it
 // (holdX, holdY, holdZ, in metres). Done once the node has settled, from the
 // roll it holds (the slot used the roll before; the change rates the slot then
 // computed, the rebuild has computed again), then the track is computed.
@@ -364,7 +367,7 @@ bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QS
 void addHoldParams(commandSpec& s)
 {
     s.params << commandParam::floatParam("holdX", "m",
-                                         "The x of the point that stays in place, the heartline at the start, as the anchor's X box shows it.",
+                                         "The x of the point that stays in place, the start of the track (the centre of the rails), as the anchor's X box shows it.",
                                          -9999.99, 9999.99)
              << commandParam::floatParam("holdY", "m",
                                          "The height of that point, as the anchor's Y box shows it.",
@@ -411,34 +414,34 @@ QList<commandSpec> anchorCommands()
 
     {
         commandSpec s = anchorSpec("anchor.setPositionX",
-                                   "Moves the start of the track sideways: sets the x of the heartline point at the start.",
+                                   "Moves the start of the track sideways: sets the x of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
                                    "Move anchor (x)", applySetPositionX);
-        s.params << commandParam::floatParam("x", "m", "The x of the heartline point at the start, as the anchor's X box shows it.",
+        s.params << commandParam::floatParam("x", "m", "The x of the track's start point, as the anchor's X box shows it.",
                                              -9999.99, 9999.99);
         s.example.insert("x", 12.5);
         list << s;
     }
     {
         commandSpec s = anchorSpec("anchor.setPositionY",
-                                   "Raises or lowers the start of the track: sets the height of the heartline point at the start.",
+                                   "Raises or lowers the start of the track: sets the height of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
                                    "Move anchor (y)", applySetPositionY);
-        s.params << commandParam::floatParam("y", "m", "The height of the heartline point at the start, as the anchor's Y box shows it.",
+        s.params << commandParam::floatParam("y", "m", "The height of the track's start point, as the anchor's Y box shows it.",
                                              -9999.99, 9999.99);
         s.example.insert("y", 17.25);
         list << s;
     }
     {
         commandSpec s = anchorSpec("anchor.setPositionZ",
-                                   "Moves the start of the track forward or back: sets the z of the heartline point at the start.",
+                                   "Moves the start of the track forward or back: sets the z of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
                                    "Move anchor (z)", applySetPositionZ);
-        s.params << commandParam::floatParam("z", "m", "The z of the heartline point at the start, as the anchor's Z box shows it.",
+        s.params << commandParam::floatParam("z", "m", "The z of the track's start point, as the anchor's Z box shows it.",
                                              -9999.99, 9999.99);
         s.example.insert("z", -8.75);
         list << s;
     }
     {
         commandSpec s = anchorSpec("anchor.setRoll",
-                                   "Sets the roll (bank) of the track at its start, keeping the heartline point at the start in place.",
+                                   "Sets the roll (bank) of the track at its start, keeping the track's start point (the centre of the rails) in place.",
                                    "Change anchor roll", applySetRoll);
         s.params << commandParam::floatParam("roll", "deg", "The roll at the start (the box keeps it within -180 to 180).",
                                              -1800.0, 1800.0);
@@ -448,7 +451,7 @@ QList<commandSpec> anchorCommands()
     }
     {
         commandSpec s = anchorSpec("anchor.setPitch",
-                                   "Sets the pitch of the track at its start, keeping the heartline point at the start in place.",
+                                   "Sets the pitch of the track at its start, keeping the track's start point (the centre of the rails) in place.",
                                    "Change anchor pitch", applySetPitch);
         s.params << commandParam::floatParam("pitch", "deg", "The pitch at the start; positive points up.",
                                              -90.0, 90.0);
@@ -458,7 +461,7 @@ QList<commandSpec> anchorCommands()
     }
     {
         commandSpec s = anchorSpec("anchor.setYaw",
-                                   "Sets the direction the track starts in (its heading), keeping the heartline point at the start in place.",
+                                   "Sets the direction the track starts in (its heading), keeping the track's start point (the centre of the rails) in place.",
                                    "Change anchor yaw", applySetYaw);
         s.params << commandParam::floatParam("yaw", "deg", "The heading at the start (the box keeps it within -180 to 180).",
                                              -1800.0, 1800.0);

@@ -107,7 +107,7 @@ Judged harmless and so not limited beyond being finite: positions, angles (roll,
 
 | Key | Type | Unit | What |
 |---|---|---|---|
-| `position` | [x, y, z] | m | the stored start point (y is up), `track::startPos`. It is not the point the window's anchor boxes show and the `anchor.setPositionX`, `anchor.setPositionY` and `anchor.setPositionZ` commands take: `track::anchorStartPos()` moves that point by the heartline offset, `fHeart` along the anchor's up direction (given by its pitch and roll, and the yaw). For a level, upright anchor `x` and `z` are the typed ones and `y` is the typed height plus `fHeart`. |
+| `position` | [x, y, z] | m | the stored start point (y is up), `track::startPos`: the heartline point of the anchor. It is not the point the window's anchor boxes show and the `anchor.setPositionX`, `anchor.setPositionY` and `anchor.setPositionZ` commands take, which is the track point (the centre of the rails): `track::anchorStartPos()` moves that point by the heartline offset, `fHeart` along the anchor's up direction (given by its pitch and roll, and the yaw). For a level, upright anchor `x` and `z` are the typed ones and `y` is the typed height plus `fHeart`. |
 | `roll` | number | degrees | start roll |
 | `pitch` | number | degrees | start pitch |
 | `yaw` | number | degrees | start direction |
