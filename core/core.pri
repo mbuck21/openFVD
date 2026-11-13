@@ -39,6 +39,8 @@ SOURCES += \
     $$PWD/track.cpp \
     $$PWD/trackhistory.cpp \
     $$PWD/trackstate.cpp \
+    $$PWD/trainride.cpp \
+    $$PWD/trainspec.cpp \
     $$PWD/traintype.cpp
 
 HEADERS += \
@@ -67,4 +69,6 @@ HEADERS += \
     $$PWD/trackhistory.h \
     $$PWD/tracklistener.h \
     $$PWD/trackstate.h \
+    $$PWD/trainride.h \
+    $$PWD/trainspec.h \
     $$PWD/traintype.h
