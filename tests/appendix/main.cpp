@@ -379,7 +379,8 @@ static void checkDamage()
     cases << damage{"no tracks list", appendix(QByteArray("{\"needs\":[],\"project\":{}}")), false, "no list \"tracks\""};
     cases << damage{"an unknown key at the top", appendix(QByteArray("{\"needs\":[],\"project\":{},\"tracks\":[{}],\"extra\":1}")), false,
                     "unknown key \"extra\""};
-    cases << damage{"appendix version 2", appendix(2, doc, len), false, "saved by a newer version of FVD++ (appendix version 2"};
+    cases << damage{"appendix version 2", appendix(2, doc, len), false,
+                    "they were saved by a newer version of FVD++, appendix version 2, and this version reads version 1"};
     cases << damage{"an unknown key named \"ErrorLog\" at the top",
                     appendix(QByteArray("{\"ErrorLog\":1,\"needs\":[],\"project\":{},\"tracks\":[{}]}")), false,
                     "unknown key \"ErrorLog\""};
@@ -399,8 +400,14 @@ static void checkDamage()
         } else {
             bool none = p.additions.isEmpty();
             for(int t = 0; t < p.tracks.size(); ++t) none = none && p.tracks[t]->additions.isEmpty();
+            check(p.droppedReasons.size() == 1
+                  && result == "Warning: The additions saved after the end of the project could not be read: " + p.droppedReasons[0]
+                               + ". The tracks are loaded without them. The original file is not written over, "
+                                 "so that it keeps its additions: save the project under another name.",
+                  QString("damage, %1: the whole warning is the plain sentence with the reason after a colon").arg(d.name));
             check(result.startsWith("Warning: ") && result.contains(d.says)
-                  && result.contains("Saving will ask for a new file name, so that the original file keeps its additions.")
+                  && result.endsWith("The tracks are loaded without them. The original file is not written over, "
+                                     "so that it keeps its additions: save the project under another name.")
                   && p.tracks.size() == 1 && none && saved(p) == without,
                   QString("damage, %1: the track loads as saved, the additions are dropped: %2").arg(d.name, result));
             check(p.droppedReasons.size() == 1 && p.droppedReasons[0].contains(d.says) && result.contains(p.droppedReasons[0]),

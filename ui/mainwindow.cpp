@@ -256,7 +256,11 @@ void MainWindow::loadProject(QString fileName)
     if(output.startsWith("Warning:") || output.startsWith("Error:")) {
         QMessageBox mb(this);
         mb.setWindowTitle(tr("Application"));
-        mb.setText(output);
+        if(output.startsWith("Warning:") && ui->projectTab->additionsDropped) {
+            mb.setText(output + QString(" The autosave to .bak is off until the project has been saved under a new name."));
+        } else {
+            mb.setText(output);
+        }
         mb.setIcon(QMessageBox::Warning);
         mb.setDefaultButton(QMessageBox::Ok);
         mb.exec();
@@ -308,7 +312,11 @@ void MainWindow::on_actionLoad_triggered()
     if(output.startsWith("Warning:") || output.startsWith("Error:")) {
         QMessageBox mb(this);
         mb.setWindowTitle(tr("Application"));
-        mb.setText(output);
+        if(output.startsWith("Warning:") && ui->projectTab->additionsDropped) {
+            mb.setText(output + QString(" The autosave to .bak is off until the project has been saved under a new name."));
+        } else {
+            mb.setText(output);
+        }
         mb.setIcon(QMessageBox::Warning);
         mb.setDefaultButton(QMessageBox::Ok);
         mb.exec();
