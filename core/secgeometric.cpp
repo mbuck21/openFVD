@@ -77,6 +77,10 @@ int secgeometric::updateSection(int node)
 		float diff = lNodes[0].getPitchChange(); // - normForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -86,6 +90,10 @@ int secgeometric::updateSection(int node)
 		diff = lNodes[0].getYawChange(); // - latForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -118,6 +126,11 @@ int secgeometric::updateSection(int node)
     for(i = node; i < numNodes; i++) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -252,6 +265,10 @@ int secgeometric::updateDistanceSection(int node)
 		float diff = lNodes[0].getPitchChange()/lNodes[0].fVel; // - normForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -261,6 +278,10 @@ int secgeometric::updateDistanceSection(int node)
 		diff = lNodes[0].getYawChange()/lNodes[0].fVel; // - latForce->funcList.at(0)->startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -281,6 +302,11 @@ int secgeometric::updateDistanceSection(int node)
     while(length < end) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -399,12 +425,12 @@ float secgeometric::getMaxArgument()
     return min;
 }
 
-void secgeometric::saveSection(std::fstream& file)
+void secgeometric::saveSection(std::iostream& file)
 {
     file << "GEO";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -419,7 +445,7 @@ void secgeometric::saveSection(std::fstream& file)
     latForce->saveFunction(file);
 }
 
-void secgeometric::loadSection(std::fstream& file)
+void secgeometric::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -437,7 +463,7 @@ void secgeometric::loadSection(std::fstream& file)
 }
 
 
-void secgeometric::legacyLoadSection(std::fstream& file)
+void secgeometric::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -452,43 +478,6 @@ void secgeometric::legacyLoadSection(std::fstream& file)
     rollFunc->legacyLoadFunction(file);
     normForce->legacyLoadFunction(file);
     latForce->legacyLoadFunction(file);
-}
-
-void secgeometric::saveSection(std::stringstream& file)
-{
-    file << "GEO";
-    writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
-
-    int namelength = sName.length();
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&fVel, sizeof(float));
-    writeBytes(&file, (const char*)&iTime, sizeof(int));
-    writeBytes(&file, (const char*)&bOrientation, sizeof(bool));
-    writeBytes(&file, (const char*)&bArgument, sizeof(bool));
-    rollFunc->saveFunction(file);
-    normForce->saveFunction(file);
-    latForce->saveFunction(file);
-}
-
-void secgeometric::loadSection(std::stringstream& file)
-{
-    bSpeed = readBool(&file);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-
-    fVel = readFloat(&file);
-    iTime = readInt(&file);
-    bOrientation = readBool(&file);
-    bArgument = readBool(&file);
-    rollFunc->loadFunction(file);
-    normForce->loadFunction(file);
-    latForce->loadFunction(file);
 }
 
 bool secgeometric::isInFunction(int index, subfunc* func)

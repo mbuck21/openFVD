@@ -45,8 +45,6 @@ TARGET = FVD
 TEMPLATE = app
 
 SOURCES += main.cpp\
-    ui/undohandler.cpp \
-    ui/undoaction.cpp \
     ui/trackhandler.cpp \
     osx/common.cpp \
     renderer/trackmesh.cpp \
@@ -66,6 +64,7 @@ SOURCES += main.cpp\
     ui/mytreewidget.cpp \
     ui/myqdoublespinbox.cpp \
     ui/mainwindow.cpp \
+    ui/ridesheet.cpp \
     ui/importui.cpp \
     ui/graphwidget.cpp \
     ui/graphhandler.cpp \
@@ -73,9 +72,7 @@ SOURCES += main.cpp\
     ui/draglabel.cpp \
     ui/conversionpanel.cpp
 
-HEADERS  += ui/undohandler.h \
-    ui/undoaction.h \
-    ui/trackhandler.h \
+HEADERS  += ui/trackhandler.h \
     osx/common.h \
     renderer/trackmesh.h \
     renderer/mytexture.h \
@@ -94,6 +91,7 @@ HEADERS  += ui/undohandler.h \
     ui/mytreewidget.h \
     ui/myqdoublespinbox.h \
     ui/mainwindow.h \
+    ui/ridesheet.h \
     ui/importui.h \
     ui/graphwidget.h \
     ui/graphhandler.h \

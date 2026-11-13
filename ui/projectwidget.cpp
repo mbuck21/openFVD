@@ -22,15 +22,15 @@
 #include "trackhandler.h"
 #include "exportfuncs.h"
 #include "importui.h"
-#include "undohandler.h"
 #include "nolimitsimporter.h"
 #include "mainwindow.h"
-#include "undoaction.h"
 #include "trackmesh.h"
 #include "trackproperties.h"
 #include "lenassert.h"
 #include "trackwidget.h"
 #include "optionsmenu.h"
+#include "smoothui.h"
+#include "command.h"
 #include <QMenu>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -42,6 +42,18 @@
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
+
+// A track is about to be deleted (or the project replaced): a dialog with a
+// step open on its history is cancelled first, so that no step is left open
+// and no dialog keeps a pointer into the track (the dialogs are modal, so a
+// person cannot get here with one open; this is for every other way).
+static void cancelDialogsFor(TrackProperties* properties, trackHandler* handler)
+{
+    if(properties) properties->cancelFor(handler);
+    if(handler->trackWidgetItem && handler->trackWidgetItem->smoothScreen) {
+        handler->trackWidgetItem->smoothScreen->cancelStep();
+    }
+}
 
 projectWidget::projectWidget(QWidget *parent) :
     QWidget(parent),
@@ -105,6 +117,7 @@ void projectWidget::cleanUp()
 {
     glView->paintMode = false;
     while(trackList.size()) {
+        cancelDialogsFor(properties, trackList[0]);
         delete trackList[0];
         trackList.removeFirst();
     }
@@ -195,8 +208,18 @@ void projectWidget::importNLTrackFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsNlTrack();
+    if(!importer->importAsNlTrack()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 1 Track"), why);
+        return;
+    }
     delete importer;
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importNoLimitsCSV()
@@ -225,10 +248,21 @@ void projectWidget::importNoLimitsCSVFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
 
-    newTrack->trackData->fHeart = 0.0f;
-    newTrack->trackWidgetItem->addSection(nolimitscsv);
-
-    dynamic_cast<secnlcsv *>(newTrack->trackData->lSections[0])->loadTrack(fileName);
+    // the model steps (heartline, the section, the file) are the importer's;
+    // the section's row in the panel comes through the track's notice
+    noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
+    if(!importer->importAsCsv()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import NoLimits 2 CSV"), why);
+        return;
+    }
+    delete importer;
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::importPointList()
@@ -257,8 +291,18 @@ void projectWidget::importPointListFile(QString fileName)
     newEmptyTrack();
     trackHandler* newTrack = trackList.back();
     noLimitsImporter* importer = new noLimitsImporter(newTrack->trackData, fileName);
-    importer->importAsTxt();
+    if(!importer->importAsTxt()) {
+        QString why = importer->error();
+        delete importer;
+        // the project is left as it was before the import: the new track goes again
+        trackList.removeLast();
+        if(selTrack == newTrack) selTrack = NULL;
+        delete newTrack;
+        QMessageBox::warning(gloParent, tr("Import from Pointlist"), why);
+        return;
+    }
     delete importer;
+    newTrack->clearHistory();   // the import is the start of the track's undo list
 }
 
 void projectWidget::appendTracks(QList<trackHandler *> &_list)
@@ -283,6 +327,7 @@ void projectWidget::on_deleteButton_released()
         int i;
         for(i = 0; i < trackList.size(); ++i) {
             if(trackList[i] == selTrack) {
+                cancelDialogsFor(properties, selTrack);
                 trackList.removeAt(i);
                 delete selTrack;
                 break;
@@ -310,14 +355,6 @@ void projectWidget::on_trackListWidget_itemSelectionChanged()
 
         selTrack = trackList[index];
 
-        phantomChanges = true;
-
-        selTrack->mUndoHandler->oldTrackFriction = selTrack->trackData->fFriction;
-        selTrack->mUndoHandler->oldTrackResistance = selTrack->trackData->fResistance;
-        selTrack->mUndoHandler->oldTrackHeartline = selTrack->trackData->fHeart;
-
-        phantomChanges = false;
-
         ui->editButton->setEnabled(true);
         ui->propertyButton->setEnabled(true);
         ui->deleteButton->setEnabled(true);
@@ -332,7 +369,16 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
     case 0:
         return;
     case 1:
-        trackList[index]->trackData->name = item->text(1);
+        // A name typed into the list is a step of its own (track.setName). The
+        // list also shows the name it already has after a load or an undo:
+        // that is no edit.
+        if(item->text(1) != trackList[index]->trackData->name) {
+            QString error;
+            if(!commandRegistry::run(trackList[index]->mHistory, "track.setName", commandTarget::forTrack(index),
+                                     QVariantMap{{"name", item->text(1)}}, &error)) {
+                qWarning("%s", qPrintable(error));
+            }
+        }
         if(trackList[index]->trackWidgetItem) gloParent->renameTab(trackList[index]);
         return;
     case 2:
@@ -341,6 +387,7 @@ void projectWidget::on_trackListWidget_itemChanged(QTreeWidgetItem *item, int co
         } else {
             trackList[index]->trackData->drawTrack = false;
         }
+        trackList[index]->takeOutsideChange();
         return;
     default:
         lenAssert(0 && "unexpected default case");
@@ -439,7 +486,7 @@ void projectWidget::projectTrackLoaded(track* which)
 {
     trackHandler* handler = handlerFor(which);
     handler->listItem->setText(1, handler->trackData->name);
-    handler->mUndoHandler->clearActions();
+    handler->clearHistory();
 }
 
 void projectWidget::projectLoadFinished()
@@ -538,4 +585,9 @@ void projectWidget::keyPressEvent(QKeyEvent* event) {
 void projectWidget::on_propertyButton_released()
 {
     properties->openForTrack(selTrack);
+}
+
+void projectWidget::trackReset(trackHandler* which)
+{
+    properties->trackReset(which);
 }

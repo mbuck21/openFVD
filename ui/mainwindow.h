@@ -64,12 +64,12 @@
 
 
 class exportUi;
-class undoHandler;
 class optionsMenu;
 class conversionPanel;
 class graphWidget;
 class trackHandler;
 class objectExporter;
+class rideSheet;
 
 namespace Ui {
 class MainWindow;
@@ -109,6 +109,11 @@ public:
 
     void updateProjectWidget();
 
+    // the ride sheet panel (ui/ridesheet.*): a track announced a change
+    void rideSheetChanged(track* t);
+    void rideSheetUnitsChanged();
+    rideSheet* mRideSheet;
+
     void keyPressed(QEvent *event);
     void keyReleased(QEvent *event);
 
@@ -127,6 +132,10 @@ signals:
 
 public slots:
     void showCurInfoPanel();
+
+    // The keyboard focus moved (QApplication::focusChanged): a box was left,
+    // so the next value typed anywhere is an undo step of its own.
+    void focusMoved(QWidget* old, QWidget* now);
 
     void on_actionNew_triggered();
 
@@ -180,9 +189,19 @@ private slots:
 
     void on_actionExport_triggered();
 
+    void measureChosen();
+    void findingsToggled(bool on);
+    void rideSheetToggled(bool on);
+    void rideSheetSelectionChanged();
+
 private:
     Ui::MainWindow *ui;
     void useShader(int shader);
+    void buildMeasureMenu();
+    QList<QAction*> mMeasureActions;
+    QAction* mShowFindingsAction;
+    QAction* mRideSheetAction;
+    track* ridePanelTrack();
     bool areYouSure();
 
     bool phantomChanges;

@@ -1,6 +1,6 @@
 # core/ (the model)
 
-The track model and its physics: tracks, sections, nodes, transition functions, the project file, the NoLimits export files, the importers, roll smoothing and the train catalogue. It runs with no window and no OpenGL; the console program in `tests/coreonly/` builds from this folder alone (`docs/testing.md`).
+The track model and its physics: tracks, sections, nodes, transition functions, the project file, the NoLimits export files, the importers, roll smoothing and the train catalogue. It runs with no window and no OpenGL; the console program `fvdcore` (`cli/`, built into `build/dist/` by the main build) builds from this folder alone (`docs/testing.md`).
 
 Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the data model and flows.
 
@@ -8,7 +8,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the data model 
 
 - **Allowed:** the C++ library, glm (through `lenassert.h`), QtCore (`QString`, `QList`, `QVector`, `QElapsedTimer`, the JSON classes) and the value type `QColor`.
 - **Not allowed:** any header from `ui/` or `renderer/`, any QtWidgets header, the globals `gloParent` and `glView`, `options.cfg`.
-- **Enforced by:** `tools/check-core.py` (fails on any of the above) and by the core-only build (`tests/coreonly/`, `docs/testing.md`). Run the check before every commit that touches this folder.
+- **Enforced by:** `tools/check-core.py` (fails on any of the above) and by the core-only build (`tests/coreonly/`, the test that builds `cli/` from `core/` alone; `docs/testing.md`). Run the check before every commit that touches this folder.
 - **How core reaches the windows:** only through the interfaces below. The windows call core; core calls back through an interface the window implements.
 
 ## Interfaces that cross the boundary
@@ -34,6 +34,13 @@ A new call from core to a window means a new virtual function on one of these, i
 - **`noLimitsImporter`** (`nolimitsimporter.*`): takes a `track*`, builds `secbezier` sections with `track::appendSectionFromFile()`.
 - **`fvdmath.*`:** `asinh2016` and `asin2016`, see the traps.
 - **`trainCatalogue`** (`traintype.*`): reads `data/traintypes.json`. QtCore only; `tests/traintypes` builds it alone.
+- **`trackState`** (`trackstate.*`): a track's whole state as a value: its saved bytes plus the live values they do not hold. `captureTrackState()` takes it; `restoreTrackState()` puts it back in place and recomputes the whole track. The base of undo (`docs/decisions/0011-undo-by-snapshot-commands-on-top.md`).
+- **`trackHistory`** (`trackhistory.*`): the undo history of one track. Steps hold the state before and after, a label, the commands that made them and a selection. Scopes (`beginStep`/`endStep`, `historyScope`) make several changes one step or roll them back; `foldOutsideChange()` takes a change that is deliberately not a step into the newest state. Steps with the same merge key within `setMergeWindow()` milliseconds become one step; the window is 0 (no merging) unless the program sets it, which only the windows do. Undo and redo restore states. A restore rebuilds every section, function and transition, so after a rollback, undo or redo every target is found again from its numbers.
+- **`commandRegistry`** (`command.*`, with the group files `commands_anchor.cpp`, `commands_section.cpp`, `commands_transition.cpp`, `commands_track.cpp`, `commands_smoothing.cpp`): every edit as a named command (`transition.setChange`), with typed parameters in model units, a description, a target given by numbers (`commandTarget`), and an apply function. `run()` validates and records one step; `describe()` is the list an agent reads. To add a command:
+  1. In the group's file, write an apply function that makes exactly the model steps and the `updateTrack()` call of the window's slot, without moving float arithmetic.
+  2. Fill a `commandSpec`: name `<object>.<verb><Property>`, description, target kind, undo label, each parameter with a unit (`"none"` if none) and a range if it has one, example arguments, and `merges` for a value typed digit by digit (`exampleTarget` when the default target does not fit). `merges` takes effect only in the windows, where `trackHandler::mergeWindowMs` (one second) sets the history's merge window; in batch mode and in `fvdcore` the window is 0, so every run of a command is its own step. `tests/commands` checks merging on the model (`checkMergedCommands`), and `FVD.exe --batch-merge-check` in the real boxes (`docs/testing.md`).
+  3. Append it to the list that file's function returns; nothing else registers it.
+  4. Run `tools\run-tests.cmd`: `tests/commands` runs it on every baseline project with undo and redo and fails if a description, unit or example is missing. It also runs it at several places of every track and fails unless the track straight after it is the one saving and reopening gives, and the one undo then redo gives (decision record 0013, "running equals reopened"). `run()` takes care of that: after the apply function it puts the transitions through a load's sums (`track::settleTransitions()`) and computes the whole track from the anchor (`track::updateFromAnchor()`). While the apply function runs, `track::bDeferUpdate` is set, so its `updateTrack()` call computes nothing and each command computes the track once; an apply function must therefore not read nodes after its own `updateTrack()`. Set `settlesItself` only when the apply function ends in that state by itself (then nothing is deferred).
 
 ## Where a change lands
 
@@ -56,7 +63,10 @@ A new call from core to a window means a new virtual function on one of these, i
 - **A force section starts from the force the previous section measured.** A change early in the chain moves everything after it (`docs/research/r5-fvd-workflow.md`, A.1; what `forceNormal` is: `docs/research/r3-force-limits.md`).
 - **The `.fvd` file is written back to front.** `writeBytes()` writes each block reversed, so numbers are big-endian and a `vec3` or the colours appear reversed. Use the helpers in `exportfuncs.cpp`, never a raw `fwrite` of a struct in new code.
 - **`QColor` is written as raw bytes** (`track::saveTrack()`, 16 bytes each, guarded by a `Q_STATIC_ASSERT_X`). Do not change `track::display` into anything else without a version bump (issue 18).
-- **`updateTrack()` recomputes from a node onward**, not the whole track, so a recompute after an undo can differ from the stored nodes in the last digits (`docs/testing.md`, "Undo and redo check").
+- **`updateTrack(index, node)` recomputes from a node onward**, not the whole track, and what it leaves can be centimetres (with roll smoothing, metres) away from the track the settings give: it keeps the smoothing ranges and nodes from before the edit. Every command therefore ends with the whole track computed from the anchor (`track::updateFromAnchor()`, decision record 0013), and **`updateFromAnchor()` on a running track must equal a fresh computation from the same settings** (a load). A new kind of section or recompute keeps that: nothing a section computes may depend on values left from its previous computation (overwrite a kept node as an appended one starts, take smoothing ranges after the nodes are computed), and the "running equals reopened" test in `tests/commands` is the judge.
+- **A Bezier section (NoLimits 1 import) is not repeatable:** it reads `bezier_t` fields a load leaves unset (`fvdRoll`, `ptf`, `length`, `numNodes`), so its recompute and a reopen of it differ from run to run (usually under 2 mm, once 5.9 m). `tests/commands` (`checkImportedReopened()`) measures it but checks only the NoLimits 2 CSV track; issue 63, item 5.
+- **A load is not the identity on every saved value** (issue 63, item 7): reading a function back links each transition's start and end again, which can move an end by a last digit, and one pass of those sums is not always stable (an end can move again on the next pass); `track::settleTransitions()` makes the same sums on the running track, repeated until nothing moves, so that a reopen moves nothing more (found on the owner's project: a millimetre at the end of the track). A load also takes the smoothing entries' names and ranges from the track.
+- **A new field of the model must be saved, declared a live extra of the state (`trackState`), or derived from the others**, or undo loses it (decision record 0011).
 - **Notices are synchronous.** A listener runs inside the call that causes it (for example `updateTrack()`), before that call returns.
 
 ## Check a change

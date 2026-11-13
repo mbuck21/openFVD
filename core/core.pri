@@ -10,13 +10,23 @@
 INCLUDEPATH += $$PWD
 
 SOURCES += \
+    $$PWD/command.cpp \
+    $$PWD/commands_anchor.cpp \
+    $$PWD/commands_section.cpp \
+    $$PWD/commands_smoothing.cpp \
+    $$PWD/commands_track.cpp \
+    $$PWD/commands_transition.cpp \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
+    $$PWD/finding.cpp \
     $$PWD/function.cpp \
     $$PWD/fvdmath.cpp \
+    $$PWD/measure.cpp \
     $$PWD/mnode.cpp \
     $$PWD/nolimitsimporter.cpp \
     $$PWD/projectfile.cpp \
+    $$PWD/projecttext.cpp \
+    $$PWD/ridesummary.cpp \
     $$PWD/secbezier.cpp \
     $$PWD/seccurved.cpp \
     $$PWD/secforced.cpp \
@@ -27,16 +37,23 @@ SOURCES += \
     $$PWD/smoothhandler.cpp \
     $$PWD/subfunction.cpp \
     $$PWD/track.cpp \
+    $$PWD/trackhistory.cpp \
+    $$PWD/trackstate.cpp \
     $$PWD/traintype.cpp
 
 HEADERS += \
+    $$PWD/command.h \
     $$PWD/elementfile.h \
     $$PWD/exportfuncs.h \
+    $$PWD/finding.h \
     $$PWD/function.h \
     $$PWD/fvdmath.h \
+    $$PWD/measure.h \
     $$PWD/mnode.h \
     $$PWD/nolimitsimporter.h \
     $$PWD/projectfile.h \
+    $$PWD/projecttext.h \
+    $$PWD/ridesummary.h \
     $$PWD/secbezier.h \
     $$PWD/seccurved.h \
     $$PWD/secforced.h \
@@ -47,5 +64,7 @@ HEADERS += \
     $$PWD/smoothhandler.h \
     $$PWD/subfunction.h \
     $$PWD/track.h \
+    $$PWD/trackhistory.h \
     $$PWD/tracklistener.h \
+    $$PWD/trackstate.h \
     $$PWD/traintype.h

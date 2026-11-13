@@ -71,10 +71,14 @@ public:
     void setTo(int _arg);
     void setLength(int _arg);
     void setIterations(int _arg);
+    // sName and active are public fields; these also tell the listener, so
+    // that a change made outside the smoothing dialog shows in its list
+    void setName(const QString& _name);
+    void setActive(bool _on);
 
-    void saveSmooth(std::fstream& file);
-    void loadSmooth(std::fstream& file);
-    void legacyLoadSmooth(std::fstream& file);
+    void saveSmooth(std::iostream& file);
+    void loadSmooth(std::iostream& file);
+    void legacyLoadSmooth(std::iostream& file);
 
     bool active;
 

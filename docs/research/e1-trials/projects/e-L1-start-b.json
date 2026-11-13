@@ -1,0 +1,536 @@
+{
+ "format": "fvd-project-text",
+ "formatVersion": 1,
+ "binaryVersion": "v0.77",
+ "groundTexture": ":/background.png",
+ "tracks": [
+  {
+   "name": "e1 track",
+   "colors": {
+    "activeSection": {
+     "alpha": 255,
+     "color": "#ff3333"
+    },
+    "default": {
+     "alpha": 255,
+     "color": "#141482"
+    },
+    "transition": {
+     "alpha": 255,
+     "color": "#33ff33"
+    }
+   },
+   "anchor": {
+    "position": [
+     0,
+     46.0,
+     0
+    ],
+    "roll": 0.0,
+    "pitch": 0.0,
+    "yaw": 0.0,
+    "speed": 5.0,
+    "normalForce": 1,
+    "lateralForce": 0
+   },
+   "heartline": 1.1,
+   "friction": 0.03,
+   "resistance": 2e-05,
+   "drawTrack": true,
+   "drawHeartline": 0,
+   "style": "generic",
+   "wireframe": false,
+   "povPosition": [
+    0,
+    0
+   ],
+   "sections": [
+    {
+     "type": "force",
+     "name": "first drop",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "cubic",
+       "from": 0.0,
+       "to": 0.6,
+       "change": -1.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 0.6,
+       "to": 1.7999999999999998,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 1.7999999999999998,
+       "to": 2.5999999999999996,
+       "change": 3.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 2.5999999999999996,
+       "to": 3.1999999999999997,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 3.1999999999999997,
+       "to": 4.0,
+       "change": -2.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 4.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 4.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "force",
+     "name": "hill pull-up",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "cubic",
+       "from": 0.0,
+       "to": 1.0,
+       "change": 2.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 1.0,
+       "to": 1.4,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 1.4,
+       "to": 1.9,
+       "change": -3.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.9,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.9,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "force",
+     "name": "hill crest",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 2.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 2.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 2.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "force",
+     "name": "hill drop",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "cubic",
+       "from": 0.0,
+       "to": 0.5,
+       "change": 3.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 0.5,
+       "to": 0.9,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 0.9,
+       "to": 1.9,
+       "change": -2.5,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.9,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.9,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "force",
+     "name": "turnaround",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "cubic",
+       "from": 0.0,
+       "to": 1.6,
+       "change": 1.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 1.6,
+       "to": 3.1,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 3.1,
+       "to": 4.7,
+       "change": -1.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 4.7,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "cubic",
+       "from": 0.0,
+       "to": 0.8,
+       "change": 75.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "cubic",
+       "from": 0.8,
+       "to": 1.6,
+       "change": -75.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "quartic",
+       "from": 1.6,
+       "to": 3.1,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "cubic",
+       "from": 3.1,
+       "to": 3.9000000000000004,
+       "change": -75.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      },
+      {
+       "shape": "cubic",
+       "from": 3.9000000000000004,
+       "to": 4.7,
+       "change": 75.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": 0.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "straight",
+     "name": "run back",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 60.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    },
+    {
+     "type": "force",
+     "name": "connector",
+     "argument": "time",
+     "orientation": "quaternion",
+     "speedMode": "physics",
+     "speed": 10.0,
+     "normalForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.5,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "quartic",
+       "from": 1.5,
+       "to": 3.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      }
+     ],
+     "lateralForce": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 1.5,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      },
+      {
+       "shape": "quartic",
+       "from": 1.5,
+       "to": 3.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": false,
+       "shapeParameter": -10.0
+      }
+     ],
+     "roll": [
+      {
+       "shape": "quartic",
+       "from": 0.0,
+       "to": 3.0,
+       "change": 0.0,
+       "center": 0,
+       "tension": 0,
+       "locked": true,
+       "shapeParameter": -10.0
+      }
+     ],
+     "smoothing": {
+      "active": false,
+      "iterations": 1,
+      "length": 400
+     }
+    }
+   ],
+   "smoothing": {
+    "custom": [],
+    "wholeTrack": {
+     "active": false,
+     "iterations": 1,
+     "length": 400
+    }
+   }
+  }
+ ]
+}

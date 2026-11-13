@@ -29,12 +29,16 @@
 #include <sstream>
 #include "trackwidget.h"
 #include <QTimer>
-#include "undohandler.h"
-#include "undoaction.h"
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QCloseEvent>
 #include "objectexporter.h"
+#include "measure.h"
+#include "ridesheet.h"
+#include <QTreeWidget>
+#include <QApplication>
+#include "projectwidget.h"
+#include "trackhandler.h"
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -45,6 +49,7 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     gloParent = this;
     project = NULL;
+    mRideSheet = NULL;      // the options (created next) may tell the ride sheet before it exists
 
     // load options
     mOptions = new optionsMenu(this);
@@ -65,6 +70,27 @@ MainWindow::MainWindow(QWidget *parent) :
     glView->setMouseTracking(true);
     glView->setFocusPolicy(Qt::StrongFocus);
     ui->splitter->addWidget(glView);
+
+    // the ride sheet: a third pane at the right of the 3D view
+    mRideSheetAction = NULL;
+    mRideSheet = new rideSheet(ui->splitter);
+    ui->splitter->addWidget(mRideSheet);
+    // The 3D view takes the room: it alone stretches, it cannot be dragged shut,
+    // and it starts wide with the sheet at about 230 pixels. Without this the
+    // splitter gave the sheet everything and opened with the 3D view at width 0.
+    {
+        const int glIndex = ui->splitter->indexOf(glView);
+        const int sheetIndex = ui->splitter->indexOf(mRideSheet);
+        QList<int> sizes;
+        for(int i = 0; i < ui->splitter->count(); ++i) {
+            ui->splitter->setStretchFactor(i, i == glIndex ? 1 : 0);
+            sizes << (i == glIndex ? 1000 : (i == sheetIndex ? 230 : 250));
+        }
+        ui->splitter->setCollapsible(glIndex, false);
+        mRideSheet->setMinimumWidth(220);   // its labels wrap badly below this
+        glView->setMinimumWidth(200);       // "not collapsible" stops at the minimum, which was 0
+        ui->splitter->setSizes(sizes);
+    }
 
     // set up all sub widgets etc
     project = ui->projectTab;
@@ -88,6 +114,20 @@ MainWindow::MainWindow(QWidget *parent) :
     }
     if(glView->legacyMode) {
         delete ui->menuView;
+    } else {
+        buildMeasureMenu();
+        ui->menuView->addSeparator();
+        mRideSheetAction = ui->menuView->addAction(tr("Ride sheet"));
+        mRideSheetAction->setObjectName("actionRideSheet");
+        mRideSheetAction->setCheckable(true);
+        mRideSheetAction->setChecked(true);
+        mRideSheetAction->setStatusTip(tr("Show the key numbers of the ride beside the 3D view"));
+        connect(mRideSheetAction, SIGNAL(toggled(bool)), this, SLOT(rideSheetToggled(bool)));
+    }
+    connect(ui->tabChooser, SIGNAL(currentChanged(int)), this, SLOT(rideSheetSelectionChanged()));
+    QTreeWidget* trackListWidget = ui->projectTab->findChild<QTreeWidget*>("trackListWidget");
+    if(trackListWidget != NULL) {
+        connect(trackListWidget, SIGNAL(itemSelectionChanged()), this, SLOT(rideSheetSelectionChanged()));
     }
 
     phantomChanges = false;
@@ -137,6 +177,19 @@ MainWindow::MainWindow(QWidget *parent) :
     autosave->start(1000*60);
 
     connect(this, SIGNAL(emitMessage(QString,int)), ui->statusBar, SLOT(showMessage(QString,int)));
+
+    // a run of digits typed into one box is one undo step until the box loses
+    // focus (decision record 0011, point 7)
+    connect(qApp, SIGNAL(focusChanged(QWidget*,QWidget*)), this, SLOT(focusMoved(QWidget*,QWidget*)));
+}
+
+void MainWindow::focusMoved(QWidget* old, QWidget* now)
+{
+    Q_UNUSED(now);
+    if(old == NULL || project == NULL) return;
+    for(int i = 0; i < project->trackList.size(); ++i) {
+        project->trackList[i]->endMergeRun();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -164,6 +217,15 @@ track* MainWindow::curTrack()
 QList<trackHandler*> MainWindow::getTrackList()
 {
     return ui->projectTab->trackList;
+}
+
+// The export dialog, if it is open, takes the tracks and sections there are
+// now (a section range it shows may have gone with an undo).
+void MainWindow::updateBoxes()
+{
+    if(exportScreen->isVisible()) {
+        exportScreen->updateBoxes();
+    }
 }
 
 void MainWindow::on_actionExportAs_triggered()
@@ -342,7 +404,7 @@ void MainWindow::on_actionUndo_triggered()
     } else {
         mWidget = (trackWidget*)ui->tabChooser->currentWidget();
     }
-    mWidget->inTrack->mUndoHandler->doUndo();
+    mWidget->inTrack->undo();
     setUndoButtons();
 }
 
@@ -360,7 +422,7 @@ void MainWindow::on_actionRedo_triggered()
     } else {
         mWidget = (trackWidget*)ui->tabChooser->currentWidget();
     }
-    mWidget->inTrack->mUndoHandler->doRedo();
+    mWidget->inTrack->redo();
     setUndoButtons();
 }
 
@@ -448,6 +510,105 @@ void MainWindow::useShader(int shader)
         ui->actionUseShader5->setChecked(true);
         break;
     }
+    // the old modes and "by measure" exclude each other
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(false);
+    }
+}
+
+// The "Colour by measure" submenu and "Show findings" in the Visualize menu, made
+// from the registry so a new measure shows up without a change here.
+void MainWindow::buildMeasureMenu()
+{
+    ui->menuView->addSeparator();
+    QMenu* sub = ui->menuView->addMenu(tr("Colour by measure"));
+    const QVector<measureDef>& defs = measureRegistry::all();
+    for(int i = 0; i < defs.size(); ++i) {
+        QString text = defs[i].name;
+        if(!defs[i].unit.isEmpty()) text += " (" + defs[i].unit + ")";
+        QAction* a = sub->addAction(text);
+        a->setObjectName("actionMeasure_" + defs[i].id);
+        a->setCheckable(true);
+        a->setStatusTip(defs[i].description);
+        a->setData(defs[i].id);
+        connect(a, SIGNAL(triggered()), this, SLOT(measureChosen()));
+        mMeasureActions.append(a);
+    }
+    mShowFindingsAction = ui->menuView->addAction(tr("Show findings"));
+    mShowFindingsAction->setObjectName("actionShowFindings");
+    mShowFindingsAction->setCheckable(true);
+    mShowFindingsAction->setStatusTip(tr("Tint the stretches of track where a check finds a problem"));
+    connect(mShowFindingsAction, SIGNAL(toggled(bool)), this, SLOT(findingsToggled(bool)));
+}
+
+void MainWindow::measureChosen()
+{
+    QAction* chosen = qobject_cast<QAction*>(sender());
+    if(chosen == NULL) return;
+    const measureDef* def = measureRegistry::find(chosen->data().toString());
+    if(def == NULL) return;
+
+    ui->actionUseShader0->setChecked(false);
+    ui->actionUseShader1->setChecked(false);
+    ui->actionUseShader2->setChecked(false);
+    ui->actionUseShader3->setChecked(false);
+    ui->actionUseShader4->setChecked(false);
+    ui->actionUseShader5->setChecked(false);
+    for(int i = 0; i < mMeasureActions.size(); ++i) {
+        mMeasureActions[i]->setChecked(mMeasureActions[i] == chosen);
+    }
+
+    glView->curMeasureId = def->id;
+    glView->curTrackShader = 6;
+    glView->refreshTrackColours();
+
+    // the legend: what the ramp from blue to red stands for
+    showMessage(tr("%1: blue = %2, red = %3 %4 (magenta: not a number)")
+                .arg(def->name).arg(def->displayMin).arg(def->displayMax).arg(def->unit));
+}
+
+void MainWindow::findingsToggled(bool on)
+{
+    glView->showFindings = on;
+    glView->refreshTrackColours();
+}
+
+void MainWindow::rideSheetToggled(bool on)
+{
+    mRideSheet->setVisible(on);
+}
+
+// The track the ride sheet shows: the current tab's track, or on the project
+// tab the track selected in the list.
+track* MainWindow::ridePanelTrack()
+{
+    if(ui->tabChooser->currentIndex() == 0) {
+        if(ui->projectTab->selTrack) {
+            return ui->projectTab->selTrack->trackData;
+        }
+        return NULL;
+    }
+    return curTrack();
+}
+
+void MainWindow::rideSheetSelectionChanged()
+{
+    mRideSheet->setTrack(ridePanelTrack());
+}
+
+void MainWindow::rideSheetChanged(track* t)
+{
+    if(mRideSheet != NULL) {
+        mRideSheet->trackChanged(t);    // marks the sheet out of date if t is the track it shows
+    }
+}
+
+// The unit setting changed: nothing pushes that, so the options dialog calls this.
+void MainWindow::rideSheetUnitsChanged()
+{
+    if(mRideSheet != NULL) {
+        mRideSheet->setTrack(ridePanelTrack());
+    }
 }
 
 void MainWindow::showCurInfoPanel()
@@ -530,6 +691,10 @@ void MainWindow::updateInfoPanel(mnode* lastnode)
 
 void MainWindow::setUndoButtons()
 {
+    // the entries name the step they undo or redo ("Undo Change start speed")
+    ui->actionRedo->setText(QString("Redo"));
+    ui->actionUndo->setText(QString("Undo"));
+
     trackWidget* mWidget;
     if(ui->tabChooser->currentIndex() == 0) {
         if(ui->projectTab->selTrack) {
@@ -549,17 +714,12 @@ void MainWindow::setUndoButtons()
         return;
     }
 
-    if(mWidget->inTrack->mUndoHandler->stackIndex > 0) {
-        ui->actionRedo->setEnabled(true);
-    } else {
-        ui->actionRedo->setEnabled(false);
-    }
-
-    if(mWidget->inTrack->mUndoHandler->stackIndex != -1 && mWidget->inTrack->mUndoHandler->stackIndex != mWidget->inTrack->mUndoHandler->lActions.size()) {
-        ui->actionUndo->setEnabled(true);
-    } else {
-        ui->actionUndo->setEnabled(false);
-    }
+    // read from the track's history, whoever changed it
+    trackHistory* history = mWidget->inTrack->mHistory;
+    ui->actionRedo->setEnabled(history->canRedo());
+    ui->actionUndo->setEnabled(history->canUndo());
+    if(history->canRedo()) ui->actionRedo->setText(QString("Redo ") + history->redoLabel());
+    if(history->canUndo()) ui->actionUndo->setText(QString("Undo ") + history->undoLabel());
 }
 
 void MainWindow::displayStatusMessage(QString message)
@@ -589,6 +749,11 @@ QString MainWindow::getCurrentFileName() {
 
 void MainWindow::openTab(trackHandler* _track)
 {
+    // A track opened with nothing to undo starts its undo list from what it
+    // is now, whatever reached it without a step.
+    if(_track->mHistory->steps().isEmpty()) {
+        _track->clearHistory();
+    }
     this->setUpdatesEnabled(false);
     _track->trackWidgetItem->on_sectionListWidget_itemSelectionChanged();
     if(_track->tabId == -1) {

@@ -158,10 +158,22 @@ void smoothHandler::setIterations(int _arg)
     changed(fieldIterations);
 }
 
-void smoothHandler::saveSmooth(std::fstream& file)
+void smoothHandler::setName(const QString& _name)
+{
+    sName = _name;
+    changed(fieldName);
+}
+
+void smoothHandler::setActive(bool _on)
+{
+    active = _on;
+    changed(fieldActive);
+}
+
+void smoothHandler::saveSmooth(std::iostream& file)
 {
     QString name = sName;
-    int namelength = name.length();
+    int namelength = name.toUtf8().length(); // bytes, as written below
     std::string stdName = name.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -174,7 +186,7 @@ void smoothHandler::saveSmooth(std::fstream& file)
     writeBytes(&file, (const char*)&active, sizeof(bool));
 }
 
-void smoothHandler::loadSmooth(std::fstream &file)
+void smoothHandler::loadSmooth(std::iostream &file)
 {
     int namelength = readInt(&file);
     QString name = QString(readString(&file, namelength).c_str());
@@ -191,7 +203,7 @@ void smoothHandler::loadSmooth(std::fstream &file)
     update();
 }
 
-void smoothHandler::legacyLoadSmooth(std::fstream &file)
+void smoothHandler::legacyLoadSmooth(std::iostream &file)
 {
     int namelength = readInt(&file);
     QString name = QString(readString(&file, namelength).c_str());

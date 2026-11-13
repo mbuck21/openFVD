@@ -1,0 +1,519 @@
+/*
+#    FVD++, an advanced coaster design tool for NoLimits
+#    Copyright (C) 2012-2015, Stephan "Lenny" Alt <alt.stephan@web.de>
+#    This file: Copyright (C) 2026, the contributors of github.com/mbuck21/openFVD
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// The anchor group of commands (core/command.h): the values of the anchor,
+// the start of the track, that the anchor boxes of the track panel show:
+// position x, y and z, roll, pitch, yaw, speed, normal force, lateral force,
+// pitch change rate and yaw change rate.
+//
+// Each apply function makes exactly the model steps of the panel's slot
+// (ui/trackwidget.cpp), in the same order and with the same float arithmetic.
+// The slot works out the value in model units (it divides by the length or
+// speed factor of the chosen units) and passes it as a double, the type its
+// own expression has; the command assigns it to the float as the slot did.
+//
+// The position is three commands, not one with x, y and z: each box's slot
+// sets one coordinate of startPos from the angles as they are, and leaves the
+// other two alone (they need not equal what the other boxes show, so setting
+// all three would change them).
+//
+// An edit that changes the anchor node ends in anchorChanged() or
+// holdAnchorPoint(): the slot's steps fix the values a save writes (roll,
+// pitch, yaw, speed, the forces), track::settleAnchor() builds the node from
+// them exactly as a load does, the roll, pitch and yaw edits then place
+// startPos from the roll the node holds, and track::updateFromAnchor()
+// computes the track from the node, the first section included. The running
+// track is then what saving and reopening gives.
+//
+// The pitch and yaw rate edits turn the typed rate into the two start forces
+// (forcesFromRates(), with g = 9.80665, as the 2016 program does). A file holds
+// the forces, not the rates, and a load computes the rates back from the
+// forces with g = 10 (track::updateAnchorGeometrics()), so a typed rate comes
+// back multiplied by 10/9.80665 = 1.0197, here at once as after reopening.
+// Left as the 2016 program has it; making the two agree is the owner's call.
+// A rate edit changes only the rate it names (rateForces()): the rate not
+// typed keeps its share of the forces as they are, so it comes back as it was
+// and does not grow with every keystroke.
+
+#include "command.h"
+#include "track.h"
+
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <type_traits>
+
+// The slots this file's arithmetic comes from (ui/trackwidget.cpp) called the
+// C library's cos, sin, fabs and sqrt, which take and return a double, also
+// for a float argument: no float overload was in scope there. The same calls
+// here must be those too, or the last bits change. So no "using namespace
+// std" in this file; the build stops here if a header brings the float
+// overloads into scope.
+static_assert(std::is_same<decltype(cos(1.0f)), double>::value, "cos(float) must be the double cos, as in the anchor slots");
+static_assert(std::is_same<decltype(sin(1.0f)), double>::value, "sin(float) must be the double sin, as in the anchor slots");
+static_assert(std::is_same<decltype(fabs(1.0f)), double>::value, "fabs(float) must be the double fabs, as in the anchor slots");
+static_assert(std::is_same<decltype(sqrt(1.0f)), double>::value, "sqrt(float) must be the double sqrt, as in the anchor slots");
+
+namespace {
+
+double arg(const commandArgs& args, const char* name)
+{
+    return args.value(QString(name)).toDouble();
+}
+
+// After an edit has set the values a save writes for the anchor (the slot's
+// steps), the node is built from them as a load builds it, until the roll it
+// is built from is the roll it holds (track::settleAnchor(): setRoll() derives
+// fRoll again, so 15 can become 15.0000019, then 15.0000029). A save then
+// writes the values the node was built from, and a load builds the same node,
+// whatever order the anchor's values were edited in. A roll that alternates
+// between two neighbouring floats is moved to the nearest one a rebuild keeps.
+// False, with a message, when none is found (tests/commands checks that every
+// baseline track and a sweep of rolls settle).
+bool settleAnchor(track* t, QString* error)
+{
+    if(t->settleAnchor(8) < 0) {
+        if(error) *error = QString("the anchor's roll (%1 deg) does not settle: no nearby roll is kept when the anchor is built as a load builds it").arg(t->anchorNode->fRoll, 0, 'g', 9);
+        return false;
+    }
+    return true;
+}
+
+// The end of every edit that changes the anchor node: settled, then the first
+// section starts from it and the track is computed, so the running track is
+// the one saving and reopening gives.
+bool anchorChanged(track* t, QString* error)
+{
+    if(!settleAnchor(t, error)) return false;
+    t->updateFromAnchor();
+    return true;
+}
+
+// on_xBox_valueChanged(): the x of startPos that puts the anchor's track
+// point (the centre of the rails, mnode::vPosHeart(), what the X box shows)
+// at x, with the yaw, pitch and roll as they are. startPos itself is the
+// heartline point of the anchor, fHeart from it along the anchor's normal.
+// Nothing is recomputed:
+// startPos only places the track in the scene (the exports do not use it).
+bool applySetPositionX(track* t, const commandTarget&, const commandArgs& args, QString*)
+{
+    float a = t->startYaw * F_PI/180.f;
+    float b = t->startPitch * F_PI/180.f;
+    float y = t->anchorNode->fRoll * F_PI/180.f;
+    t->startPos.x = track::anchorStartPos(a, b, y, t->fHeart, arg(args, "x"), 0., 0.).x;
+    return true;
+}
+
+// on_yBox_valueChanged(); the slot also rebuilds the mesh (window side).
+bool applySetPositionY(track* t, const commandTarget&, const commandArgs& args, QString*)
+{
+    float a = t->startYaw * F_PI/180.f;
+    float b = t->startPitch * F_PI/180.f;
+    float y = t->anchorNode->fRoll * F_PI/180.f;
+    t->startPos.y = track::anchorStartPos(a, b, y, t->fHeart, 0., arg(args, "y"), 0.).y;
+
+    t->hasChanged = true;
+    return true;
+}
+
+// on_zBox_valueChanged()
+bool applySetPositionZ(track* t, const commandTarget&, const commandArgs& args, QString*)
+{
+    float a = t->startYaw * F_PI/180.f;
+    float b = t->startPitch * F_PI/180.f;
+    float y = t->anchorNode->fRoll * F_PI/180.f;
+    t->startPos.z = track::anchorStartPos(a, b, y, t->fHeart, 0., 0., arg(args, "z")).z;
+    return true;
+}
+
+// The end of the roll, pitch and yaw slots: startPos again, so that the
+// track point at the start stays where the X, Y and Z boxes show it
+// (holdX, holdY, holdZ, in metres). Done once the node has settled, from the
+// roll it holds (the slot used the roll before; the change rates the slot then
+// computed, the rebuild has computed again), then the track is computed.
+bool holdAnchorPoint(track* t, const commandArgs& args, QString* error)
+{
+    if(!settleAnchor(t, error)) return false;
+
+    float a = t->startYaw * F_PI/180.f;
+    float b = t->startPitch * F_PI/180.f;
+    float y = t->anchorNode->fRoll * F_PI/180.f;
+    t->startPos = track::anchorStartPos(a, b, y, t->fHeart, arg(args, "holdX"), arg(args, "holdY"), arg(args, "holdZ"));
+
+    t->updateFromAnchor();
+    return true;
+}
+
+// on_rBox_valueChanged(), after the box has brought the value into -180..180.
+bool applySetRoll(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    double roll = arg(args, "roll");
+    t->anchorNode->setRoll(roll-t->anchorNode->fRoll);
+    return holdAnchorPoint(t, args, error);
+}
+
+// on_pBox_valueChanged()
+bool applySetPitch(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    double pitch = arg(args, "pitch");
+    t->startPitch = pitch;
+    t->anchorNode->changePitch(pitch-t->anchorNode->getPitch(), fabs(t->anchorNode->fRoll) >= 90.f);
+    return holdAnchorPoint(t, args, error);
+}
+
+// on_jBox_valueChanged(), after the box has brought the value into -180..180.
+bool applySetYaw(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    double yaw = arg(args, "yaw");
+    t->startYaw = yaw;
+    return holdAnchorPoint(t, args, error);
+}
+
+// on_anchorSpeedBox_valueChanged()
+bool applySetSpeed(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    t->anchorNode->fVel = arg(args, "speed");
+    t->anchorNode->fEnergy = 0.5*t->anchorNode->fVel*t->anchorNode->fVel + F_G*t->anchorNode->fPosHearty(0.9*t->fHeart);
+
+    t->updateAnchorGeometrics();
+    return anchorChanged(t, error);
+}
+
+// on_normalBox_valueChanged()
+bool applySetNormalForce(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    t->anchorNode->forceNormal = arg(args, "force");
+
+    t->updateAnchorGeometrics();
+    return anchorChanged(t, error);
+}
+
+// on_lateralBox_valueChanged()
+bool applySetLateralForce(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    t->anchorNode->forceLateral = arg(args, "force");
+
+    t->updateAnchorGeometrics();
+    return anchorChanged(t, error);
+}
+
+// The normal and lateral force at the anchor from its pitch and yaw change
+// rates and its speed: the middle of on_pitchChangeBox_valueChanged() and
+// on_yawChangeBox_valueChanged(), which each had a copy.
+void forcesFromRates(mnode* anchor)
+{
+    float temp = cos(fabs(anchor->getPitch())*F_PI/180.f);
+    float forceAngle = sqrt(temp*temp*anchor->fYawFromLast*anchor->fYawFromLast + anchor->fPitchFromLast*anchor->fPitchFromLast);//deltaAngle;
+    float dirFromLast = glm::atan(anchor->fYawFromLast, anchor->fPitchFromLast) - TO_RAD(anchor->fRoll);
+
+    glm::vec3 forceVec;
+    if(fabs(forceAngle) < std::numeric_limits<float>::epsilon()) {
+        forceVec = glm::vec3(0.f, 1.f, 0.f);
+    } else {
+        forceVec = glm::vec3(0.f, 1.f, 0.f) + (float)((anchor->fVel*anchor->fVel) / (9.80665 * anchor->fVel/forceAngle * 0.18f/F_PI)) * glm::normalize(glm::vec3(glm::rotate(dirFromLast, -anchor->vDir)*glm::vec4(-anchor->vNorm, 0.f)));
+    }
+    anchor->forceNormal = - glm::dot(forceVec, glm::normalize(anchor->vNorm));
+    anchor->forceLateral = - glm::dot(forceVec, glm::normalize(anchor->vLat));
+}
+
+// The start forces after a rate edit that changes only the rate it names.
+//
+// A load turns the two forces into the two rates along the start's pitch and
+// yaw axes (track::updateAnchorGeometrics(): pitchVec = cos(roll) vNorm -
+// sin(roll) vLat, yawVec = sin(roll) vNorm + cos(roll) vLat), so in force
+// terms the pitch rate is the share u = c*normal - s*lateral and the yaw rate
+// the share w = s*normal + c*lateral (c, s: cosine and sine of the roll, as
+// the load computes them). The typed rate's share is that of the forces the
+// 2016 program makes from it, with the other rate taken as zero
+// (forcesFromRates(), g = 9.80665); the other rate's share is read from the
+// forces as they are and put back unchanged, so a rebuild gives that rate
+// back as it was. The 2016 program made the forces from both rates at once,
+// the other one read from the node, which (that rate having come from the
+// forces with g = 10) multiplied it by 1.0197 on every keystroke.
+//
+// At roll 0 (c = 1, s = 0) the typed rate's force is the 2016 one bit for bit
+// and, unless the search below moves it, the other force is not touched.
+// Otherwise the kept share is read again from the new forces until it reads
+// back as it was put in (at most 8 passes). A second run with the same value
+// then starts from forces that already give the other rate as it is, and
+// gives the same forces.
+void rateForces(track* t, bool pitchTyped, double rate)
+{
+    mnode* anchor = t->anchorNode;
+    const float target = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+    // std::cos and std::sin of a float on purpose, not the double C functions
+    // the static_asserts above are about: F_PI is a float, so this is the
+    // float cos and sin that track::updateAnchorGeometrics() (track.cpp, which
+    // has "using namespace std") calls on the same expression when a load
+    // turns the forces into rates. c and s must be the load's.
+    const float c = (float)std::cos(anchor->fRoll*F_PI/180);
+    const float s = (float)std::sin(anchor->fRoll*F_PI/180);
+
+    mnode typed = *anchor;
+    typed.fPitchFromLast = pitchTyped ? rate/F_HZ : 0.f;
+    typed.fYawFromLast = pitchTyped ? 0.f : rate/F_HZ;
+    forcesFromRates(&typed);
+    const float typedShare = pitchTyped ? c*typed.forceNormal - s*typed.forceLateral
+                                        : s*typed.forceNormal + c*typed.forceLateral;
+
+    float kept = pitchTyped ? s*anchor->forceNormal + c*anchor->forceLateral
+                            : c*anchor->forceNormal - s*anchor->forceLateral;
+    for(int pass = 0; pass < 8; ++pass) {
+        const float u = pitchTyped ? typedShare : kept;
+        const float w = pitchTyped ? kept : typedShare;
+        anchor->forceNormal = c*u + s*w;
+        anchor->forceLateral = c*w - s*u;
+        float again = pitchTyped ? s*anchor->forceNormal + c*anchor->forceLateral
+                                 : c*anchor->forceNormal - s*anchor->forceLateral;
+        if(memcmp(&again, &kept, sizeof(float)) == 0) break;
+        kept = again;
+    }
+
+    // The forces are floats near 1 g, and a small rate is a small difference
+    // of them, so the kept share as it reads back can give the other rate a
+    // few float steps away. Of the kept shares within 16 float steps, the
+    // first (nearest) that gives the other rate back bit for bit is taken, as
+    // the load computes it (updateAnchorGeometrics() on this node gives what
+    // the rebuild will: the edit changes neither its orientation nor its
+    // speed); if none does, the one that gives it back nearest.
+    float bestNormal = anchor->forceNormal, bestLateral = anchor->forceLateral;
+    float bestError = std::numeric_limits<float>::infinity();
+    for(int k = 0; k <= 32; ++k) {
+        const int steps = (k+1)/2;
+        float share = kept;
+        for(int i = 0; i < steps; ++i) {
+            share = nextafterf(share, (k % 2) ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+        }
+        const float u = pitchTyped ? typedShare : share;
+        const float w = pitchTyped ? share : typedShare;
+        anchor->forceNormal = c*u + s*w;
+        anchor->forceLateral = c*w - s*u;
+        t->updateAnchorGeometrics();
+        const float other = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+        const float error = std::fabs(other - target);
+        if(error < bestError) {
+            bestError = error;
+            bestNormal = anchor->forceNormal;
+            bestLateral = anchor->forceLateral;
+        }
+        if(memcmp(&other, &target, sizeof(float)) == 0) break;
+    }
+
+    // A step of the kept share moves a small rate by many of its own float
+    // steps (one step of a force near 1 g is about 2e-6 deg/s). When no kept
+    // share gives the rate back exactly, the two forces are stepped on their
+    // own, within 4 float steps of the normal and 16 of the lateral force
+    // (often much smaller, so finer), and the exact or nearest one is taken,
+    // the fewest steps away first.
+    if(bestError > 0.f) {
+        const float baseNormal = bestNormal, baseLateral = bestLateral;
+        int bestSteps = 1000;
+        for(int dn = -4; dn <= 4; ++dn) {
+            for(int dl = -16; dl <= 16; ++dl) {
+                float fn = baseNormal, fl = baseLateral;
+                for(int i = 0; i < abs(dn); ++i) fn = nextafterf(fn, dn > 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+                for(int i = 0; i < abs(dl); ++i) fl = nextafterf(fl, dl > 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+                anchor->forceNormal = fn;
+                anchor->forceLateral = fl;
+                t->updateAnchorGeometrics();
+                const float other = pitchTyped ? anchor->fYawFromLast : anchor->fPitchFromLast;
+                const float error = std::fabs(other - target);
+                const int steps = abs(dn) + abs(dl);
+                if(error < bestError || (error == bestError && steps < bestSteps)) {
+                    bestError = error;
+                    bestSteps = steps;
+                    bestNormal = fn;
+                    bestLateral = fl;
+                }
+            }
+        }
+    }
+    anchor->forceNormal = bestNormal;
+    anchor->forceLateral = bestLateral;
+}
+
+// on_pitchChangeBox_valueChanged(): the box shows degrees per second, the
+// node holds degrees per node. The yaw rate is left as it is.
+bool applySetPitchRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    rateForces(t, true, arg(args, "rate"));
+    return anchorChanged(t, error);
+}
+
+// on_yawChangeBox_valueChanged(); the pitch rate is left as it is.
+bool applySetYawRate(track* t, const commandTarget&, const commandArgs& args, QString* error)
+{
+    rateForces(t, false, arg(args, "rate"));
+    return anchorChanged(t, error);
+}
+
+// The three hold parameters of the roll, pitch and yaw commands.
+void addHoldParams(commandSpec& s)
+{
+    s.params << commandParam::floatParam("holdX", "m",
+                                         "The x of the point that stays in place, the start of the track (the centre of the rails), as the anchor's X box shows it.",
+                                         -9999.99, 9999.99)
+             << commandParam::floatParam("holdY", "m",
+                                         "The height of that point, as the anchor's Y box shows it.",
+                                         -9999.99, 9999.99)
+             << commandParam::floatParam("holdZ", "m",
+                                         "The z of that point, as the anchor's Z box shows it.",
+                                         -9999.99, 9999.99);
+    s.example.insert("holdX", 3.0);
+    s.example.insert("holdY", 6.5);
+    s.example.insert("holdZ", -2.0);
+}
+
+commandSpec anchorSpec(const char* name, const char* description, const char* label, commandApplyFn apply)
+{
+    commandSpec s;
+    s.name = QString(name);
+    s.description = QString(description);
+    s.target = targetTrack;
+    s.label = QString(label);
+    s.merges = true;
+    // anchorChanged() and holdAnchorPoint() end in track::updateFromAnchor();
+    // the position edits move only startPos, which no node holds
+    s.settlesItself = true;
+    s.apply = apply;
+    return s;
+}
+
+}
+
+// The expressions of the anchor boxes' slots and of Track Properties,
+// unchanged (see track.h).
+glm::vec3 track::anchorStartPos(float a, float b, float y, float fHeart, double holdX, double holdY, double holdZ)
+{
+    glm::vec3 pos;
+    pos.x = -(cos(a)*sin(b)*cos(y)+sin(a)*sin(y))*fHeart + holdX;
+    pos.y = (cos(b)*cos(y))*fHeart + holdY;
+    pos.z = (sin(a)*sin(b)*cos(y)-cos(a)*sin(y))*fHeart + holdZ;
+    return pos;
+}
+
+QList<commandSpec> anchorCommands()
+{
+    QList<commandSpec> list;
+
+    {
+        commandSpec s = anchorSpec("anchor.setPositionX",
+                                   "Moves the start of the track sideways: sets the x of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
+                                   "Move anchor (x)", applySetPositionX);
+        s.params << commandParam::floatParam("x", "m", "The x of the track's start point, as the anchor's X box shows it.",
+                                             -9999.99, 9999.99);
+        s.example.insert("x", 12.5);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setPositionY",
+                                   "Raises or lowers the start of the track: sets the height of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
+                                   "Move anchor (y)", applySetPositionY);
+        s.params << commandParam::floatParam("y", "m", "The height of the track's start point, as the anchor's Y box shows it.",
+                                             -9999.99, 9999.99);
+        s.example.insert("y", 17.25);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setPositionZ",
+                                   "Moves the start of the track forward or back: sets the z of the track's start point (the centre of the rails; the heartline lies the heartline height from it).",
+                                   "Move anchor (z)", applySetPositionZ);
+        s.params << commandParam::floatParam("z", "m", "The z of the track's start point, as the anchor's Z box shows it.",
+                                             -9999.99, 9999.99);
+        s.example.insert("z", -8.75);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setRoll",
+                                   "Sets the roll (bank) of the track at its start, keeping the track's start point (the centre of the rails) in place.",
+                                   "Change anchor roll", applySetRoll);
+        s.params << commandParam::floatParam("roll", "deg", "The roll at the start (the box keeps it within -180 to 180).",
+                                             -1800.0, 1800.0);
+        s.example.insert("roll", 15.0);
+        addHoldParams(s);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setPitch",
+                                   "Sets the pitch of the track at its start, keeping the track's start point (the centre of the rails) in place.",
+                                   "Change anchor pitch", applySetPitch);
+        s.params << commandParam::floatParam("pitch", "deg", "The pitch at the start; positive points up.",
+                                             -90.0, 90.0);
+        s.example.insert("pitch", 12.0);
+        addHoldParams(s);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setYaw",
+                                   "Sets the direction the track starts in (its heading), keeping the track's start point (the centre of the rails) in place.",
+                                   "Change anchor yaw", applySetYaw);
+        s.params << commandParam::floatParam("yaw", "deg", "The heading at the start (the box keeps it within -180 to 180).",
+                                             -1800.0, 1800.0);
+        s.example.insert("yaw", 30.0);
+        addHoldParams(s);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setSpeed",
+                                   "Sets the speed of the train at the start of the track.",
+                                   "Change start speed", applySetSpeed);
+        s.params << commandParam::floatParam("speed", "m/s", "The speed at the start.",
+                                             0.025, 500.0);
+        s.example.insert("speed", 13.5);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setNormalForce",
+                                   "Sets the normal force (the vertical g the rider feels) at the start of the track; the pitch and yaw change rates follow from it.",
+                                   "Change start normal force", applySetNormalForce);
+        s.params << commandParam::floatParam("force", "g", "The normal force at the start; 1 is what the rider feels standing still on level track.",
+                                             -20.0, 20.0);
+        s.example.insert("force", 1.4);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setLateralForce",
+                                   "Sets the lateral force (the sideways g the rider feels) at the start of the track; the pitch and yaw change rates follow from it.",
+                                   "Change start lateral force", applySetLateralForce);
+        s.params << commandParam::floatParam("force", "g", "The lateral force at the start.",
+                                             -15.0, 15.0);
+        s.example.insert("force", 0.3);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setPitchRate",
+                                   "Sets how fast the track pitches at its start; the normal and lateral force follow from it.",
+                                   "Change start pitch rate", applySetPitchRate);
+        s.params << commandParam::floatParam("rate", "deg/s", "The pitch change at the start, in degrees per second.",
+                                             -1e9, 1e9);
+        s.example.insert("rate", 7.5);
+        list << s;
+    }
+    {
+        commandSpec s = anchorSpec("anchor.setYawRate",
+                                   "Sets how fast the track turns left or right at its start; the normal and lateral force follow from it.",
+                                   "Change start yaw rate", applySetYawRate);
+        s.params << commandParam::floatParam("rate", "deg/s", "The yaw change at the start, in degrees per second.",
+                                             -1e9, 1e9);
+        s.example.insert("rate", -6.0);
+        list << s;
+    }
+
+    return list;
+}

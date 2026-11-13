@@ -29,11 +29,9 @@ public:
     seccurved(track* getParent, mnode* first, float getAngle, float getRadius);
     void changecurve(float newAngle, float newRadius, float newDirection);
     virtual int updateSection(int node = 0);
-    virtual void saveSection(std::fstream& file);
-    virtual void loadSection(std::fstream& file);
-    virtual void legacyLoadSection(std::fstream& file);
-    virtual void saveSection(std::stringstream& file);
-    virtual void loadSection(std::stringstream& file);
+    virtual void saveSection(std::iostream& file);
+    virtual void loadSection(std::iostream& file);
+    virtual void legacyLoadSection(std::iostream& file);
     virtual float getMaxArgument();
     virtual bool isLockable(func* _func);
     virtual bool isInFunction(int index, subfunc* func);

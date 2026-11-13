@@ -32,8 +32,6 @@
 #include "optionsmenu.h"
 #include "trackhandler.h"
 #include "track.h"
-#include "undohandler.h"
-#include "undoaction.h"
 #include "smoothhandler.h"
 #include <QAbstractButton>
 #include <QAction>
@@ -344,6 +342,19 @@ void batchDriver::selectSection(int s)
     if(list->selectedItems().size() != 1 || list->selectedItems().at(0) != list->topLevelItem(s+1)) {
         fail(QString("section %1 could not be selected").arg(s+1));
     }
+}
+
+// typing a name into the section list's name column
+void batchDriver::renameSection(int s, const QString& name)
+{
+    trackWidget* panel = trackPanel();
+    QTreeWidget* list = qobject_cast<QTreeWidget*>(find(panel, "sectionListWidget"));
+    if(!list) return;
+    if(s < 0 || s+1 >= list->topLevelItemCount()) {
+        fail(QString("there is no section %1").arg(s+1));
+        return;
+    }
+    list->topLevelItem(s+1)->setText(1, name);
 }
 
 void batchDriver::deleteSection(int s)
@@ -1110,39 +1121,9 @@ bool pickUnlocked(batchDriver& d, const eFunctype* order, int n)
 const eFunctype FORCE_ORDER[] = { funcNormal, funcRoll, funcLateral };
 const eFunctype GEO_ORDER[] = { funcYaw, funcPitch, funcRoll };
 
-// Edits left out of the default list because the undo and redo round trip
-// fails on the code as it was when this list was written (2026-11-10), found by
-// running every edit on its own on every baseline project (--edits n). Some fail
-// only under a condition; there the edit still runs on the other projects.
-// --all-edits puts them back, to check a fix. Fix the program, not this list.
-enum brokenWhen { ALWAYS, SMOOTHED_TRACK, DISTANCE_SECTION, ROLLED_ANCHOR };
-struct knownBroken { int edit; eActionType type; brokenWhen when; secType section; const char* reason; };
-const knownBroken KNOWN_BROKEN[] = {
-    { 4, changeAnchorPitchChange, ALWAYS, anchor, "undo of the anchor's pitch change rate recomputes the anchor's normal and lateral force from the rate "
-                         "(trackWidget::on_pitchChangeBox_valueChanged) instead of restoring them; the saved forces differ in the last digits" },
-    { 5, changeAnchorYawChange, ALWAYS, anchor, "undo of the anchor's yaw change rate: as for the pitch change rate (on_yawChangeBox_valueChanged)" },
-    { 9, changeAnchorRoll, ROLLED_ANCHOR, anchor, "undo of the anchor roll applies the old roll as a difference to the current one (mnode::setRoll); "
-                                "with a rolled anchor the restored roll differs in the last digits" },
-    { 29, onLengthSpin, ALWAYS, anchor, "undo of a transition length on the first force section does not restore the track "
-                          "(gen-normal-shapes: exports differ; gen-smooth-whole: exports differ)" },
-    { 41, onTensionSpin, ALWAYS, anchor, "undo of a tension change restores undoHandler::oldTensionSpinValue, which nothing sets from the selected "
-                          "transition (transitionWidget::changeSubfunc sets the other four); the restored tension is whatever was "
-                          "left there (seen: minus infinity)" },
-    { 42, appendSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo of appending a transition leaves the track different" },
-    { 43, appendSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo of prepending a transition leaves the track different" },
-    { 44, removeSubFunction, SMOOTHED_TRACK, anchor, "on a smoothed track, undo and redo of removing a transition leave the track different" },
-    { 45, appendSubFunction, ALWAYS, anchor, "a new normal-force transition starts as cubic with its shape argument (subfunc::arg1) never set; "
-                          "redo creates it again with another leftover value, so the saved file differs" },
-    { 46, appendSubFunction, ALWAYS, anchor, "prepend on normal force: the same unset shape argument as edit 45" },
-    { 49, changeSegmentArgument, DISTANCE_SECTION, forced, "undo of switching a force section from distance to time does not restore the saved project" },
-    { 52, changeSegmentArgument, DISTANCE_SECTION, geometric, "undo of switching a geometric section from distance to time does not restore the saved project" },
-    { 56, removeSegment, ALWAYS, anchor, "undo of deleting a section recreates its smoothing entry without the name the smoothing dialog gave it "
-                          "(smoothHandler::saveSmooth writes the list row's text), so the saved file is shorter; "
-                          "the section's own smoothing settings are lost too" },
-    { -1, onLengthSpin, ALWAYS, anchor, NULL }
-};
-
-const int EDIT_COUNT = 57;
+// Every edit is checked: since undo restores snapshots of the track (decision
+// record 0011) no edit is left out.
+const int EDIT_COUNT = 58;
 
 } // namespace
 
@@ -1151,93 +1132,59 @@ int batchScenarios::editCount()
     return EDIT_COUNT;
 }
 
-bool batchScenarios::editIsKnownBroken(int i, batchDriver& d, QString& reason, int& type)
-{
-    for(int k = 0; KNOWN_BROKEN[k].reason; ++k) {
-        const knownBroken& kb = KNOWN_BROKEN[k];
-        if(kb.edit != i+1) continue; // numbered from 1, as in the report
-        track* t = d.openTrackData();
-        bool applies = false;
-        switch(kb.when) {
-        case ALWAYS:
-            applies = true;
-            break;
-        case SMOOTHED_TRACK: // read only: is any smoothing entry switched on
-            for(int n = 0; t && n < t->smoothList.size(); ++n) {
-                if(t->smoothList[n]->active) applies = true;
-            }
-            break;
-        case DISTANCE_SECTION: {
-            int s = firstSection(d, kb.section);
-            applies = s >= 0 && t->lSections[s]->bArgument == DISTANCE;
-            break;
-        }
-        case ROLLED_ANCHOR:
-            applies = t && t->anchorNode->fRoll != 0.f;
-            break;
-        }
-        if(applies) {
-            reason = kb.reason;
-            type = kb.type;
-            return true;
-        }
-    }
-    return false;
-}
-
 bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& expected, QString& note)
 {
     int s = -1;
     switch(i) {
     // the anchor; the first edit recomputes the whole track (see the last one)
     case 0:
-        desc = "anchor: start speed"; expected = "changeAnchorSpeed";
+        desc = "anchor: start speed"; expected = "anchor.setSpeed";
         d.selectSection(-1); nudgePanel(d, "anchorSpeedBox", d.spd(2), d.spd(1), d.spd(100));
         return true;
     case 1:
-        desc = "anchor: normal force"; expected = "changeAnchorNormal";
+        desc = "anchor: normal force"; expected = "anchor.setNormalForce";
         d.selectSection(-1); nudgePanel(d, "normalBox", 0.1, -2, 4);
         return true;
     case 2:
-        desc = "anchor: lateral force"; expected = "changeAnchorLateral";
+        desc = "anchor: lateral force"; expected = "anchor.setLateralForce";
         d.selectSection(-1); nudgePanel(d, "lateralBox", 0.05, -1, 1);
         return true;
     case 3:
-        desc = "anchor: pitch change rate"; expected = "changeAnchorPitchChange";
+        desc = "anchor: pitch change rate"; expected = "anchor.setPitchRate";
         d.selectSection(-1); nudgePanel(d, "pitchChangeBox", 1.0, -100, 100);
         return true;
     case 4:
-        desc = "anchor: yaw change rate"; expected = "changeAnchorYawChange";
+        desc = "anchor: yaw change rate"; expected = "anchor.setYawRate";
         d.selectSection(-1); nudgePanel(d, "yawChangeBox", 1.0, -100, 100);
         return true;
     case 5:
-        desc = "anchor: x"; expected = "changeAnchorPosX";
+        desc = "anchor: x"; expected = "anchor.setPositionX";
         d.selectSection(-1); nudgePanel(d, "xBox", d.len(1.5), -9000, 9000);
         return true;
     case 6:
-        desc = "anchor: y"; expected = "changeAnchorPosY";
+        desc = "anchor: y"; expected = "anchor.setPositionY";
         d.selectSection(-1); nudgePanel(d, "yBox", d.len(0.5), -9000, 9000);
         return true;
     case 7:
-        desc = "anchor: z"; expected = "changeAnchorPosZ";
+        desc = "anchor: z"; expected = "anchor.setPositionZ";
         d.selectSection(-1); nudgePanel(d, "zBox", d.len(-1.0), -9000, 9000);
         return true;
     case 8:
-        desc = "anchor: roll"; expected = "changeAnchorRoll+changeAnchorPosZ+changeAnchorPosY+changeAnchorPosX";
+        desc = "anchor: roll"; expected = "anchor.setRoll";
         d.selectSection(-1); nudgePanel(d, "rBox", 5, -170, 170);
         return true;
     case 9:
-        desc = "anchor: pitch"; expected = "changeAnchorPitch+changeAnchorPosZ+changeAnchorPosY+changeAnchorPosX";
+        desc = "anchor: pitch"; expected = "anchor.setPitch";
         d.selectSection(-1); nudgePanel(d, "pBox", 3, -80, 80);
         return true;
     case 10:
-        desc = "anchor: yaw"; expected = "changeAnchorYaw+changeAnchorPosZ+changeAnchorPosY+changeAnchorPosX";
+        desc = "anchor: yaw"; expected = "anchor.setYaw";
         d.selectSection(-1); nudgePanel(d, "jBox", 10, -170, 170);
         return true;
     // Track Properties (OK also records friction and resistance when the
     // boxes' rounding differs from the stored float; see the report)
     case 11: {
-        desc = "track properties: heartline"; expected = "changeTrackHeartline+changeAnchorPosZ+changeAnchorPosY+changeAnchorPosX";
+        desc = "track properties: heartline"; expected = "track.setHeartline";
         track* t = d.openTrackData();
         if(!t) return true;
         double nan = std::numeric_limits<double>::quiet_NaN();
@@ -1245,7 +1192,7 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
         return true;
     }
     case 12: {
-        desc = "track properties: friction"; expected = "changeTrackFriction";
+        desc = "track properties: friction"; expected = "track.setFriction";
         track* t = d.openTrackData();
         if(!t) return true;
         double nan = std::numeric_limits<double>::quiet_NaN();
@@ -1253,7 +1200,7 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
         return true;
     }
     case 13: {
-        desc = "track properties: resistance"; expected = "changeTrackResistance";
+        desc = "track properties: resistance"; expected = "track.setResistance";
         track* t = d.openTrackData();
         if(!t) return true;
         double nan = std::numeric_limits<double>::quiet_NaN();
@@ -1262,185 +1209,185 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
     }
     // the first straight section
     case 14:
-        desc = "straight: length"; expected = "changeSegmentLength";
+        desc = "straight: length"; expected = "straight.setLength";
         if((s = firstSection(d, straight)) < 0) { note = "no straight section"; return false; }
         d.selectSection(s); nudgePanel(d, "straightLengthBox", d.len(2), d.len(1), d.len(400));
         return true;
     case 15:
-        desc = "straight: fixed speed value"; expected = "changeSegmentSpeed";
+        desc = "straight: fixed speed value"; expected = "section.setSpeed";
         if((s = firstSection(d, straight)) < 0) { note = "no straight section"; return false; }
         d.selectSection(s);
         if(!d.panelEnabled("straightSpeedBox")) { note = "the straight section has physics speed"; return false; }
         nudgePanel(d, "straightSpeedBox", d.spd(1), d.spd(1), d.spd(100));
         return true;
     case 16:
-        desc = "straight: speed tick"; expected = "changeSpeedState";
+        desc = "straight: speed tick"; expected = "section.setSpeedFixed";
         if((s = firstSection(d, straight)) < 0) { note = "no straight section"; return false; }
         d.selectSection(s); d.setPanelChecked("straightSpeedCheck", !d.panelEnabled("straightSpeedBox"));
         return true;
     // the first curved section
     case 17:
-        desc = "curved: radius"; expected = "changeCurveRadius";
+        desc = "curved: radius"; expected = "curve.setRadius";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s); nudgePanel(d, "curvedRadiusBox", d.len(3), d.len(5), d.len(400));
         return true;
     case 18:
-        desc = "curved: angle"; expected = "changeSegmentLength";
+        desc = "curved: angle"; expected = "curve.setAngle";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s); nudgePanel(d, "curvedAngleBox", 10, 5, 300);
         return true;
     case 19:
-        desc = "curved: direction"; expected = "changeCurveDirection";
+        desc = "curved: direction"; expected = "curve.setDirection";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s); nudgePanel(d, "curvedDirectionBox", 15, -180, 180);
         return true;
     case 20:
-        desc = "curved: lead in"; expected = "changeCurveLeadIn";
+        desc = "curved: lead in"; expected = "curve.setLeadIn";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s);
         nudgePanel(d, "curvedLeadInBox", 5, 0, d.panelValue("curvedAngleBox") - d.panelValue("curvedLeadOutBox"));
         return true;
     case 21:
-        desc = "curved: lead out"; expected = "changeCurveLeadOut";
+        desc = "curved: lead out"; expected = "curve.setLeadOut";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s);
         nudgePanel(d, "curvedLeadOutBox", 5, 0, d.panelValue("curvedAngleBox") - d.panelValue("curvedLeadInBox"));
         return true;
     case 22:
-        desc = "curved: fixed speed value"; expected = "changeSegmentSpeed";
+        desc = "curved: fixed speed value"; expected = "section.setSpeed";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s);
         if(!d.panelEnabled("curvedSpeedBox")) { note = "the curved section has physics speed"; return false; }
         nudgePanel(d, "curvedSpeedBox", d.spd(1), d.spd(1), d.spd(100));
         return true;
     case 23:
-        desc = "curved: speed tick"; expected = "changeSpeedState";
+        desc = "curved: speed tick"; expected = "section.setSpeedFixed";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s); d.setPanelChecked("curvedSpeedCheck", !d.panelEnabled("curvedSpeedBox"));
         return true;
     case 24:
-        desc = "curved: orientation"; expected = "changeSegmentOrientation";
+        desc = "curved: orientation"; expected = "section.setOrientation";
         if((s = firstSection(d, curved)) < 0) { note = "no curved section"; return false; }
         d.selectSection(s); d.setPanelIndex("orientationBox", d.openTrackData()->lSections[s]->bOrientation ? 0 : 1);
         return true;
     // the first force section
     case 25:
-        desc = "force: speed tick"; expected = "changeSpeedState";
+        desc = "force: speed tick"; expected = "section.setSpeedFixed";
         if(!forceSection(d, note, s)) return false;
         d.setPanelChecked("advancedSpeedCheck", !d.panelEnabled("advancedSpeedBox"));
         return true;
     case 26:
-        desc = "force: fixed speed value"; expected = "changeSegmentSpeed";
+        desc = "force: fixed speed value"; expected = "section.setSpeed";
         if(!forceSection(d, note, s)) return false;
         if(!d.panelEnabled("advancedSpeedBox")) { note = "the force section has physics speed"; return false; }
         nudgePanel(d, "advancedSpeedBox", d.spd(1), d.spd(1), d.spd(100));
         return true;
     case 27:
-        desc = "force: orientation"; expected = "changeSegmentOrientation";
+        desc = "force: orientation"; expected = "section.setOrientation";
         if(!forceSection(d, note, s)) return false;
         d.setPanelIndex("orientationBox", d.openTrackData()->lSections[s]->bOrientation ? 0 : 1);
         return true;
     // the first force section's transitions (normal force unless said otherwise)
     case 28:
-        desc = "force transition: length"; expected = "onLengthSpin";
+        desc = "force transition: length"; expected = "transition.setLength";
         if(!forceSection(d, note, s)) return false;
         if(!pickUnlocked(d, FORCE_ORDER, 3)) { note = "every first transition is locked"; return false; }
         nudgeTransition(d, "lengthSpin", 0.2, 0.2, 1000);
         return true;
     case 29:
-        desc = "force transition: change"; expected = "onChangeSpin";
+        desc = "force transition: change"; expected = "transition.setChange";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); nudgeTransition(d, "changeSpin", 0.2, -3, 3);
         return true;
     case 30:
-        desc = "force transition: shape to sinusoidal"; expected = "onTransitionBox+onArg1";
+        desc = "force transition: shape to sinusoidal"; expected = "transition.setShape";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("transitionBox", d.transitionIndex("transitionBox") == 5 ? 0 : 5);
         return true;
     case 31:
-        desc = "force transition: shape to quadratic"; expected = "onTransitionBox+onArg1";
+        desc = "force transition: shape to quadratic"; expected = "transition.setShape";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("transitionBox", 1);
         return true;
     case 32:
-        desc = "force transition: quadratic form"; expected = "onArg1";
+        desc = "force transition: quadratic form"; expected = "transition.setShapeParameter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("quadraticBox", d.transitionIndex("quadraticBox") == 0 ? 1 : 0);
         return true;
     case 33:
-        desc = "force transition: shape to quartic"; expected = "onTransitionBox+onArg1";
+        desc = "force transition: shape to quartic"; expected = "transition.setShape";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("transitionBox", 3);
         return true;
     case 34:
-        desc = "force transition: quartic form"; expected = "onArg1";
+        desc = "force transition: quartic form"; expected = "transition.setShapeParameter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("quarticBox", 2);
         return true;
     case 35:
-        desc = "force transition: quartic parameter"; expected = "onArg1";
+        desc = "force transition: quartic parameter"; expected = "transition.setShapeParameter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); nudgeTransition(d, "quarticSpin", 0.5, 0, 10);
         return true;
     case 36:
-        desc = "force transition: shape to quintic"; expected = "onTransitionBox+onArg1";
+        desc = "force transition: shape to quintic"; expected = "transition.setShape";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("transitionBox", 4);
         return true;
     case 37:
-        desc = "force transition: quintic form"; expected = "onArg1";
+        desc = "force transition: quintic form"; expected = "transition.setShapeParameter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.setTransitionIndex("quinticBox", 1);
         return true;
     case 38:
-        desc = "force transition: quintic parameter"; expected = "onArg1";
+        desc = "force transition: quintic parameter"; expected = "transition.setShapeParameter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); nudgeTransition(d, "quinticSpin", 1.0, 2, 8);
         return true;
     case 39:
-        desc = "force transition: centre"; expected = "onCenterSpin";
+        desc = "force transition: centre"; expected = "transition.setCenter";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); nudgeTransition(d, "centerSpin", 0.5, -10, 10);
         return true;
     case 40:
-        desc = "force transition: tension"; expected = "onTensionSpin";
+        desc = "force transition: tension"; expected = "transition.setTension";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); nudgeTransition(d, "tensionSpin", 0.5, -10, 10);
         return true;
     case 41:
-        desc = "force transition: append after roll transition 1"; expected = "appendSubFunction";
+        desc = "force transition: append after roll transition 1"; expected = "transition.add";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcRoll, 0); d.clickTransitionButton("appendButton");
         return true;
     case 42:
-        desc = "force transition: prepend before roll transition 1"; expected = "appendSubFunction";
+        desc = "force transition: prepend before roll transition 1"; expected = "transition.add";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcRoll, 0); d.clickTransitionButton("prependButton");
         return true;
     case 43:
-        desc = "force transition: remove roll transition 1"; expected = "removeSubFunction";
+        desc = "force transition: remove roll transition 1"; expected = "transition.delete";
         if(!forceSection(d, note, s)) return false;
         if(d.transitionCount(funcRoll) < 2) { note = "roll has one transition"; return false; }
         d.selectTransition(funcRoll, 0); d.clickTransitionButton("removeButton");
         return true;
     case 44:
-        desc = "force transition: append after normal transition 1"; expected = "appendSubFunction";
+        desc = "force transition: append after normal transition 1"; expected = "transition.add";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.clickTransitionButton("appendButton");
         return true;
     case 45:
-        desc = "force transition: prepend before normal transition 1"; expected = "appendSubFunction";
+        desc = "force transition: prepend before normal transition 1"; expected = "transition.add";
         if(!forceSection(d, note, s)) return false;
         d.selectTransition(funcNormal, 0); d.clickTransitionButton("prependButton");
         return true;
     case 46:
-        desc = "force transition: remove normal transition 1"; expected = "removeSubFunction";
+        desc = "force transition: remove normal transition 1"; expected = "transition.delete";
         if(!forceSection(d, note, s)) return false;
         if(d.transitionCount(funcNormal) < 2) { note = "normal force has one transition"; return false; }
         d.selectTransition(funcNormal, 0); d.clickTransitionButton("removeButton");
         return true;
     case 47: {
-        desc = "force transition: lock or unlock the last transition"; expected = "changeFunctionStatus";
+        desc = "force transition: lock or unlock the last transition"; expected = "transition.setLocked";
         if(!forceSection(d, note, s)) return false;
         eFunctype order[] = { funcLateral, funcNormal, funcRoll };
         for(int k = 0; k < 3; ++k) {
@@ -1454,52 +1401,61 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
         return false;
     }
     case 48:
-        desc = "force: argument"; expected = "changeSegmentArgument";
+        desc = "force: argument"; expected = "section.setArgument";
         if(!forceSection(d, note, s)) return false;
         d.setPanelIndex("argumentBox", d.openTrackData()->lSections[s]->bArgument ? 0 : 1);
         return true;
     // the first geometric section
     case 49:
-        desc = "geometric transition: pitch change"; expected = "onChangeSpin";
+        desc = "geometric transition: pitch change"; expected = "transition.setChange";
         if((s = firstSection(d, geometric)) < 0) { note = "no geometric section"; return false; }
         d.selectSection(s); d.selectTransition(funcPitch, 0); nudgeTransition(d, "changeSpin", 2, -30, 30);
         return true;
     case 50:
-        desc = "geometric transition: length"; expected = "onLengthSpin";
+        desc = "geometric transition: length"; expected = "transition.setLength";
         if((s = firstSection(d, geometric)) < 0) { note = "no geometric section"; return false; }
         d.selectSection(s);
         if(!pickUnlocked(d, GEO_ORDER, 3)) { note = "every first transition is locked"; return false; }
         nudgeTransition(d, "lengthSpin", 0.2, 0.2, 1000);
         return true;
     case 51:
-        desc = "geometric: argument"; expected = "changeSegmentArgument";
+        desc = "geometric: argument"; expected = "section.setArgument";
         if((s = firstSection(d, geometric)) < 0) { note = "no geometric section"; return false; }
         d.selectSection(s); d.setPanelIndex("argumentBox", d.openTrackData()->lSections[s]->bArgument ? 0 : 1);
         return true;
     case 52:
-        desc = "straight transition: roll change"; expected = "onChangeSpin";
+        desc = "straight transition: roll change"; expected = "transition.setChange";
         if((s = firstSection(d, straight)) < 0) { note = "no straight section"; return false; }
         d.selectSection(s); d.selectTransition(funcRoll, 0); nudgeTransition(d, "changeSpin", 5, -50, 50);
         return true;
     // structure
     case 53:
-        desc = "add a straight section"; expected = "appendSegment";
+        desc = "add a straight section"; expected = "section.add";
         d.addSection(straight);
         return true;
     case 54:
-        desc = "add a geometric section"; expected = "appendSegment";
+        desc = "add a geometric section"; expected = "section.add";
         d.addSection(geometric);
         return true;
     case 55:
-        desc = "delete a section"; expected = "removeSegment";
+        desc = "delete a section"; expected = "section.delete";
         if((s = firstSection(d, curved)) < 0) s = 0;
         if(d.sectionCount() < 2) { note = "only one section"; return false; }
         d.deleteSection(s);
         return true;
+    case 56: {
+        desc = "rename a section"; expected = "section.setName";
+        track* t = d.openTrackData();
+        if(!t || d.sectionCount() < 1) { note = "no section"; return false; }
+        s = d.sectionCount() - 1;
+        // the last section, typed into the list's name column
+        d.renameSection(s, t->lSections[s]->sName == "Renamed" ? QString("Renamed again") : QString("Renamed"));
+        return true;
+    }
     // last, like the first: an anchor edit recomputes the whole track, so the
     // end states B and B2 do not depend on where earlier recomputations started
-    case 56:
-        desc = "anchor: start speed again"; expected = "changeAnchorSpeed";
+    case 57:
+        desc = "anchor: start speed again"; expected = "anchor.setSpeed";
         d.selectSection(-1); nudgePanel(d, "anchorSpeedBox", d.spd(-1.5), d.spd(1), d.spd(100));
         return true;
     }
@@ -1508,54 +1464,35 @@ bool batchScenarios::applyEdit(int i, batchDriver& d, QString& desc, QString& ex
 }
 
 // ---------------------------------------------------------------------------
-// Undo action types (ui/undoaction.h), for the report only
+// The undo steps, for the report only
 // ---------------------------------------------------------------------------
-
-static const char* ACTION_NAMES[] = {
-    "onLengthSpin", "onChangeSpin", "onArg1", "onCenterSpin", "onTensionSpin", "onTransitionBox",
-    "appendSubFunction", "removeSubFunction", "changeSegmentLength", "changeCurveDirection",
-    "changeCurveLeadIn", "changeCurveLeadOut", "changeCurveRadius", "changeSpeedState",
-    "changeSegmentSpeed", "changeAnchorPosX", "changeAnchorPosY", "changeAnchorPosZ",
-    "changeAnchorRoll", "changeAnchorPitch", "changeAnchorYaw", "changeAnchorNormal",
-    "changeAnchorLateral", "changeAnchorPitchChange", "changeAnchorYawChange", "changeAnchorSpeed",
-    "changeTrackHeartline", "changeTrackFriction", "changeTrackResistance", "appendSegment",
-    "removeSegment", "changeSegmentArgument", "changeSegmentOrientation", "changeFunctionStatus",
-    "newTrack", "deleteTrack"
-};
-
-int batchScenarios::actionTypeCount()
-{
-    return (int)(sizeof(ACTION_NAMES)/sizeof(ACTION_NAMES[0]));
-}
-
-QString batchScenarios::actionTypeName(int type)
-{
-    if(type < 0 || type >= actionTypeCount()) return QString("type%1").arg(type);
-    return QString(ACTION_NAMES[type]);
-}
-
-bool batchScenarios::actionTypeHandled(int type)
-{
-    return type != newTrack && type != deleteTrack; // no case in undoAction::doUndo()
-}
 
 int batchScenarios::undoDepth(trackHandler* h)
 {
-    return h ? h->mUndoHandler->lActions.size() : 0;
+    return h ? h->mHistory->steps().size() : 0;
 }
 
-QString batchScenarios::recordedActions(trackHandler* h, int steps, QList<int>& types)
+QString batchScenarios::stepName(const historyStep& step)
+{
+    if(!step.calls.isEmpty()) return step.calls.first().name;
+    return step.label;
+}
+
+QString batchScenarios::recordedCommands(trackHandler* h, int steps, QStringList& commands)
 {
     QStringList list;
     if(!h) return QString();
-    QList<undoAction*>& actions = h->mUndoHandler->lActions;
+    // the oldest of the new steps first; a step is its commands joined by "+"
+    const QList<historyStep>& recorded = h->mHistory->steps();
     for(int k = steps-1; k >= 0; --k) {
-        if(k >= actions.size()) continue;
+        if(k >= recorded.size()) continue;
+        const historyStep& step = recorded[recorded.size()-1-k];
         QStringList chain;
-        for(undoAction* a = actions[k]; a; a = a->nextAction) {
-            chain.append(actionTypeName(a->type));
-            types.append(a->type);
+        for(int c = 0; c < step.calls.size(); ++c) {
+            chain.append(step.calls[c].name);
+            commands.append(step.calls[c].name);
         }
+        if(chain.isEmpty()) chain.append(QString("(no command: \"%1\")").arg(step.label));
         list.append(chain.join("+"));
     }
     return list.join(", ");

@@ -20,7 +20,6 @@
 #include "ui_optionsmenu.h"
 #include "qcolordialog.h"
 #include <fstream>
-#include "undohandler.h"
 #include "osx/common.h"
 #include "glviewwidget.h"
 #include "mainwindow.h"
@@ -908,6 +907,7 @@ bool optionsMenu::loadFromOptionsFile()   // Ercan: Config file Auslesen hier
 void optionsMenu::on_measureBox_currentIndexChanged(int index)
 {
     measures = index;
+    gloParent->rideSheetUnitsChanged();     // the ride sheet shows lengths and speeds in this unit
 }
 
 #ifndef Q_OS_MAC // on Win / Unix

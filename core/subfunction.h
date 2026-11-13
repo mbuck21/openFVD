@@ -67,11 +67,9 @@ public:
     bool isSymmetric();
     float endValue();
 
-    void saveSubFunc(std::fstream& file);
-    void loadSubFunc(std::fstream& file);
-    void legacyLoadSubFunc(std::fstream& file);
-    void saveSubFunc(std::stringstream& file);
-    void loadSubFunc(std::stringstream& file);
+    void saveSubFunc(std::iostream& file);
+    void loadSubFunc(std::iostream& file);
+    void legacyLoadSubFunc(std::iostream& file);
 
     float minArgument;
     float maxArgument;

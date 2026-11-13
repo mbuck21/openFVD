@@ -25,7 +25,7 @@ There is no unit-test suite. FVD++ is a GUI program whose model code calls into 
 py -3 tools/run-baseline.py
 ```
 
-For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 60 seconds is stopped and counts as failed. Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
+For every project in `samples/baseline/` the script starts `FVD.exe --batch-export` (below) in a fresh temporary folder, compares each file the program wrote with its reference, prints one line per file (`MATCH` or `NO MATCH`, with the first differences), and ends with `PASS` or `FAIL` (exit code 0 or 1). A run that takes longer than 60 seconds (180 for the undo check, which computes the whole track for every undo and redo and takes up to about 50 seconds on one project) is stopped and counts as failed. Nothing is written into the repository: the program's `fvd.log` lands in the temporary folder.
 
 Options:
 
@@ -35,7 +35,7 @@ Options:
 - `--undo-check` then runs the undo and redo check (below) on every project in `samples/baseline/` and requires `OK` from each: one line per project, `UNDO OK` or `UNDO FAIL` with the failing lines of its report.
 - `--fixtures` then regenerates the scripted test projects (below) in a temporary folder and compares each with the committed `samples/baseline/gen-<name>.fvd`, byte for byte. Until those are committed it says so and does not fail.
 - `--imports` then imports every input in `samples/import/` with the batch import (below) and compares the files and the report with the references there, byte for byte. Those references come from a rebuilt program, not the 2016 binary; `samples/import/README.md` says how they were made.
-- `--core` runs every comparison above with the core-only program (next section) in place of `FVD.exe --batch-export`, against the same references; `--core-exe <path>` names another `fvdcore` (default: `build/tests/coreonly/release/fvdcore.exe`, where `tools\run-tests.cmd` leaves it). It cannot be combined with `--undo-check`, `--fixtures` or `--imports`, which need the windows, and says so.
+- `--core` runs every comparison above with the core-only program (next section) in place of `FVD.exe --batch-export`, against the same references; `--core-exe <path>` names another `fvdcore` (default: `build/dist/fvdcore.exe`, which `tools\build-windows.cmd` leaves; when that is missing, `build/tests/coreonly/release/fvdcore.exe`, where `tools\run-tests.cmd` leaves it). It cannot be combined with `--undo-check` or `--fixtures`, which need the windows, and says so. With `--imports` each input goes through `fvdcore import --window-project --export-dir`, and the re-saved project and the three exports are compared with the `samples/import/<stem>.ref.*` files (not the `.ref.batch.txt` reports, which describe the windows; the point list is imported but not compared, as in the windowed check). When a run of the program dies (a non-zero exit code and no result file) the script says what an access violation (exit code 3221225477, 0xC0000005) means and keeps that run's folder with its `fvd.log` as `build/crash-<date>-<name>/`, so a crash that happens once leaves evidence.
 - `--record` (only with `--extra`) writes the references that do not exist yet from the build being tested; it never overwrites one. Run it once with a build you trust, and every later build is compared with that one:
 
 ```
@@ -93,6 +93,14 @@ starts from the default project, like a normal start, and runs what the project 
 
 All batch commands keep every window off the screen: a window that would be shown, such as a dialog a scenario opens by clicking its button, is marked "do not show on screen" just before, so it exists for Qt but nothing appears and nothing takes the keyboard. A batch command fails if a window reached the screen anyway.
 
+## The ride sheet check
+
+```
+FVD.exe --batch-ride-sheet <project.fvd> <outdir>
+```
+
+loads the project, opens track 1 as a person would, makes the ride sheet panel (`ui/ridesheet.*`) refresh at once and writes every label and value of the panel, one line each (`<object name> | <label> | <value>`, for example `rideLengthValue | Length | 54.5 m`), to `<outdir>/<project>.ridesheet.txt`, with a report `<project>.batch.txt` ending `OK` or `ERROR: <what>`. With the unit setting at metres and m/s, each number equals the one `fvdcore summary <project>` prints for the same project (to the printed decimals); that is how the panel is checked against core without a screen. Not part of `run-baseline.py`.
+
 ## Scripted test projects
 
 ```
@@ -121,38 +129,59 @@ FVD.exe --batch-undo-check <project.fvd> <outdir> [--all-edits] [--edits n,n,...
 
 loads the project, opens track 1 as a person would (select it, Edit), and writes its three exports and the re-saved project ("A"). It then makes a scripted list of edits through the windows, the same way the scripted projects are built: the anchor's values, Track Properties, the length, speed and options of the first straight, curved, force and geometric section, every box of the transition editor, append, prepend, remove and lock of transitions, adding and deleting sections. It writes the files again ("B", which must differ from A), undoes every step with Edit, Undo and writes "A2", redoes every step with Edit, Redo and writes "B2". It passes when A2 is byte-identical to A and B2 to B, for all exports of every track and the re-saved project. The first and the last edit change the anchor, which recomputes the whole track.
 
-The report `<outdir>/<project>.undo.batch.txt` has one line per edit (what it changed, which undo action types the program recorded and which were expected; an edit without a target in this project is skipped with the reason), the A2 and B2 comparisons, the list of undo action types exercised and not exercised, and a last line `OK` or `ERROR: ...`. The A, B, A2 and B2 files stay in `<outdir>` as `<project>.undo-A.nl2elem` and so on.
+The report `<outdir>/<project>.undo.batch.txt` has one line per edit (what it changed, which commands the program recorded and which one was expected; an edit without a target in this project is skipped with the reason), the A2 and B2 comparisons, the lists "commands exercised" and "commands not exercised" (of the commands in the registry, `core/command.h`), and a last line `OK` or `ERROR: ...`. The A, B, A2 and B2 files stay in `<outdir>` as `<project>.undo-A.nl2elem` and so on.
 
-Some edits are left out by default because the round trip fails on today's code; `KNOWN_BROKEN` in `ui/batchscenarios.cpp` lists them with the reason, and the report names each one. They are faults of the program, recorded so that the check passes today and catches any new change:
+No edit is left out: the list has 58 scripted edits (one of them renames a section). Each names the command it must record, and the check fails if that command is not among those the edit recorded; so an edit that bypasses the command list, or runs another command than the one named, is caught. Undo and redo put back a snapshot of the whole track (`core/trackstate.h`, `docs/decisions/0011-undo-by-snapshot-commands-on-top.md`), so every kind of edit with undo comes back exactly. Nine commands are not exercised by the list (track colour, track style, wireframe, heartline drawing, track name and the four smoothing commands); they are named under "commands not exercised", and `tests/commands` runs every command with undo and redo.
 
-| Edit | Left out | Why the round trip fails today |
-|---|---|---|
-| 4, 5 anchor pitch and yaw change rate | always | Undo recomputes the anchor's normal and lateral force from the rate instead of restoring them; the saved forces differ in the last digits. |
-| 9 anchor roll | when the anchor is rolled | Undo applies the old roll as a difference to the current one; with a rolled anchor the result differs in the last digits. |
-| 29 transition length on the first force section | always | The track is not restored (seen on `gen-normal-shapes` and `gen-smooth-whole`). Length undo is still checked on the geometric section (edit 51). |
-| 41 tension | always | Undo restores a remembered "old tension" that is never taken from the selected transition (`transitionWidget::changeSubfunc` sets the other four), so it restores whatever was left there; seen: minus infinity. |
-| 42, 43, 44 append, prepend, remove a roll transition | on a smoothed track | The track is not restored. On the other projects these edits run. |
-| 45, 46 append and prepend on normal force | always | A new normal-force transition starts as cubic with its shape argument never set; redo creates it again with another leftover value, so the saved file differs. |
-| 49, 52 argument of a force or geometric section | when that section uses distance | Undo of switching from distance back to time does not restore the saved project. |
-| 56 delete a section | always | Undo recreates the section's smoothing entry without the name the smoothing dialog gave it, so the saved file is shorter, and the section's own smoothing settings are lost. |
+Options: `--edits 3,17` makes only those edits and the first and last; `--each` also undoes and redoes every edit on its own right after making it, writes the files that differ as `<project>.edit<n>.before.fvd` and so on, and fails the check when one edit's undo or redo does not restore the files exactly ("DOES NOT RESTORE ... (on its own)"); `--all-edits` is still accepted and does nothing. `tools/run-baseline.py --undo-check` runs it with `--each`. The check sets the merge window to 0 (see the next section), so every scripted edit is one step.
 
-Options: `--all-edits` puts the left-out edits back (to check a fix); `--edits 3,17` makes only those edits and the first and last (left-out edits stay out unless `--all-edits` is given too); `--each` also undoes and redoes every edit on its own right after making it and writes the files that differ as `<project>.edit<n>.before.fvd` and so on (a diagnostic only, see below).
+**Why a single edit must restore exactly.** Every edit ends with the whole track computed as a load computes it (decision record 0013), and undo and redo compute it the same way, so the files after an edit, after undoing it and after redoing it are each those a save and reopen gives. Until Stage 2's piece T1-U11 an edit recomputed only from the edited point, and 13 edits on `gen-smooth-whole` and 2 on `gen-geometric-distance` did not come back exactly on their own; `--each` was then only a diagnostic.
 
-**Why the check compares only the end states.** The program recomputes the part of the track after an edit from the edited point onward, so after undoing one edit the recomputed nodes can differ from the ones stored before it in the last digits (seen: 0.001 mm on one tangent handle). Undoing everything ends with the first edit, which recomputes the whole track; that is the state compared. `--each` shows the per-edit differences for anyone chasing a failure.
+## The merge check
+
+```
+FVD.exe --batch-merge-check <project.fvd> <outdir>
+```
+
+checks that values typed into a box merge into one undo step, as in the windows (`trackHandler::mergeWindowMs`, one second; decision record 0011, point 7). On track 1 it types a value digit by digit ("12.5" goes 1, 12, 12.5) into the real boxes: a transition's length, the start speed and a section's own box. Each run must be one step, whose undo gives the files from before the first digit exactly and whose redo the files after the last. Two different values of one section, the same box on two sections, and the same box before and after another selection must stay separate steps. At the end every step is undone and the files must be those the load gave. Losing the focus, which also ends a run, is not checked here, because the batch mode never takes the focus. The report is `<outdir>/<project>.merge.batch.txt`, ending `OK` or `ERROR: <what>`; the work files are in `<outdir>/<project>.merge-work`. `tests/commands` has the same check on the model alone (`checkMergedCommands()`). Not part of `run-baseline.py`.
+
+## Running equals reopened
+
+`tests/commands` (`checkRunningEqualsReopened()`, run by `tools\run-tests.cmd`; `commands <repository folder> --reopen` runs it alone with the dialog checks and the times) runs every registered command on every track of every baseline project at a fixed pattern of places: every section command at the first, a middle and the last section it applies to; every transition command at each function of the first, a middle and the last section the panels edit, at its first, a middle and its last transition; `section.add` of each of the four kinds after 0, after 1, in the middle and at the end; each with its example arguments and, at the first place, with a second value where the value shapes the track. After each run it compares the running track (L) with the project saved and loaded into a fresh model (S) and with the track after undo then redo (R). L and S must have the same node count, the same three exports byte for byte and the same end position and speed bit for bit; L and R the same saved bytes and exports. The saved bytes of L and S could differ where a load rewrites a stored value it recalculates (issue 63, item 7: a transition's end moved by a last digit, a smoothing entry's name and range); every command leaves those as a load would (`track::settleTransitions()`, `track::updateSmoothEntries()`), so the largest difference, which is printed, must be 0. A place where the command's values make the model's own check fail (a `lenAssert`) is left out and listed. It prints one table row per command and project (cases, how many differ from S and from R, the largest end-position, end-speed, export and saved-byte differences). `checkDialogsReopened()` does the same for the smoothing dialog's and Track Properties' OK, which run several commands in one step.
+
+`tools\run-tests.cmd` runs `section.add` at all its places and every other command at the first, every third and the last of its places (about 820 runs, three to four minutes); `commands <repository folder> --reopen` runs every place (about 1100 runs, four to five minutes) and then times the typed values (`transition.setChange`, `transition.setLength`, `straight.setLength`, `curve.setAngle`, `curve.setRadius`) and `section.add` on `gen-normal-shapes` and on a ride of about 150,000 nodes built from it. Each command computes the track once, from the anchor (decision record 0013, point 4): about 13 ms and 80 ms on those two.
+
+The test program takes these arguments (`tools\run-tests.cmd` builds the program under `build/tests/commands/`; start it with the repository folder first): none further runs everything; `--reopen` runs only this check, the dialog checks, the imported tracks, the settle check and the times, at every place; `--imported` runs only the imported tracks (`checkImportedReopened()`); a further folder, given last (`commands <repository folder> [--reopen] <folder>`), also runs the running-equals-reopened check on every `*.fvd` in it that is not a `.2016.` or `.ref.` file, as `tests/trackstate` takes one, which is the way to try it on the owner's own projects.
+
+After every command the check also settles the transitions once more (`track::settleTransitions()`) and requires that no saved byte moves: they are a fixed point of a load's sums. `checkSettleFixedPoint()` pins a case where one pass of those sums is not (a typed transition length on `gen-normal-shapes`), and the run fails if `settleTransitions()` ever warns that eight passes did not settle. For the owner's projects, as `tests/trackstate` takes them: `commands <repository folder> [--reopen] <extra folder>` also runs the check on every `*.fvd` in that folder that is not a `.2016.*` or `.ref.*` file, failing only when the track differs (nodes, exports, end position and speed) and printing how many runs differ in saved bytes alone.
+
+Both runs also run `checkImportedReopened()` (`commands <repository folder> --imported` runs it alone, in seconds): on the two saved imported projects of `samples/import/` (the point list has none), `track.setColor`, `track.setName`, `track.setFriction`, `anchor.setSpeed`, `section.add` of a straight and of a force section at the end, a typed value on the added section and `section.delete` of it, each compared with the reopened track, with undo then redo, and (colour and name) with the track before; and four commands run ten times with two values alternating against the same run twice. The NoLimits 2 CSV track must be exact in all of it. The NoLimits 1 Bezier track is printed, marked "not checked": a Bezier section reads values a load leaves unset and differs from run to run (decision record 0013, "Where enforced").
 
 
 ## The core-only program
 
-`tests/coreonly/` builds `fvdcore`, a console program made from `core/` alone (the list of files is `core/core.pri`; no `ui/`, no `renderer/`, no QtWidgets, no OpenGL). It proves that the model does not need the windows, and later stages build the command line and the automation interface on the same footing.
+`fvdcore` is a console program made from `core/` alone (the list of files is `core/core.pri`; no `ui/`, no `renderer/`, no QtWidgets, no OpenGL). It proves that the model does not need the windows, and it is the command-line program of the project: its sources are in `cli/` (`cli/README.md` lists the commands with an example each). `tools\build-windows.cmd` builds it from `cli/fvdcore.pro` and leaves `build/dist/fvdcore.exe`; `tests/coreonly/` builds the same sources as a test (`tools\run-tests.cmd`).
 
 ```
 fvdcore export <project.fvd> <outdir>
-fvdcore <repository folder>
+fvdcore nodes <project.fvd> [--track N] [--every-m X | --every-s X | --all] [--frame world|anchor] [--out <file>]
+fvdcore compare <a.fvd> <b.fvd> [--track N] [--tsv]
+fvdcore summary <project.fvd> [--track N] [--sections] [--json]
+fvdcore measures <project.fvd> [--track N] [--ids a,b,c] [--every-m X | --every-s X | --all] [--out <file>]   (or --list)
+fvdcore check <project.fvd> [--track N] [--check ID] [--json] [--fail-on problem|warning|information]   (or --list)
+fvdcore totext <project.fvd> <out.json|-> [--force]
+fvdcore fromtext <in.json|-> <out.fvd> [--force]
+fvdcore import <nltrack|txt|csv> <file> <out.fvd> [--force] [--window-project] [--export-dir <dir>]
+fvdcore session <project.fvd> [--track N]            (JSON requests on standard input, replies on standard output)
+fvdcore commands [--json]
+fvdcore selftest <repository folder>
+fvdcore <repository folder>            the same as selftest
+fvdcore help
 ```
 
 `export` does what `FVD.exe --batch-export` does, in the same order, and writes the same files with the same names (the exports, `<project>.resaved.fvd`, `<project>.batch.txt` with the same lines) and the same exit code, except `<project>.loadstate.txt`, which describes the windows. The two programs' files are identical byte for byte, also for a missing, empty, cut-off or wrong file. It writes no `fvd.log` and nothing else beside its output; `--log <file>` keeps Qt's debug output, which is otherwise dropped.
 
-With a repository folder as its only argument (how `tools\run-tests.cmd` runs every test) it exports `samples/baseline/four-sections.fvd` into a temporary folder and compares the Spline export and the re-saved project with the 2016 binary's files, byte for byte. `py -3 tools/run-baseline.py --core` does the full baseline comparison with it.
+With a repository folder as its only argument (how `tools\run-tests.cmd` runs every test; also `fvdcore selftest <folder>`) it exports `samples/baseline/four-sections.fvd` into a temporary folder and compares the Spline export and the re-saved project with the 2016 binary's files, byte for byte. It then checks that `nodes --all` writes a header and one line per node, that `nodes` at its default spacing runs from the first to the last node, that `compare` of a project with itself reports zero everywhere, that `summary` prints the ride sheet (text and JSON, and refuses `--track 0`), that `totext` then `fromtext` gives back the bytes of a re-save and each refuses to replace an existing file without `--force`, that `measures --list` names every measure and `measures --all` has a column for each, that `check` exits 0, exits 3 with `--fail-on` when a finding of that severity exists and exits 1 on a missing project, that a session driven over text lists every registered command, changes the ride sheet with `track.setFriction`, restores the saved bytes with `undo` and with a rolled-back `begin`/`end`, answers a bad line with an error and carries on, gives the same section end as the ride sheet, and refuses to overwrite a file without `force`, that the three importers take the samples in `samples/import/` and refuse an empty point list, a point list of words, a CSV with a short line, a CSV without data and truncated NoLimits 1 files with a message, and that an unknown command exits 1. `py -3 tools/fvdsession.py` (the Python helper for the session, ending `OK`) runs a short demonstration on `four-sections.fvd`. `py -3 tools/run-baseline.py --core` does the full baseline comparison with it.
 
 `py -3 tools/check-core.py` is the quick guard that goes with it: it fails, naming file and line, when a file in `core/` includes a header from `ui/` or `renderer/`, names `gloParent` or `glView`, or includes a QtWidgets or OpenGL header (`lenassert.h` too). `tools\run-tests.cmd` runs it first, then builds and runs the tests.
 

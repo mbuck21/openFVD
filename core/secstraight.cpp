@@ -132,12 +132,12 @@ float secstraight::getMaxArgument()
     return rollFunc->getMaxArgument();
 }
 
-void secstraight::saveSection(std::fstream& file)
+void secstraight::saveSection(std::iostream& file)
 {
     file << "STR";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -148,7 +148,7 @@ void secstraight::saveSection(std::fstream& file)
     rollFunc->saveFunction(file);
 }
 
-void secstraight::loadSection(std::fstream& file)
+void secstraight::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -161,7 +161,7 @@ void secstraight::loadSection(std::fstream& file)
     rollFunc->loadFunction(file);
 }
 
-void secstraight::legacyLoadSection(std::fstream& file)
+void secstraight::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -172,35 +172,6 @@ void secstraight::legacyLoadSection(std::fstream& file)
     fVel = readFloat(&file);
     fHLength = readFloat(&file);
     rollFunc->legacyLoadFunction(file);
-}
-
-void secstraight::saveSection(std::stringstream& file)
-{
-    file << "STR";
-    writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
-
-    int namelength = sName.length();
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&fVel, sizeof(float));
-    writeBytes(&file, (const char*)&fHLength, sizeof(float));
-    rollFunc->saveFunction(file);
-}
-
-void secstraight::loadSection(std::stringstream& file)
-{
-    bSpeed = readBool(&file);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-
-    fVel = readFloat(&file);
-    fHLength = readFloat(&file);
-    rollFunc->loadFunction(file);
 }
 
 bool secstraight::isInFunction(int index, subfunc* func)

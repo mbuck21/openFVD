@@ -136,7 +136,7 @@ mnode secnlcsv::getNodeAtDistance(float distance) {
     return resultNode;
 }
 
-void secnlcsv::saveSection(fstream &file)
+void secnlcsv::saveSection(std::iostream &file)
 {
     int size = csvNodes.size();
 
@@ -159,62 +159,32 @@ void secnlcsv::saveSection(fstream &file)
     }
 }
 
-void secnlcsv::loadSection(fstream &file)
+void secnlcsv::loadSection(std::iostream &file)
 {
     csvNodes.clear();
 
     int size = readInt(&file);
 
+    // saveSection() writes x, y and z as three separate floats; read them back
+    // in that order, one statement each. readVec3() suits a vector written as
+    // one reversed 12-byte block: its three readFloat() calls are evaluated
+    // right to left by this compiler, so here it swapped x and z (the track
+    // came back mirrored on every load).
     for(int i=0; i < size; i++) {
         mnode node;
-        node.vPos = readVec3(&file);
-        node.vDir = readVec3(&file);
-        node.vLat = readVec3(&file);
+        glm::vec3* vectors[3] = { &node.vPos, &node.vDir, &node.vLat };
+        for(int v = 0; v < 3; ++v) {
+            float x = readFloat(&file);
+            float y = readFloat(&file);
+            float z = readFloat(&file);
+            *vectors[v] = glm::vec3(x, y, z);
+        }
 
         csvNodes.append(node);
     }
 }
 
-void secnlcsv::legacyLoadSection(fstream &file)
-{
-    csvNodes.clear();
-
-    int size = readInt(&file);
-
-    for(int i=0; i < size; i++) {
-        mnode node;
-        node.vPos = readVec3(&file);
-        node.vDir = readVec3(&file);
-        node.vLat = readVec3(&file);
-
-        csvNodes.append(node);
-    }
-}
-
-void secnlcsv::saveSection(stringstream &file)
-{
-    int size = csvNodes.size();
-
-    file << "CSV";
-
-    writeBytes(&file, (const char*)&size, sizeof(int));
-
-    for(int i=0; i < csvNodes.size(); i++) {
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vPos.z, sizeof(float));
-
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vDir.z, sizeof(float));
-
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.x, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.y, sizeof(float));
-        writeBytes(&file, (const char*)&csvNodes[i].vLat.z, sizeof(float));
-    }
-}
-
-void secnlcsv::loadSection(stringstream &file)
+void secnlcsv::legacyLoadSection(std::iostream &file)
 {
     csvNodes.clear();
 
@@ -248,14 +218,13 @@ bool secnlcsv::isInFunction(int index, subfunc* func)
     return false;
 }
 
-void secnlcsv::loadTrack(QString filename)
+bool secnlcsv::readNodes(const QString& filename, QList<mnode>& nodes, QString* error)
 {
     QFile file(filename);
 
-    csvNodes.clear();
-
     if (!file.open(QIODevice::ReadOnly)) {
-        return ;
+        if(error) *error = QString("cannot read ") + filename;
+        return false;
     }
 
     int lineCount=0;
@@ -263,8 +232,14 @@ void secnlcsv::loadTrack(QString filename)
     while (!file.atEnd()) {
         QByteArray line = file.readLine();
 
-        if(lineCount) {
+        if(lineCount && !line.trimmed().isEmpty()) {
             QList<QByteArray> lineSplitted = line.split('\t');
+
+            if(lineSplitted.size() < 10) {
+                if(error) *error = QString("line %1 of %2 has %3 column(s); a NoLimits 2 CSV line has at least 10")
+                        .arg(lineCount+1).arg(filename).arg(lineSplitted.size());
+                return false;
+            }
 
             glm::vec3 pos = glm::vec3(lineSplitted[1].toFloat(), lineSplitted[2].toFloat(), lineSplitted[3].toFloat());
             glm::vec3 front = glm::vec3(lineSplitted[4].toFloat(), lineSplitted[5].toFloat(), lineSplitted[6].toFloat());
@@ -274,11 +249,27 @@ void secnlcsv::loadTrack(QString filename)
             node.vPos = pos;
             node.vDir = front;
             node.vLat = left;
-            csvNodes.append(node);
+            nodes.append(node);
         }
 
         lineCount++;
     }
 
+    if(nodes.size() < 2) {
+        if(error) *error = filename + QString(" holds %1 line(s) of data; a NoLimits 2 CSV needs at least 2").arg(nodes.size());
+        return false;
+    }
+    return true;
+}
+
+bool secnlcsv::loadTrack(QString filename, QString* error)
+{
+    QList<mnode> nodes;
+    if(!readNodes(filename, nodes, error)) {
+        return false;
+    }
+    csvNodes = nodes;
+
     parent->updateTrack(0, 0);
+    return true;
 }

@@ -1,0 +1,4 @@
+# full-resolution dumps for the validation, several MB; remade by
+# make_shapes.py --dump
+work/
+__pycache__/

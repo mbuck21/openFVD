@@ -20,9 +20,9 @@
 #include "graphwidget.h"
 #include "ui_trackwidget.h"
 #include "optionsmenu.h"
-#include "undohandler.h"
 #include "mainwindow.h"
 #include "trackmesh.h"
+#include "command.h"
 #include <QMenu>
 #include <QKeyEvent>
 #include <QPushButton>
@@ -87,6 +87,24 @@ trackWidget::trackWidget(QWidget *parent, trackHandler* _track) :
     ui->pitchChangeLabel->setText(QString("d%1/dt").arg(QChar(0x0398)));
     ui->yawChangeLabel->setText(QString("d%1/dt").arg(QChar(0x03a8)));
 
+    // The project stores the start forces, not these rates: a typed rate
+    // becomes the two forces, and the box then shows the rate the stored forces
+    // give (about 2 percent more, as the 2016 program converts with two values
+    // of g; issue 72; core/commands_anchor.cpp, forcesFromRates()). A typed
+    // yaw rate is in addition multiplied by the cosine of the start pitch. The
+    // box is rewritten once editing ends, not while it is being typed in.
+    QString storedTip("The project stores the start forces, not this rate: a typed rate sets the forces, and "
+                      "when you leave the box it shows the rate those forces give, as after reopening. ");
+    QString gTip("Both rate boxes come back about 2 percent larger, because the original program turns a rate "
+                 "into forces with g = 9.80665 and the forces back into a rate with g = 10.");
+    ui->pitchChangeBox->setToolTip(QString("How fast the track pitches at its start, in degrees per second. ")
+                                   + storedTip + gTip);
+    ui->yawChangeBox->setToolTip(QString("How fast the track turns left or right at its start, in degrees per second. ")
+                                 + storedTip + "The typed yaw rate is multiplied by the cosine of the start pitch "
+                                 "before it becomes the forces, and comes back multiplied by it. " + gTip);
+    connect(ui->pitchChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
+    connect(ui->yawChangeBox, &QDoubleSpinBox::editingFinished, this, [this]() { setupAnchorFrame(); });
+
     smoothScreen = NULL;
     inTrack->trackData->bAutoSmooth = smoothScreen != NULL;
 
@@ -121,13 +139,6 @@ void trackWidget::on_addButton_released()
 
 void trackWidget::addStraightSec()
 {
-    /*undoAction* temp = new undoAction(inTrack, appendSegment);
-    temp->toValue = QVariant(straight);
-    temp->fromValue = QVariant(straight);
-    temp->sectionNumber++;
-    gloParent->project->trackWorker->queueAction(temp);*/
-
-
     addSection(straight);
 }
 
@@ -146,12 +157,89 @@ void trackWidget::addGeometricSec()
     addSection(geometric);
 }
 
+// The name section.add knows a kind by; "" for the kinds only an importer makes.
+static const char* sectionTypeName(secType type)
+{
+    switch(type) {
+    case straight: return "straight";
+    case curved: return "curved";
+    case forced: return "force";
+    case geometric: return "geometric";
+    default: return "";
+    }
+}
+
+// Runs one section command (core/commands_section.cpp) on this panel's track;
+// it records its own undo step. The values are in model units, each worked out
+// with the expression the slot had before it became a command.
+static bool runSectionCommand(trackHandler* handler, const char* name, const commandTarget& target, const commandArgs& args)
+{
+    QString error;
+    bool ok = commandRegistry::run(handler->mHistory, QString(name), target, args, &error);
+    if(!ok) {
+        qWarning("%s refused: %s", name, error.toLocal8Bit().constData());
+    }
+    return ok;
+}
+
+// The selected section's command target: what the undo step selects again.
+static commandTarget activeSectionTarget(trackHandler* handler)
+{
+    return commandTarget::forSection(handler->getID()-1, handler->trackData->getSectionNumber(handler->trackData->activeSection));
+}
+
+// Adds a section after the one with the number "after" (0: first) with the
+// command; the section is then in the track and the panel builds its row.
+// Null when the command refused.
+static section* runAddCommand(trackHandler* handler, secType type, int after)
+{
+    commandArgs args{{"type", QString(sectionTypeName(type))}, {"after", after}};
+    if(!runSectionCommand(handler, "section.add", commandTarget::forTrack(handler->getID()-1), args)) return NULL;
+    return handler->trackData->lSections[after];
+}
+
+// Runs a command that edits the selected section's values. When the command is
+// refused the boxes are put back to what the model holds, so no box shows a
+// number the model does not have.
+bool trackWidget::runSectionEdit(const char* name, const commandArgs& args)
+{
+    bool ok = runSectionCommand(inTrack, name, activeSectionTarget(inTrack), args);
+    if(!ok && selSection && selSection->sectionData) {
+        switch(selSection->type) {
+        case straight:
+            setupStraightFrame();
+            break;
+        case curved:
+            setupCurvedFrame();
+            break;
+        case forced:
+        case geometric:
+            setupAdvFrame();
+            break;
+        default:
+            break;
+        }
+        updateOptionsFrame();
+    }
+    return ok;
+}
+
 void trackWidget::addSection(secType _type)
 {
-    sectionHandler* newSec = new sectionHandler(inTrack->trackData, _type, sectionList.size());
-    this->inTrack->trackData->updateTrack(newSec->sectionData, 0);
+    if(*sectionTypeName(_type) == 0) {
+        // a NoLimits CSV import (projectWidget::importNoLimitsCSVFile()), which
+        // starts the track's undo list afresh afterwards: no command, no step
+        sectionHandler* newSec = new sectionHandler(inTrack->trackData, _type, sectionList.size());
+        this->inTrack->trackData->updateTrack(newSec->sectionData, 0);
 
-    showNewSection(newSec, _type);
+        showNewSection(newSec);
+        return;
+    }
+    section* added = runAddCommand(inTrack, _type, inTrack->trackData->lSections.size());
+    if(!added) return;
+    sectionHandler* newSec = new sectionHandler(added, sectionList.size());
+
+    showNewSection(newSec);
 }
 
 // A section the track added itself (track::appendSectionFromFile(), told
@@ -161,12 +249,12 @@ void trackWidget::showAddedSection(int index)
     section* added = inTrack->trackData->lSections[index];
     sectionHandler* newSec = new sectionHandler(added, sectionList.size());
 
-    showNewSection(newSec, added->type);
+    showNewSection(newSec);
 }
 
 // The panel's part of adding a section at the end: its row, selected; the
-// graphs; an undo step.
-void trackWidget::showNewSection(sectionHandler* newSec, secType _type)
+// graphs. (The undo step is the command's, not the panel's.)
+void trackWidget::showNewSection(sectionHandler* newSec)
 {
     sectionList.append(newSec);
     ui->sectionListWidget->addTopLevelItem(newSec->listItem);
@@ -174,14 +262,6 @@ void trackWidget::showNewSection(sectionHandler* newSec, secType _type)
     newSec->listItem->setSelected(true);
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, appendSegment);
-        temp->toValue = QVariant(_type);
-        temp->fromValue = QVariant(_type);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::appendStraightSec()
@@ -209,10 +289,11 @@ void trackWidget::appendSection(secType _type)
     int index;
     if(!selSection) index = 1;
     else index =selSection->type == anchor ? 1 : inTrack->trackData->getSectionNumber(selSection->sectionData)+2;
-    sectionHandler* newSec = new sectionHandler(inTrack->trackData, _type, index);
+    section* added = runAddCommand(inTrack, _type, index-1);
+    if(!added) return;
+    sectionHandler* newSec = new sectionHandler(added, index);
     sectionList.insert(index, newSec);
     ui->sectionListWidget->insertTopLevelItem(index, newSec->listItem);
-    this->inTrack->trackData->updateTrack(newSec->sectionData, 0);
     this->inTrack->trackData->activeSection = newSec->sectionData;
     selSection = newSec;
 
@@ -220,14 +301,6 @@ void trackWidget::appendSection(secType _type)
 
     inTrack->graphWidgetItem->redrawGraphs();
     updateSectionIDs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, appendSegment);
-        temp->toValue = QVariant(_type);
-        temp->fromValue = QVariant(_type);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::updateSectionIDs()
@@ -264,6 +337,8 @@ void trackWidget::writeNames()
 
 void trackWidget::on_sectionListWidget_itemSelectionChanged()
 {
+    // another selection: the next typed value is a step of its own
+    inTrack->endMergeRun();
     if(!ui->sectionListWidget->selectedItems().size()) {
         selSection = NULL;
         inTrack->trackData->activeSection = NULL;
@@ -401,17 +476,14 @@ int trackWidget::getSection(QTreeWidgetItem *item)
 
 void trackWidget::on_deleteButton_released()
 {
+    // the Delete key reaches here with nothing or the anchor selected
+    if(ui->sectionListWidget->selectedItems().isEmpty()) return;
     QTreeWidgetItem* selected = ui->sectionListWidget->selectedItems().at(0);
 
     int index = getSection(selected);
+    if(index < 1) return;
 
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, removeSegment);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
-
-    inTrack->trackData->removeSection(index-1);
+    if(!runSectionCommand(inTrack, "section.delete", commandTarget::forSection(inTrack->getID()-1, index-1), commandArgs())) return;
     delete sectionList[index];
     sectionList.removeAt(index);
 
@@ -423,7 +495,38 @@ void trackWidget::on_deleteButton_released()
     inTrack->graphWidgetItem->selectionChanged();
 }
 
-void trackWidget::setupAnchorFrame()
+// Before the track's model is replaced (trackHandler::trackAboutToReset()):
+// no selection, and no rows for the sections, which are about to be deleted.
+void trackWidget::dropSections()
+{
+    ui->sectionListWidget->clearSelection();
+    selSection = NULL;
+    inTrack->trackData->activeSection = NULL;
+
+    bool oldP = phantomChanges;
+    phantomChanges = true;
+    while(sectionList.size() > 1) {
+        delete sectionList.takeLast();
+    }
+    phantomChanges = oldP;
+}
+
+// After the model was replaced (trackHandler::trackReset()): one row per
+// section, nothing selected, no undo step.
+void trackWidget::showSections()
+{
+    bool oldP = phantomChanges;
+    phantomChanges = true;
+    for(int i = 0; i < inTrack->trackData->lSections.size(); ++i) {
+        sectionHandler* row = new sectionHandler(inTrack->trackData->lSections[i], sectionList.size());
+        sectionList.append(row);
+        ui->sectionListWidget->addTopLevelItem(row->listItem);
+    }
+    updateSectionIDs();
+    phantomChanges = oldP;
+}
+
+void trackWidget::setupAnchorFrame(QWidget* keep)
 {
     bool oldP = phantomChanges;
     phantomChanges = true;
@@ -431,33 +534,22 @@ void trackWidget::setupAnchorFrame()
     float yaw = inTrack->trackData->startYaw*F_PI/180;
     glm::vec3 temp = anchor->vPosHeart(inTrack->trackData->fHeart);
 
-    ui->xBox->setValue( (-cos(yaw)*temp.z+sin(yaw)*temp.x+inTrack->trackData->startPos.x)  * gloParent->mOptions->getLengthFactor());
-    ui->yBox->setValue((temp.y+inTrack->trackData->startPos.y) * gloParent->mOptions->getLengthFactor());
-    ui->zBox->setValue((cos(yaw)*temp.x+sin(yaw)*temp.z+inTrack->trackData->startPos.z) * gloParent->mOptions->getLengthFactor());
-    ui->rBox->setValue(anchor->fRoll);
-    ui->pBox->setValue(anchor->getPitch());
-    ui->jBox->setValue(inTrack->trackData->startYaw);
-    ui->anchorSpeedBox->setValue(anchor->fVel*gloParent->mOptions->getSpeedFactor());
+    if(keep != ui->xBox) ui->xBox->setValue( (-cos(yaw)*temp.z+sin(yaw)*temp.x+inTrack->trackData->startPos.x)  * gloParent->mOptions->getLengthFactor());
+    if(keep != ui->yBox) ui->yBox->setValue((temp.y+inTrack->trackData->startPos.y) * gloParent->mOptions->getLengthFactor());
+    if(keep != ui->zBox) ui->zBox->setValue((cos(yaw)*temp.x+sin(yaw)*temp.z+inTrack->trackData->startPos.z) * gloParent->mOptions->getLengthFactor());
+    if(keep != ui->rBox) ui->rBox->setValue(anchor->fRoll);
+    if(keep != ui->pBox) ui->pBox->setValue(anchor->getPitch());
+    if(keep != ui->jBox) ui->jBox->setValue(inTrack->trackData->startYaw);
+    if(keep != ui->anchorSpeedBox) ui->anchorSpeedBox->setValue(anchor->fVel*gloParent->mOptions->getSpeedFactor());
     ui->anchorSpeedBox->setSuffix(gloParent->mOptions->getSpeedString());
     ui->xBox->setSuffix(gloParent->mOptions->getLengthString());
     ui->yBox->setSuffix(gloParent->mOptions->getLengthString());
     ui->zBox->setSuffix(gloParent->mOptions->getLengthString());
-    ui->normalBox->setValue(anchor->forceNormal);
-    ui->lateralBox->setValue(anchor->forceLateral);
-    ui->pitchChangeBox->setValue(anchor->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(anchor->fYawFromLast*F_HZ);
+    if(keep != ui->normalBox) ui->normalBox->setValue(anchor->forceNormal);
+    if(keep != ui->lateralBox) ui->lateralBox->setValue(anchor->forceLateral);
+    if(keep != ui->pitchChangeBox) ui->pitchChangeBox->setValue(anchor->fPitchFromLast*F_HZ);
+    if(keep != ui->yawChangeBox) ui->yawChangeBox->setValue(anchor->fYawFromLast*F_HZ);
 
-    inTrack->mUndoHandler->oldAnchorPosX = inTrack->trackData->startPos.x;
-    inTrack->mUndoHandler->oldAnchorPosY = inTrack->trackData->startPos.y;
-    inTrack->mUndoHandler->oldAnchorPosZ = inTrack->trackData->startPos.z;
-    inTrack->mUndoHandler->oldAnchorRoll = inTrack->trackData->anchorNode->fRoll;
-    inTrack->mUndoHandler->oldAnchorPitch = inTrack->trackData->startPitch;
-    inTrack->mUndoHandler->oldAnchorYaw = inTrack->trackData->startYaw;
-    inTrack->mUndoHandler->oldAnchorSpeed = anchor->fVel;
-    inTrack->mUndoHandler->oldAnchorNormal = anchor->forceNormal;
-    inTrack->mUndoHandler->oldAnchorLateral = anchor->forceLateral;
-    inTrack->mUndoHandler->oldAnchorPitchChange = anchor->fPitchFromLast;
-    inTrack->mUndoHandler->oldAnchorYawChange = anchor->fYawFromLast;
     phantomChanges = oldP;
 }
 
@@ -472,9 +564,6 @@ void trackWidget::setupStraightFrame()
     ui->straightSpeedBox->setValue(selSection->sectionData->getSpeed()*gloParent->mOptions->getSpeedFactor());
     ui->straightSpeedBox->setSuffix(gloParent->mOptions->getSpeedString());
 
-    inTrack->mUndoHandler->oldSegmentLength = selSection->sectionData->fHLength;
-    inTrack->mUndoHandler->oldSpeedState = selSection->sectionData->bSpeed;
-    inTrack->mUndoHandler->oldSegmentSpeed = selSection->sectionData->fVel;
     phantomChanges = oldP;
 }
 
@@ -493,13 +582,6 @@ void trackWidget::setupCurvedFrame()
     ui->curvedSpeedBox->setValue(selSection->sectionData->getSpeed()*gloParent->mOptions->getSpeedFactor());
     ui->curvedSpeedBox->setSuffix(gloParent->mOptions->getSpeedString());
 
-    inTrack->mUndoHandler->oldSegmentLength = selSection->sectionData->fAngle;
-    inTrack->mUndoHandler->oldCurveDirection = selSection->sectionData->fDirection;
-    inTrack->mUndoHandler->oldCurveLeadIn = selSection->sectionData->fLeadIn;
-    inTrack->mUndoHandler->oldCurveLeadOut = selSection->sectionData->fLeadOut;
-    inTrack->mUndoHandler->oldCurveRadius = selSection->sectionData->fRadius;
-    inTrack->mUndoHandler->oldSpeedState = selSection->sectionData->bSpeed;
-    inTrack->mUndoHandler->oldSegmentSpeed = selSection->sectionData->fVel;
     phantomChanges = oldP;
 }
 
@@ -511,8 +593,6 @@ void trackWidget::setupAdvFrame()
     ui->advancedSpeedCheck->setChecked(!selSection->sectionData->bSpeed);
     ui->advancedSpeedBox->setValue(selSection->sectionData->getSpeed()*gloParent->mOptions->getSpeedFactor());
     ui->advancedSpeedBox->setSuffix(gloParent->mOptions->getSpeedString());
-    inTrack->mUndoHandler->oldSpeedState = selSection->sectionData->bSpeed;
-    inTrack->mUndoHandler->oldSegmentSpeed = selSection->sectionData->fVel;
     phantomChanges = oldP;
 }
 
@@ -542,61 +622,55 @@ void trackWidget::updateOptionsFrame()
     phantomChanges = oldP;
 }
 
+// Runs one anchor command (core/commands_anchor.cpp) on this panel's track; it
+// records its own undo step. The values are in model units, each worked out
+// with the expression the slot had before it became a command.
+static bool runAnchorCommand(trackHandler* handler, const char* name, const commandArgs& args)
+{
+    QString error;
+    bool ok = commandRegistry::run(handler->mHistory, QString(name), commandTarget::forTrack(handler->getID()-1), args, &error);
+    if(!ok) {
+        qWarning("%s refused: %s", name, error.toLocal8Bit().constData());
+    }
+    return ok;
+}
+
+// The point the roll, pitch and yaw commands keep in place: what the X, Y and
+// Z boxes show, in metres.
+static void addHoldArgs(commandArgs& args, double x, double y, double z)
+{
+    args.insert("holdX", x);
+    args.insert("holdY", y);
+    args.insert("holdZ", z);
+}
+
 void trackWidget::on_xBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    float a = inTrack->trackData->startYaw * F_PI/180.f;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.x = -(cos(a)*sin(b)*cos(y)+sin(a)*sin(y))*inTrack->trackData->fHeart + arg1/gloParent->mOptions->getLengthFactor();
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionX", commandArgs{{"x", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->xBox : NULL);
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorPosX);
-        temp->toValue = QVariant(inTrack->trackData->startPos.x);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_yBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.y = (cos(b)*cos(y))*inTrack->trackData->fHeart + arg1/gloParent->mOptions->getLengthFactor();
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionY", commandArgs{{"y", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->yBox : NULL);
 
     inTrack->mMesh->buildMeshes(0);
 
-    inTrack->trackData->hasChanged = true;
-
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorPosY);
-        temp->toValue = QVariant(inTrack->trackData->startPos.y);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_zBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    float a = inTrack->trackData->startYaw * F_PI/180.f;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.z = (sin(a)*sin(b)*cos(y)-cos(a)*sin(y))*inTrack->trackData->fHeart + arg1/gloParent->mOptions->getLengthFactor();
+    bool ok = runAnchorCommand(inTrack, "anchor.setPositionZ", commandArgs{{"z", arg1/gloParent->mOptions->getLengthFactor()}});
+    setupAnchorFrame(ok ? ui->zBox : NULL);
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorPosZ);
-        temp->toValue = QVariant(inTrack->trackData->startPos.z);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_rBox_valueChanged(double arg1)
@@ -610,105 +684,29 @@ void trackWidget::on_rBox_valueChanged(double arg1)
         phantomChanges = oldP;
     }
     if(phantomChanges) return;
-    inTrack->trackData->anchorNode->setRoll(arg1-inTrack->trackData->anchorNode->fRoll);
+    commandArgs args{{"roll", arg1}};
+    addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->zBox->value()/gloParent->mOptions->getLengthFactor());
+    bool ok = runAnchorCommand(inTrack, "anchor.setRoll", args);
 
-    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
-    if(!inTrack->mUndoHandler->busy) {
-        tempx = new undoAction(inTrack, changeAnchorPosX);
-        tempx->fromValue = QVariant(inTrack->trackData->startPos.x);
-
-        tempy = new undoAction(inTrack, changeAnchorPosY);
-        tempy->fromValue = QVariant(inTrack->trackData->startPos.y);
-        tempy->nextAction = tempx;
-
-        tempz = new undoAction(inTrack, changeAnchorPosZ);
-        tempz->fromValue = QVariant(inTrack->trackData->startPos.z);
-        tempz->nextAction = tempy;
-    }
-
-    float a = inTrack->trackData->startYaw * F_PI/180.f;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.x = -(cos(a)*sin(b)*cos(y)+sin(a)*sin(y))*inTrack->trackData->fHeart + ui->xBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.y = (cos(b)*cos(y))*inTrack->trackData->fHeart + ui->yBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.z = (sin(a)*sin(b)*cos(y)-cos(a)*sin(y))*inTrack->trackData->fHeart + ui->zBox->value()/gloParent->mOptions->getLengthFactor();
-
-    updateAnchorGeometrics();
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->pitchChangeBox->setValue(inTrack->trackData->anchorNode->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(inTrack->trackData->anchorNode->fYawFromLast*F_HZ);
-    phantomChanges = oldP;
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->rBox : NULL);
 
     gloParent->updateInfoPanel();
-
-
-    if(!inTrack->mUndoHandler->busy) {
-        tempx->toValue = QVariant(inTrack->trackData->startPos.x);
-        tempy->toValue = QVariant(inTrack->trackData->startPos.y);
-        tempz->toValue = QVariant(inTrack->trackData->startPos.z);
-        undoAction* temp = new undoAction(inTrack, changeAnchorRoll);
-        temp->toValue = QVariant(inTrack->trackData->anchorNode->fRoll);
-        temp->nextAction = tempz;
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_pBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
-    if(!inTrack->mUndoHandler->busy) {
-        tempx = new undoAction(inTrack, changeAnchorPosX);
-        tempx->fromValue = QVariant(inTrack->trackData->startPos.x);
+    commandArgs args{{"pitch", arg1}};
+    addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->zBox->value()/gloParent->mOptions->getLengthFactor());
+    bool ok = runAnchorCommand(inTrack, "anchor.setPitch", args);
 
-        tempy = new undoAction(inTrack, changeAnchorPosY);
-        tempy->fromValue = QVariant(inTrack->trackData->startPos.y);
-        tempy->nextAction = tempx;
-
-        tempz = new undoAction(inTrack, changeAnchorPosZ);
-        tempz->fromValue = QVariant(inTrack->trackData->startPos.z);
-        tempz->nextAction = tempy;
-    }
-
-    inTrack->trackData->startPitch = arg1;
-
-    inTrack->trackData->anchorNode->changePitch(arg1-inTrack->trackData->anchorNode->getPitch(), fabs(inTrack->trackData->anchorNode->fRoll) >= 90.f);
-
-    float a = inTrack->trackData->startYaw * F_PI/180.f;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.x = -(cos(a)*sin(b)*cos(y)+sin(a)*sin(y))*inTrack->trackData->fHeart + ui->xBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.y = (cos(b)*cos(y))*inTrack->trackData->fHeart + ui->yBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.z = (sin(a)*sin(b)*cos(y)-cos(a)*sin(y))*inTrack->trackData->fHeart + ui->zBox->value()/gloParent->mOptions->getLengthFactor();
-
-    updateAnchorGeometrics();
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->pitchChangeBox->setValue(inTrack->trackData->anchorNode->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(inTrack->trackData->anchorNode->fYawFromLast*F_HZ);
-    phantomChanges = oldP;
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->pBox : NULL);
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        tempx->toValue = QVariant(inTrack->trackData->startPos.x);
-        tempy->toValue = QVariant(inTrack->trackData->startPos.y);
-        tempz->toValue = QVariant(inTrack->trackData->startPos.z);
-
-        undoAction* temp = new undoAction(inTrack, changeAnchorPitch);
-        temp->toValue = QVariant(arg1);
-        temp->nextAction = tempz;
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_jBox_valueChanged(double arg1)
@@ -723,75 +721,28 @@ void trackWidget::on_jBox_valueChanged(double arg1)
     }
     if(phantomChanges) return;
 
-    undoAction *tempx = NULL, *tempy = NULL, *tempz = NULL;
-    if(!inTrack->mUndoHandler->busy) {
-        tempx = new undoAction(inTrack, changeAnchorPosX);
-        tempx->fromValue = QVariant(inTrack->trackData->startPos.x);
+    commandArgs args{{"yaw", arg1}};
+    addHoldArgs(args, ui->xBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->yBox->value()/gloParent->mOptions->getLengthFactor(),
+                ui->zBox->value()/gloParent->mOptions->getLengthFactor());
+    bool ok = runAnchorCommand(inTrack, "anchor.setYaw", args);
 
-        tempy = new undoAction(inTrack, changeAnchorPosY);
-        tempy->fromValue = QVariant(inTrack->trackData->startPos.y);
-        tempy->nextAction = tempx;
-
-        tempz = new undoAction(inTrack, changeAnchorPosZ);
-        tempz->fromValue = QVariant(inTrack->trackData->startPos.z);
-        tempz->nextAction = tempy;
-    }
-
-    inTrack->trackData->startYaw = arg1;
-
-    float a = inTrack->trackData->startYaw * F_PI/180.f;
-    float b = inTrack->trackData->startPitch * F_PI/180.f;
-    float y = inTrack->trackData->anchorNode->fRoll * F_PI/180.f;
-    inTrack->trackData->startPos.x = -(cos(a)*sin(b)*cos(y)+sin(a)*sin(y))*inTrack->trackData->fHeart + ui->xBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.y = (cos(b)*cos(y))*inTrack->trackData->fHeart + ui->yBox->value()/gloParent->mOptions->getLengthFactor();
-    inTrack->trackData->startPos.z = (sin(a)*sin(b)*cos(y)-cos(a)*sin(y))*inTrack->trackData->fHeart + ui->zBox->value()/gloParent->mOptions->getLengthFactor();
-
-    updateAnchorGeometrics();
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->jBox : NULL);
 
     gloParent->updateInfoPanel();
-
-    if(!inTrack->mUndoHandler->busy) {
-        tempx->toValue = QVariant(inTrack->trackData->startPos.x);
-        tempy->toValue = QVariant(inTrack->trackData->startPos.y);
-        tempz->toValue = QVariant(inTrack->trackData->startPos.z);
-
-        undoAction* temp = new undoAction(inTrack, changeAnchorYaw);
-        temp->toValue = QVariant(arg1);
-        temp->nextAction = tempz;
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_anchorSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->anchorNode->fVel = arg1/gloParent->mOptions->getSpeedFactor();
-    inTrack->trackData->anchorNode->fEnergy = 0.5*inTrack->trackData->anchorNode->fVel*inTrack->trackData->anchorNode->fVel + F_G*inTrack->trackData->anchorNode->fPosHearty(0.9*inTrack->trackData->fHeart);
+    bool ok = runAnchorCommand(inTrack, "anchor.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
 
-    updateAnchorGeometrics();
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->pitchChangeBox->setValue(inTrack->trackData->anchorNode->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(inTrack->trackData->anchorNode->fYawFromLast*F_HZ);
-    phantomChanges = oldP;
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->anchorSpeedBox : NULL);
 
     gloParent->updateInfoPanel();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorSpeed);
-        temp->toValue = QVariant(inTrack->trackData->anchorNode->fVel);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_straightSpeedCheck_stateChanged(int arg1)
@@ -799,8 +750,9 @@ void trackWidget::on_straightSpeedCheck_stateChanged(int arg1)
     if(phantomChanges) return;
 
     ui->straightSpeedBox->setEnabled(arg1);
-    inTrack->trackData->activeSection->bSpeed = !arg1;
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    inTrack->mHistory->endMergeRun();
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
+    inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->straightSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
     phantomChanges = false;
@@ -808,40 +760,24 @@ void trackWidget::on_straightSpeedCheck_stateChanged(int arg1)
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSpeedState);
-        temp->toValue = QVariant(!arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_straightSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->fVel = arg1/gloParent->mOptions->getSpeedFactor();
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentSpeed);
-        temp->toValue = QVariant(inTrack->trackData->activeSection->fVel);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_straightLengthBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->rollFunc->setMaxArgument(arg1/gloParent->mOptions->getLengthFactor());
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("straight.setLength", commandArgs{{"length", arg1/gloParent->mOptions->getLengthFactor()}});
     if(inTrack->trackData->activeSection->bSpeed) {
         phantomChanges = true;
         ui->straightSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
@@ -851,13 +787,6 @@ void trackWidget::on_straightLengthBox_valueChanged(double arg1)
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentLength);
-        temp->toValue = QVariant(arg1/gloParent->mOptions->getLengthFactor());
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedSpeedCheck_stateChanged(int arg1)
@@ -865,8 +794,9 @@ void trackWidget::on_curvedSpeedCheck_stateChanged(int arg1)
     if(phantomChanges) return;
 
     ui->curvedSpeedBox->setEnabled(arg1);
-    inTrack->trackData->activeSection->bSpeed = !arg1;
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    inTrack->mHistory->endMergeRun();
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
+    inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->curvedSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
     phantomChanges = false;
@@ -874,148 +804,87 @@ void trackWidget::on_curvedSpeedCheck_stateChanged(int arg1)
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSpeedState);
-        temp->toValue = QVariant(!arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->fVel = arg1/gloParent->mOptions->getSpeedFactor();
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentSpeed);
-        temp->toValue = QVariant(inTrack->trackData->activeSection->fVel);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedRadiusBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->fRadius = arg1/gloParent->mOptions->getLengthFactor();
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("curve.setRadius", commandArgs{{"radius", arg1/gloParent->mOptions->getLengthFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeCurveRadius);
-        temp->toValue = QVariant(arg1/gloParent->mOptions->getLengthFactor());
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedAngleBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->rollFunc->setMaxArgument(arg1);
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("curve.setAngle", commandArgs{{"angle", arg1}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentLength);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedDirectionBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->fDirection = arg1;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("curve.setDirection", commandArgs{{"direction", arg1}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeCurveDirection);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedLeadInBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    if(arg1+inTrack->trackData->activeSection->fLeadOut > inTrack->trackData->activeSection->fAngle) {
-        arg1 = inTrack->trackData->activeSection->fAngle - inTrack->trackData->activeSection->fLeadOut;
+    // the command cuts a lead-in that is too large; the box shows what is left
+    bool cut = arg1+inTrack->trackData->activeSection->fLeadOut > inTrack->trackData->activeSection->fAngle;
+    runSectionEdit("curve.setLeadIn", commandArgs{{"leadIn", arg1}});
+    if(cut) {
         bool oldP = phantomChanges;
         phantomChanges = true;
-        ui->curvedLeadInBox->setValue(arg1);
+        ui->curvedLeadInBox->setValue(inTrack->trackData->activeSection->fLeadIn);
         phantomChanges = oldP;
     }
-
-    inTrack->trackData->activeSection->fLeadIn = arg1;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeCurveLeadIn);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_curvedLeadOutBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    if(arg1+inTrack->trackData->activeSection->fLeadIn > inTrack->trackData->activeSection->fAngle) {
-        arg1 = inTrack->trackData->activeSection->fAngle - inTrack->trackData->activeSection->fLeadIn;
+    bool cut = arg1+inTrack->trackData->activeSection->fLeadIn > inTrack->trackData->activeSection->fAngle;
+    runSectionEdit("curve.setLeadOut", commandArgs{{"leadOut", arg1}});
+    if(cut) {
         bool oldP = phantomChanges;
         phantomChanges = true;
-        ui->curvedLeadOutBox->setValue(arg1);
+        ui->curvedLeadOutBox->setValue(inTrack->trackData->activeSection->fLeadOut);
         phantomChanges = oldP;
     }
-
-    inTrack->trackData->activeSection->fLeadOut = arg1;
-
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeCurveLeadOut);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_advancedSpeedCheck_stateChanged(int arg1)
@@ -1023,8 +892,9 @@ void trackWidget::on_advancedSpeedCheck_stateChanged(int arg1)
     if(phantomChanges) return;
 
     ui->advancedSpeedBox->setEnabled(arg1);
-    inTrack->trackData->activeSection->bSpeed = !arg1;
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    inTrack->mHistory->endMergeRun();
+    runSectionEdit("section.setSpeedFixed", commandArgs{{"fixed", arg1 != 0}});
+    inTrack->mHistory->endMergeRun();
     phantomChanges = true;
     ui->advancedSpeedBox->setValue(inTrack->trackData->activeSection->getSpeed()*gloParent->mOptions->getSpeedFactor());
     phantomChanges = false;
@@ -1032,32 +902,17 @@ void trackWidget::on_advancedSpeedCheck_stateChanged(int arg1)
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSpeedState);
-        temp->toValue = QVariant(!arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_advancedSpeedBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->fVel = arg1/gloParent->mOptions->getSpeedFactor();
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    runSectionEdit("section.setSpeed", commandArgs{{"speed", arg1/gloParent->mOptions->getSpeedFactor()}});
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentSpeed);
-        temp->toValue = QVariant(inTrack->trackData->activeSection->fVel);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_sectionListWidget_customContextMenuRequested(const QPoint &pos)
@@ -1087,110 +942,67 @@ void trackWidget::on_orientationBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->bOrientation = index;
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    inTrack->mHistory->endMergeRun();
+    runSectionEdit("section.setOrientation", commandArgs{{"orientation", QString(index ? "euler" : "quaternion")}});
+    inTrack->mHistory->endMergeRun();
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentOrientation);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_argumentBox_currentIndexChanged(int index)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->activeSection->bArgument = index;
-    inTrack->trackData->updateTrack(inTrack->trackData->activeSection, 0);
+    inTrack->mHistory->endMergeRun();
+    runSectionEdit("section.setArgument", commandArgs{{"argument", QString(index ? "distance" : "time")}});
+    inTrack->mHistory->endMergeRun();
     gloParent->updateInfoPanel();
     updateSectionFrame();
 
     inTrack->graphWidgetItem->curSectionChanged(selSection);
     inTrack->graphWidgetItem->redrawGraphs(true);
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeSegmentArgument);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_normalBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->anchorNode->forceNormal = arg1;
+    bool ok = runAnchorCommand(inTrack, "anchor.setNormalForce", commandArgs{{"force", arg1}});
 
-    updateAnchorGeometrics();
-
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->pitchChangeBox->setValue(inTrack->trackData->anchorNode->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(inTrack->trackData->anchorNode->fYawFromLast*F_HZ);
-    phantomChanges = oldP;
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->normalBox : NULL);
 
     gloParent->updateInfoPanel();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorNormal);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
 }
 
 void trackWidget::on_lateralBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
 
-    inTrack->trackData->anchorNode->forceLateral = arg1;
+    bool ok = runAnchorCommand(inTrack, "anchor.setLateralForce", commandArgs{{"force", arg1}});
 
-    updateAnchorGeometrics();
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->pitchChangeBox->setValue(inTrack->trackData->anchorNode->fPitchFromLast*F_HZ);
-    ui->yawChangeBox->setValue(inTrack->trackData->anchorNode->fYawFromLast*F_HZ);
-    phantomChanges = oldP;
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->lateralBox : NULL);
 
     gloParent->updateInfoPanel();
 
     inTrack->graphWidgetItem->redrawGraphs();
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorLateral);
-        temp->toValue = QVariant(arg1);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
-}
-
-void trackWidget::updateAnchorGeometrics()
-{
-    inTrack->trackData->updateAnchorGeometrics();
 }
 
 void trackWidget::on_smoothButton_released()
 {
     if(!smoothScreen) {
         smoothScreen = new smoothUi(inTrack, gloParent);
+        // "a smoothing dialog exists" (track::bAutoSmooth): not saved and not
+        // a step; it stays when the dialog is cancelled, as the dialog does
         inTrack->trackData->bAutoSmooth = true;
+        inTrack->takeOutsideChange();
     }
 
-    smoothScreen->updateUi();
-    smoothScreen->show();
+    // the dialog's step: the entries are brought up to date inside it
+    smoothScreen->openStep();
 }
 
 void trackWidget::setSelection(int index)
@@ -1203,86 +1015,29 @@ void trackWidget::setSelection(int index)
 void trackWidget::on_pitchChangeBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    mnode* anchor = inTrack->trackData->anchorNode;
-    if(!inTrack->mUndoHandler->busy) {
-        inTrack->mUndoHandler->oldAnchorPitchChange = anchor->fPitchFromLast;
-    }
-    anchor->fPitchFromLast = arg1/F_HZ;
+    bool ok = runAnchorCommand(inTrack, "anchor.setPitchRate", commandArgs{{"rate", arg1}});
 
-    float temp = cos(fabs(anchor->getPitch())*F_PI/180.f);
-    float forceAngle = sqrt(temp*temp*anchor->fYawFromLast*anchor->fYawFromLast + anchor->fPitchFromLast*anchor->fPitchFromLast);//deltaAngle;
-    float dirFromLast = glm::atan(anchor->fYawFromLast, anchor->fPitchFromLast) - TO_RAD(anchor->fRoll);
-
-    glm::vec3 forceVec;
-    if(fabs(forceAngle) < std::numeric_limits<float>::epsilon()) {
-        forceVec = glm::vec3(0.f, 1.f, 0.f);
-    } else {
-        forceVec = glm::vec3(0.f, 1.f, 0.f) + (float)((anchor->fVel*anchor->fVel) / (9.80665 * anchor->fVel/forceAngle * 0.18f/F_PI)) * glm::normalize(glm::vec3(glm::rotate(dirFromLast, -anchor->vDir)*glm::vec4(-anchor->vNorm, 0.f)));
-    }
-    anchor->forceNormal = - glm::dot(forceVec, glm::normalize(anchor->vNorm));
-    anchor->forceLateral = - glm::dot(forceVec, glm::normalize(anchor->vLat));
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->normalBox->setValue(anchor->forceNormal);
-    ui->lateralBox->setValue(anchor->forceLateral);
-    phantomChanges = oldP;
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorPitchChange);
-        temp->toValue = QVariant(arg1/F_HZ);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->pitchChangeBox : NULL);
 }
 
 void trackWidget::on_yawChangeBox_valueChanged(double arg1)
 {
     if(phantomChanges) return;
-    mnode* anchor = inTrack->trackData->anchorNode;
-    if(!inTrack->mUndoHandler->busy) {
-        inTrack->mUndoHandler->oldAnchorYawChange = anchor->fYawFromLast;
-    }
+    bool ok = runAnchorCommand(inTrack, "anchor.setYawRate", commandArgs{{"rate", arg1}});
 
-    anchor->fYawFromLast = arg1/F_HZ;
-
-    float temp = cos(fabs(anchor->getPitch())*F_PI/180.f);
-    float forceAngle = sqrt(temp*temp*anchor->fYawFromLast*anchor->fYawFromLast + anchor->fPitchFromLast*anchor->fPitchFromLast);//deltaAngle;
-    float dirFromLast = glm::atan(anchor->fYawFromLast, anchor->fPitchFromLast) - TO_RAD(anchor->fRoll);
-
-    glm::vec3 forceVec;
-    if(fabs(forceAngle) < std::numeric_limits<float>::epsilon()) {
-        forceVec = glm::vec3(0.f, 1.f, 0.f);
-    } else {
-        forceVec = glm::vec3(0.f, 1.f, 0.f) + (float)((anchor->fVel*anchor->fVel) / (9.80665 * anchor->fVel/forceAngle * 0.18f/F_PI)) * glm::normalize(glm::vec3(glm::rotate(dirFromLast, -anchor->vDir)*glm::vec4(-anchor->vNorm, 0.f)));
-    }
-    anchor->forceNormal = - glm::dot(forceVec, glm::normalize(anchor->vNorm));
-    anchor->forceLateral = - glm::dot(forceVec, glm::normalize(anchor->vLat));
-
-    bool oldP = phantomChanges;
-    phantomChanges = true;
-    ui->normalBox->setValue(anchor->forceNormal);
-    ui->lateralBox->setValue(anchor->forceLateral);
-    phantomChanges = oldP;
-
-    if(!inTrack->mUndoHandler->busy) {
-        undoAction* temp = new undoAction(inTrack, changeAnchorYawChange);
-        temp->toValue = QVariant(arg1/F_HZ);
-        inTrack->mUndoHandler->addAction(temp);
-        gloParent->setUndoButtons();
-    }
-
-    inTrack->trackData->updateTrack(0, 0);
+    setupAnchorFrame(ok ? ui->yawChangeBox : NULL);
 }
 
 void trackWidget::on_sectionListWidget_itemChanged(QTreeWidgetItem *item, int column)
 {
-    Q_UNUSED(item);
     if(phantomChanges) return;
 
-    if(column == 1) writeNames();
+    if(column == 1) {
+        int index = getSection(item);
+        if(index < 1) return;
+        runSectionCommand(inTrack, "section.setName", commandTarget::forSection(inTrack->getID()-1, index-1),
+                          commandArgs{{"name", item->text(1)}});
+    }
 }
 
 void trackWidget::update()

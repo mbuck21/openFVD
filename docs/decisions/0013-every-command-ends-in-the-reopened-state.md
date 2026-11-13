@@ -1,0 +1,36 @@
+# 0013: Every command ends in the state that saving and reopening gives
+
+- Status: accepted
+- Date: 2026-11-11
+- Needs owner approval: no for the rule (it is the principle the owner approved for the start point, applied to every edit; the architect's call under record 0006). The owner was told the same day, with the measurements. It changes what is on screen straight after some edits; it does not change what a saved project computes.
+
+## Context
+
+- The original program recomputes a track from the edited point onward and keeps what it had before that point. Stage 2 found, in one place after another, that the track left on screen is then not the track the saved file describes:
+  - an edit of the start point did not reach the track at all until the project was reopened (fixed in pull request 71);
+  - a recompute left traces of old roll smoothing in the nodes (fixed in pull request 66);
+  - adding a transition to a geometric section on distance left the end of the track 19.8 mm off (measured in pull request 69);
+  - **adding a section in the middle of a smoothed track left the end of the track up to 12.3 m off and its end speed 3.45 m/s off** (measured in pull request 74); 15 mm on a project without smoothing but with a rolled start.
+- In every measured case the project saved and reopened, and the track after an undo and a redo, agree with each other exactly. The running track is the odd one.
+- Record 0011 expected such differences to be "the last digit at most". They are not.
+- Nothing saved or exported was wrong: files hold the settings, and opening a file computes the whole track. But the designer works on the running track, and the owner's first complaint is that an early change disturbs the rest of the ride. Part of that disturbance was this.
+- The goal-seeking solver of Stage 3 recomputes from the middle of a track thousands of times. It cannot aim at a stale track.
+
+## Decision
+
+1. **After every command, the running track is the track a save and a reopen give:** same nodes, same exports. This holds for every registered command, on every kind of section, with and without roll smoothing.
+2. **A test proves it:** for every command on every baseline project, at several places in the track, the running track is compared with the saved and reopened one (node count, the three exports byte for byte) and with the track after undo and redo. A command that fails it is a defect. Where opening a file itself moves a stored value (the last-digit effect of issue 63, item 7), the test says so by name and bounds it.
+3. **How:** the simplest thing that is exact. A command finishes with a whole-track recompute; where a whole-track recompute of the running track is itself not what a fresh one gives, the cause is fixed in the model (`track::newSection`, `track::updateTrack`, the smoothing ranges). Rebuilding the track from its saved state, as undo does, is the fallback for a command that cannot be made exact otherwise.
+4. **Cost is measured, not assumed. Each command computes the track once, as a whole.** The recompute from the edited point that the command's model steps make is skipped, since the whole-track recompute after it would throw it away. Measured (smallest of five runs): on a ride of 150,000 nodes (two and a half minutes) a typed value now takes about 80 ms wherever it is made; the original program took 78 ms near the start and 1 ms at the end; with both recomputes it took 144 to 158 ms near the start (158 to 194 ms in an earlier run on a busier PC). On a project of 14,000 nodes it is about 13 ms. If a longer ride ever makes typing slow, the fallback is: a run of typed changes to one value recomputes from the edited point while it lasts and settles to the exact track when it ends, with undo, redo, save and export always seeing the settled track. It is not built.
+5. **What a file load computes does not change.** The comparison with the 2016 binary stays exact with no tolerance.
+6. **Committed test projects that were saved from a stale running track are re-recorded** when this rule makes the scripted scenario produce the file a reopen would: only where the differences are confined to values the program recalculates on load, the new file equals its own re-save, and the 2016 binary itself, driven by the lead, gives the committed 2016 exports and re-save from the new file. The first was `gen-curves-speed.fvd` (pull request 71).
+7. This supersedes the sentence in record 0011 that a redo may differ from the state before the undo: after this, it does not.
+
+## Where enforced
+
+- `core/command.cpp` (`commandRegistry::runSpec`): while the apply function runs, `track::bDeferUpdate` makes its `updateTrack()` call compute nothing (not for a command marked `settlesItself`); after a successful apply, `track::settleTransitions()` (the transitions' starts and ends put through the sums a load makes when it reads them back, repeated until nothing moves: one pass is not always a fixed point, and a reopen applies the sums once more; found by the lead on the owner's project, where one pass left the end of the track up to 1.4 mm from the reopened one. Eight passes that do not settle give a warning, on which the tests fail) and `track::updateFromAnchor()` (the whole track from the anchor, as a load computes it), then `track::updateSmoothEntries()` (the smoothing entries' names and ranges, which a load takes from the track). A command whose apply function already ends that way is marked `settlesItself` (the anchor commands, `track.setHeartline`, and `smoothing.setEntry`, `addRegion` and `removeRegion`, which recompute with `apply` true and on purpose leave the track alone with `apply` false, for the smoothing dialog, whose step ends exact at OK).
+- `core/trackstate.cpp` (`restoreTrackState`): an undo, a redo or a rollback first computes the track from the anchor, as a load does, and keeps that when it gives the captured first node back bit for bit (roll smoothing turns the first node, and taking the turn off again before a recompute from it is exact only to the last digits); any other first node (one an edit outside the commands left stale) is put back and the track computed from it, as before. A track with an imported section (Bezier or NoLimits CSV) always takes the second way: such a section changes its start node on every update.
+- `tests/commands/` ("running equals reopened", `checkRunningEqualsReopened()` and `checkDialogsReopened()`; `tools\run-tests.cmd` runs a sample of the places, `commands <repository> --reopen` runs every place, with the command times on the long ride). `checkImportedReopened()` runs a few commands on the imported tracks of `samples/import/`: the NoLimits 2 CSV track is exact and checked; the Bezier track (NoLimits 1) is measured but not checked, because a Bezier section reads values a load leaves unset, so it differs from run to run (usually 0.03 to 1.8 mm between the running and the reopened track; once 5.9 m and 7 m/s; issue 63, item 5). The rule does not yet hold for a Bezier section.
+- `FVD.exe --batch-undo-check ... --each`: a single-edit undo or redo that differs is a failure, not a note; `tools/run-baseline.py --undo-check` runs it with `--each`.
+- `core/CLAUDE.md`: a new command must pass the test; a new kind of recompute must be exact.
+- Issue 63, item 14.

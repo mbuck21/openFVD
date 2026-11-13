@@ -60,11 +60,9 @@ public:
     virtual void iFillPointList(QList<int> &List, float mPerNode);
     void         Split(QList<int> &List, int l, int r, float total, float min);
     virtual void fFillPointList(QList<int> &List, float mPerNode);
-    virtual void saveSection(std::fstream& file) = 0;
-    virtual void loadSection(std::fstream& file) = 0;
-    virtual void legacyLoadSection(std::fstream& file) = 0;
-    virtual void saveSection(std::stringstream& file) = 0;
-    virtual void loadSection(std::stringstream& file) = 0;
+    virtual void saveSection(std::iostream& file) = 0;
+    virtual void loadSection(std::iostream& file) = 0;
+    virtual void legacyLoadSection(std::iostream& file) = 0;
     virtual float getMaxArgument() = 0;
     virtual bool isLockable(func* _func) = 0;
     virtual bool isInFunction(int index, subfunc* func) = 0;

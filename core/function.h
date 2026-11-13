@@ -60,11 +60,9 @@ public:
 
     int getSubfuncNumber(subfunc* _sub);
 
-    void saveFunction(std::fstream& file);
-    void loadFunction(std::fstream& file);
-    void legacyLoadFunction(std::fstream& file);
-    void saveFunction(std::stringstream& file);
-    void loadFunction(std::stringstream& file);
+    void saveFunction(std::iostream& file);
+    void loadFunction(std::iostream& file);
+    void legacyLoadFunction(std::iostream& file);
 
     bool unlock(int _id);
     bool lock(int _id);

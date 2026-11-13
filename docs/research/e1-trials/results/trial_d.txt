@@ -1,0 +1,57 @@
+D1. Zero-g roll. 'evals' all evaluations including the scan; 'newton' the final solve's; the heading drift is the exit heading minus the entry heading and the exit bank is the bank at the exit (neither is a goal); entry bank is the anchor's roll.
+| airtime g | orientation | entry m/s | entry bank | result | evals | newton | s | crest goal (m) | t2 (s) | t_air (s) | roll rate peak (deg/s) | heading drift (deg) | exit bank (deg) | exit pitch (deg) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| +0.0 | quaternion | 20 | 0 | converged | 425 | 13 | 12.1 | 16.0 | 0.110 | 2.220 | 323.7 | -0.03 | -0.00 | -0.04 |
+| +0.0 | quaternion | 20 | 10 | converged | 466 | 9 | 13.8 | 16.0 | 0.195 | 2.155 | 324.5 | 34.73 | 4.82 | 0.04 |
+| +0.0 | quaternion | 25 | 0 | converged | 511 | 9 | 14.7 | 25.0 | 0.729 | 2.330 | 308.6 | -0.01 | -0.00 | 0.02 |
+| +0.0 | quaternion | 25 | 10 | converged | 466 | 9 | 14.6 | 25.0 | 0.834 | 2.249 | 310.0 | 35.91 | 4.49 | 0.04 |
+| +0.0 | quaternion | 30 | 0 | converged | 504 | 13 | 15.2 | 35.5 | 1.302 | 2.461 | 292.3 | -0.00 | 0.00 | 0.02 |
+| +0.0 | quaternion | 30 | 10 | converged | 497 | 13 | 15.6 | 35.5 | 1.425 | 2.366 | 294.7 | 36.13 | 4.44 | -0.00 |
+| +0.0 | quaternion | 35 | 0 | converged | 582 | 13 | 17.6 | 48.0 | 1.879 | 2.587 | 278.2 | 0.00 | 0.00 | 0.02 |
+| +0.0 | quaternion | 35 | 10 | converged | 576 | 13 | 18.1 | 48.0 | 2.022 | 2.475 | 281.6 | 36.40 | 4.36 | -0.02 |
+| +0.0 | euler | 20 | 0 | stalled | 471 | 11 | 12.8 | 16.0 | 0.250 | 2.041 | 352.7 | -0.13 | -0.00 | -0.30 |
+| +0.0 | euler | 20 | 10 | converged | 472 | 9 | 12.2 | 16.0 | 0.169 | 2.160 | 333.3 | 36.85 | 9.97 | 0.04 |
+| +0.0 | euler | 25 | 0 | converged | 562 | 13 | 17.0 | 25.0 | 0.729 | 2.330 | 309.0 | -0.01 | -0.00 | 0.02 |
+| +0.0 | euler | 25 | 10 | converged | 569 | 19 | 13.7 | 25.0 | 0.798 | 2.256 | 319.1 | 37.81 | 9.99 | 0.04 |
+| +0.0 | euler | 30 | 0 | converged | 616 | 13 | 24.2 | 35.5 | 1.301 | 2.464 | 292.2 | -0.01 | -0.00 | -0.04 |
+| +0.0 | euler | 30 | 10 | converged | 617 | 17 | 25.0 | 35.5 | 1.382 | 2.373 | 303.5 | 37.78 | 10.00 | 0.00 |
+| +0.0 | euler | 35 | 0 | converged | 677 | 14 | 27.4 | 48.0 | 1.879 | 2.588 | 278.2 | 0.00 | 0.00 | -0.03 |
+| +0.0 | euler | 35 | 10 | converged | 687 | 13 | 24.5 | 48.0 | 1.971 | 2.485 | 289.7 | 37.81 | 9.96 | -0.04 |
+| -0.2 | quaternion | 20 | 0 | converged | 441 | 9 | 17.3 | 15.5 | 0.122 | 2.141 | 338.9 | 0.12 | -0.00 | 0.01 |
+| -0.2 | quaternion | 20 | 10 | converged | 387 | 9 | 17.3 | 15.5 | 0.196 | 2.083 | 339.6 | 32.24 | 4.83 | -0.04 |
+| -0.2 | quaternion | 25 | 0 | converged | 372 | 14 | 14.3 | 20.5 | 0.451 | 2.261 | 319.9 | 0.06 | 0.00 | 0.00 |
+| -0.2 | quaternion | 25 | 10 | converged | 365 | 9 | 16.3 | 20.5 | 0.525 | 2.197 | 323.3 | 28.00 | 5.77 | -0.00 |
+| -0.2 | quaternion | 30 | 0 | converged | 219 | 9 | 9.4 | 27.0 | 0.839 | 2.333 | 309.5 | 0.04 | -0.00 | -0.01 |
+| -0.2 | quaternion | 30 | 10 | converged | 273 | 9 | 11.5 | 27.0 | 0.919 | 2.262 | 314.3 | 26.25 | 6.13 | 0.02 |
+| -0.2 | quaternion | 35 | 0 | converged | 178 | 13 | 8.8 | 33.0 | 1.138 | 2.420 | 298.2 | 0.03 | 0.00 | 0.05 |
+| -0.2 | quaternion | 35 | 10 | converged | 170 | 13 | 8.7 | 33.0 | 1.224 | 2.342 | 304.1 | 24.35 | 6.58 | -0.02 |
+| -0.2 | euler | 20 | 0 | converged | 420 | 9 | 10.8 | 15.5 | 0.122 | 2.142 | 336.2 | 0.12 | -0.00 | -0.04 |
+| -0.2 | euler | 20 | 10 | converged | 431 | 9 | 12.3 | 15.5 | 0.175 | 2.080 | 346.2 | 35.27 | 9.99 | 0.04 |
+| -0.2 | euler | 25 | 0 | converged | 479 | 9 | 16.9 | 20.5 | 0.451 | 2.260 | 318.6 | 0.03 | -0.02 | 0.03 |
+| -0.2 | euler | 25 | 10 | converged | 426 | 9 | 13.2 | 20.5 | 0.508 | 2.190 | 328.8 | 30.37 | 9.99 | 0.00 |
+| -0.2 | euler | 30 | 0 | converged | 445 | 9 | 18.8 | 27.0 | 0.839 | 2.335 | 308.3 | -0.07 | -0.07 | -0.03 |
+| -0.2 | euler | 30 | 10 | converged | 443 | 9 | 16.7 | 27.0 | 0.903 | 2.252 | 319.7 | 28.31 | 10.00 | 0.02 |
+| -0.2 | euler | 35 | 0 | converged | 198 | 17 | 11.0 | 33.0 | 1.138 | 2.421 | 297.4 | 0.03 | -0.00 | -0.02 |
+| -0.2 | euler | 35 | 10 | converged | 392 | 17 | 15.1 | 33.0 | 1.208 | 2.332 | 308.8 | 26.04 | 10.00 | 0.03 |
+
+D2. Overbanked turn. Starts: R6-style fixed start (r 140 deg/s, hold 1.5 s, q 140 deg/s); if it fails, the solution at the previous entry speed (continuation). 'commanded bank' is the anchor roll plus the roll-in (0.8 r); 'world bank' the bank the program reports at the end of the roll-in. Errors are the solved end minus the goal.
+| orientation | entry bank | entry m/s | solves (evaluations) | s | r (deg/s) | hold (s) | q (deg/s) | commanded bank | world bank at roll-in end | heading error | exit bank | pitch end of S1 | pitch end of S2 | exit height (m) | exit speed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| quaternion | 0 | 20 | fixed: budget (78) | 1.09 | 50.2 | 0.050 | 183.8 | 40 | 160.3 | 46.96 | -60.66 | -53 | -57 | -11.9 | 24.4 |
+| quaternion | 0 | 25 | fixed: converged (17) | 0.20 | 71.6 | 0.118 | 134.3 | 57 | 116.3 | 0.01 | -0.02 | 36 | 29 | 18.7 | 14.6 |
+| quaternion | 0 | 30 | fixed: converged (21) | 0.29 | 53.9 | 1.469 | 97.0 | 43 | 71.4 | -0.01 | 0.01 | 45 | -2 | 28.9 | 16.3 |
+| quaternion | 0 | 35 | fixed: converged (21) | 0.39 | 43.2 | 2.953 | 76.7 | 35 | 48.4 | -0.05 | -0.03 | 41 | -16 | 40.2 | 18.4 |
+| quaternion | 10 | 20 | fixed: stalled (27) | 0.34 | 66.0 | 0.050 | 146.2 | 63 | 147.1 | 40.92 | -38.18 | -34 | -39 | -8.8 | 23.1 |
+| quaternion | 10 | 25 | fixed: converged (21) | 0.27 | 58.8 | 0.188 | 126.4 | 57 | 111.6 | 0.02 | -0.04 | 29 | 19 | 16.9 | 15.7 |
+| quaternion | 10 | 30 | fixed: converged (21) | 0.30 | 40.5 | 1.574 | 93.4 | 42 | 72.0 | 0.04 | 0.03 | 41 | -6 | 26.6 | 17.5 |
+| quaternion | 10 | 35 | fixed: converged (26) | 0.47 | 30.0 | 3.098 | 74.6 | 34 | 50.0 | -0.02 | 0.01 | 38 | -17 | 37.4 | 19.7 |
+| euler | 0 | 20 | fixed: stalled (42) | 0.70 | 145.9 | 1.877 | 129.9 | 117 | 116.7 | -80.87 | 12.82 | 23 | -89 | -35.6 | 28.5 |
+| euler | 0 | 25 | fixed: stalled (24) | 0.32 | 100.1 | 0.970 | 100.1 | 80 | 80.0 | 4.98 | -62.48 | 49 | 16 | 24.4 | 10.0 |
+| euler | 0 | 30 | fixed: converged (13) | 0.20 | 96.2 | 2.054 | 96.2 | 77 | 77.0 | 0.02 | 0.00 | 37 | -13 | 24.4 | 18.5 |
+| euler | 0 | 35 | fixed: converged (17) | 0.31 | 77.4 | 3.905 | 77.3 | 62 | 61.9 | -0.05 | 0.00 | 35 | -19 | 33.0 | 21.5 |
+| euler | 10 | 20 | fixed: stalled (23) | 0.32 | 141.0 | 0.535 | 141.4 | 123 | 122.8 | -87.68 | 9.72 | 4 | -46 | -10.9 | 23.9 |
+| euler | 10 | 25 | fixed: converged (23) | 0.34 | 116.4 | 0.367 | 128.9 | 103 | 103.1 | 0.01 | -0.00 | 24 | 7 | 15.4 | 16.5 |
+| euler | 10 | 30 | fixed: converged (17) | 0.28 | 82.5 | 2.044 | 94.9 | 76 | 76.0 | -0.01 | 0.00 | 34 | -13 | 22.6 | 19.4 |
+| euler | 10 | 35 | fixed: converged (21) | 0.42 | 63.8 | 3.922 | 76.3 | 61 | 61.1 | -0.05 | -0.00 | 33 | -19 | 30.7 | 22.4 |
+
+(run time 507 s on the machine that ran it; python 3.14.3)

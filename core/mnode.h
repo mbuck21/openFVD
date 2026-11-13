@@ -74,8 +74,8 @@ public:
     float getDirection() { return glm::atan(-vDir.x, -vDir.z)*180/F_PI; }
 
 
-    void saveNode(std::fstream& file);
-    void legacyLoadNode(std::fstream& file);
+    void saveNode(std::iostream& file);
+    void legacyLoadNode(std::iostream& file);
 
     void calcSmoothForces();
 

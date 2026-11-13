@@ -23,6 +23,7 @@
 #include <QVector>
 #include <limits>
 #include <cmath>
+#include <cstring>
 
 #define RELTHRESH 0.98f
 
@@ -31,7 +32,7 @@ using namespace std;
 
 track::track()
 {
-
+    bDeferUpdate = false;
 }
 
 track::track(glm::vec3 startPos, float startYaw, float heartLine)
@@ -47,6 +48,7 @@ track::track(glm::vec3 startPos, float startYaw, float heartLine)
     fFriction = 0.03f;
     fResistance = 2e-5;
     hasChanged = true;
+    bDeferUpdate = false;
     drawTrack = true;
     drawHeartline = 0;
     mListener = NULL;
@@ -67,10 +69,13 @@ track::~track()
         delete lSections.at(0);
         lSections.removeAt(0);
     }
+    // Each smoothing entry leaves the list before it is deleted: its
+    // destructor tells its listener (the smoothing dialog, which deletes the
+    // entry's row), and nothing that runs then may find it in the list.
     while(smoothList.size() != 0)
     {
-        delete smoothList[0];
-        smoothList.removeFirst();
+        smoothHandler* entry = smoothList.takeFirst();
+        delete entry;
     }
     delete anchorNode;
 }
@@ -79,8 +84,9 @@ void track::removeSection(int index)
 {
     if(lSections.size() <= index) return;
 
-    delete smoothList[index+1];
-    smoothList.removeAt(index+1);
+    // out of the list before it is deleted (see ~track())
+    smoothHandler* entry = smoothList.takeAt(index+1);
+    delete entry;
 
     if(index == lSections.size()-1)
     {
@@ -106,12 +112,10 @@ void track::removeSection(int index)
 
 void track::removeSection(section* fromSection)
 {
-    int i = 0;
-    if(lSections.size() == 0) return;
-    for(; i > lSections.size(); ++i)
-    {
-        if(lSections.at(i) == fromSection) break;
-    }
+    // the search ran backwards (i > size) and always removed section 0; now it
+    // removes the section it is given, and nothing when it is not in the track
+    int i = lSections.indexOf(fromSection);
+    if(i < 0) return;
     removeSection(i);
 }
 
@@ -374,6 +378,12 @@ bool track::smoothingActive()
 void track::updateTrack(int index, int iNode)
 {
     //qDebug("called updateTrack(%d, %d)", index, iNode);
+    if(bDeferUpdate)
+    {
+        // the whole track is computed from the anchor right after (see track.h)
+        hasChanged = true;
+        return;
+    }
     if(index < 0) index = 0;
     if(lSections.size() <= index)
     {
@@ -421,7 +431,18 @@ void track::updateTrack(int index, int iNode)
         lSections.at(i)->updateSection(0);
     }
 
-    if(useSmoothing && bAutoSmooth && smoothingActive()) applyRollSmooth(nodeAt);
+    if(useSmoothing && bAutoSmooth && smoothingActive())
+    {
+        // The node ranges taken above are those of the nodes before this
+        // update (they say where the old smoothing must come off). The new
+        // smoothing goes on over the ranges of the nodes just computed, as a
+        // load does; otherwise it would depend on the previous edit.
+        for(int i = 0; i < smoothList.size(); ++i)
+        {
+            if(smoothList[i]->active) smoothList[i]->update();
+        }
+        applyRollSmooth(nodeAt);
+    }
 
     unsigned int count = getNumPoints() - nodeAt;
     unsigned int count2 = getNumPoints() - iNode - getNumPoints(lSections[index]);
@@ -568,6 +589,132 @@ void track::updateAnchorGeometrics()
 
     anchorNode->fPitchFromLast = glm::dot(forceVec, pitchVec)/anchorNode->fVel*1.8/F_PI;
     anchorNode->fYawFromLast = glm::dot(forceVec, yawVec)/anchorNode->fVel*1.8/F_PI;
+}
+
+// See track.h. A load makes the first section from the anchor node after the
+// anchor is set up (newSection() copies *anchorNode); the sections only ever
+// read that copy (updateNorm() aside, which gives the same bits again), so
+// copying the anchor now gives the first section the start a reload gives it.
+void track::updateFromAnchor()
+{
+    if(!lSections.isEmpty())
+    {
+        lSections[0]->lNodes[0] = *anchorNode;
+    }
+    updateTrack(0, 0);
+}
+
+// See track.h. A load reads piece 0, then for each further piece i appends a
+// placeholder after piece i-1 (func::appendSubFunction(1, i-1)), whose loop
+// links pieces 1 to i-1 again and then the placeholder, and reads piece i
+// over the placeholder. So piece j (0 < j < n-1) is linked once at each later
+// append, after the pieces before it, and the last piece keeps what was read.
+// The same updates in the same order, on the pieces as they are, give the
+// arguments the load gives from their saved bytes. (The placeholder's own
+// update and the start values the updates translate are overwritten: by the
+// next piece read, and by the section's recompute from its first node.)
+// Only for the sections whose functions a file holds.
+//
+// One pass is not always a fixed point of those sums: in single precision
+// (prev.max + cur.max) - cur.min can move an end by a last digit on the
+// first pass and again on the second (issue 63, item 7). A load applies the
+// sums once more to what was saved, so the passes repeat until no piece's
+// start or end moves, bit for bit: then a load of the saved track changes
+// nothing more. If eight passes do not settle, it says so (qWarning; the
+// tests fail on it) and returns false.
+bool track::settleTransitions()
+{
+    for(int pass = 0; pass < 8; ++pass)
+    {
+        bool moved = false;
+        for(int s = 0; s < lSections.size(); ++s)
+        {
+            section* sec = lSections[s];
+            if(sec->type != straight && sec->type != curved && sec->type != forced && sec->type != geometric) continue;
+            func* funcs[3] = { sec->rollFunc, sec->normForce, sec->latForce };
+            for(int f = 0; f < 3; ++f)
+            {
+                func* cur = funcs[f];
+                if(cur == NULL || (f > 0 && sec->type != forced && sec->type != geometric)) continue;
+                for(int i = 2; i < cur->funcList.size(); ++i)
+                {
+                    for(int j = 1; j < i; ++j)
+                    {
+                        subfunc* prev = cur->funcList[j-1];
+                        subfunc* piece = cur->funcList[j];
+                        const float wasMin = piece->minArgument, wasMax = piece->maxArgument;
+                        piece->update(prev->maxArgument, prev->maxArgument + piece->maxArgument - piece->minArgument, piece->symArg);
+                        if(memcmp(&wasMin, &piece->minArgument, sizeof(float)) != 0
+                                || memcmp(&wasMax, &piece->maxArgument, sizeof(float)) != 0) moved = true;
+                    }
+                }
+            }
+        }
+        if(!moved) return true;
+    }
+    qWarning("track::settleTransitions: the transitions' starts and ends did not settle in 8 passes; a reopen may move them");
+    return false;
+}
+
+// See track.h. The node track::track() makes, then the steps loadTrackHeader()
+// always made after reading the values, unchanged: on the fresh node of a
+// track being loaded this gives what a load always gave, bit for bit.
+void track::rebuildAnchor()
+{
+    float roll = anchorNode->fRoll;
+    float vel = anchorNode->fVel;
+    float normal = anchorNode->forceNormal;
+    float lateral = anchorNode->forceLateral;
+
+    *anchorNode = mnode(glm::vec3(0.f, 0.f, 0.f), glm::vec3(0, 0, -1), 0., 10.f, 1., 0.);
+    anchorNode->updateNorm();
+
+    anchorNode->fRoll = roll;
+    anchorNode->fVel = vel;
+    anchorNode->forceNormal = normal;
+    anchorNode->forceLateral = lateral;
+
+    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
+
+    anchorNode->changePitch(startPitch, false);
+    anchorNode->setRoll(anchorNode->fRoll);
+
+    updateAnchorGeometrics();
+
+    anchorNode->updateNorm();
+}
+
+// See track.h.
+int track::settleAnchor(int maxPasses)
+{
+    int pass = 1;
+    for(; pass <= maxPasses; ++pass)
+    {
+        float roll = anchorNode->fRoll;
+        rebuildAnchor();
+        if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+    }
+
+    // Some rolls alternate between two neighbouring floats (-89.25 gives
+    // -89.2500076, which gives -89.25 again), so neither is kept. Then the
+    // nearest float roll a rebuild keeps is taken, within 256 floats either side
+    // of the last one (256 floats are 0.00012 degrees at a roll of 5 degrees).
+    const float last = anchorNode->fRoll;
+    for(int k = 1; k <= 256; ++k)
+    {
+        for(int side = 0; side < 2; ++side, ++pass)
+        {
+            float roll = last;
+            for(int i = 0; i < k; ++i)
+            {
+                roll = nextafterf(roll, side == 0 ? std::numeric_limits<float>::infinity() : -std::numeric_limits<float>::infinity());
+            }
+            anchorNode->fRoll = roll;
+            rebuildAnchor();
+            if(memcmp(&roll, &anchorNode->fRoll, sizeof(float)) == 0) return pass;
+        }
+    }
+    return -1;
 }
 
 int track::exportTrack3(fstream *file, float mPerNode, int fromIndex, int toIndex, float fRollThresh)
@@ -862,12 +1009,31 @@ void track::exportNL2Track(FILE *file, float mPerNode, int fromIndex, int toInde
     return;
 }
 
-QString track::saveTrack(fstream& file)
-{   
+QString track::saveTrack(std::iostream& file)
+{
+    saveTrackHeader(file);
+
+    for(int i = 0; i < lSections.size(); ++i)
+    {
+        lSections.at(i)->saveSection(file);
+    }
+
+    saveTrackSmoothing(file);
+
+    return QString("Save Successful");
+}
+
+// The track's saved bytes up to its sections: "TRC", the name, the colours,
+// the anchor, the display values and the number of sections. Split out of
+// saveTrack() so a trackState (trackstate.h) can keep it apart from the
+// sections; the bytes are the same.
+void track::saveTrackHeader(std::iostream& file)
+{
     file << "TRC";
 
-    int namelength = name.length();
+    // The count is in bytes: the name is written as UTF-8.
     std::string stdName = name.toStdString();
+    int namelength = (int)stdName.length();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
     file << stdName;
@@ -903,14 +1069,12 @@ QString track::saveTrack(fstream& file)
     //float fFriction;
     int size = lSections.size();
     writeBytes(&file, (const char*)&size, sizeof(int));
+}
 
-
-    for(int i = 0; i < lSections.size(); ++i)
-    {
-        lSections.at(i)->saveSection(file);
-    }
-
-    size = smoothList.size();
+// The track's saved bytes after its sections: the smoothing entries and "EOT".
+void track::saveTrackSmoothing(std::iostream& file)
+{
+    int size = smoothList.size();
     writeBytes(&file, (const char*)&size, sizeof(int));
     for(int i = 0; i < size; ++i)
     {
@@ -918,11 +1082,36 @@ QString track::saveTrack(fstream& file)
     }
 
     file << "EOT";
-
-    return QString("Save Successful");
 }
 
-QString track::loadTrack(fstream& file)
+QString track::loadTrack(std::iostream& file)
+{
+    loadTrackHeader(file);
+
+    QString error = loadTrackSections(file);
+    if(!error.isEmpty())
+    {
+        return error;
+    }
+
+    string temp = readString(&file, 3);
+    if(temp == "EOT")
+    {
+        updateTrack(0, 0);
+        if(mListener != NULL)
+            mListener->trackLoaded(this);
+        return QString("Load Successful");
+    }
+    else
+    {
+        return QString("Load not Successful");
+    }
+}
+
+// The first part of loadTrack(): the name, colours, anchor and display values,
+// read after the "TRC" tag, and the anchor node set up from them. Shared with
+// restoreTrackState() (trackstate.cpp), which overwrites the anchor afterwards.
+void track::loadTrackHeader(std::iostream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -949,15 +1138,17 @@ QString track::loadTrack(fstream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
+    // the anchor node from the values just read; the anchor commands build it
+    // with the same function
+    rebuildAnchor();
+}
 
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
-
+// The second part of loadTrack(): the number of sections, each section
+// (appended, read and computed), then the smoothing entries; it stops before
+// the "EOT" tag. Returns an error text, or an empty string when all was read.
+// Shared with restoreTrackState() (trackstate.cpp).
+QString track::loadTrackSections(std::iostream& file, bool compute)
+{
     string temp;
     int size = readInt(&file);
     for(int i = 0; i < size; ++i)
@@ -968,42 +1159,42 @@ QString track::loadTrack(fstream& file)
             appendSectionFromFile(straight);
             //this->newSection(straight);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "CUR")
         {
             appendSectionFromFile(curved);
             //this->newSection(curved);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "GEO")
         {
             appendSectionFromFile(geometric);
             //this->newSection(geometric);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "FRC")
         {
             appendSectionFromFile(forced);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "BEZ")
         {
             appendSectionFromFile(bezier);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else if(temp == "CSV")
         {
             appendSectionFromFile(nolimitscsv);
             //this->newSection(forced);
             activeSection->loadSection(file);
-            activeSection->updateSection();
+            if(compute) activeSection->updateSection();
         }
         else
         {
@@ -1019,21 +1210,10 @@ QString track::loadTrack(fstream& file)
         smoothList[i]->loadSmooth(file);
     }
 
-    temp = readString(&file, 3);
-    if(temp == "EOT")
-    {
-        updateTrack(0, 0);
-        if(mListener != NULL)
-            mListener->trackLoaded(this);
-        return QString("Load Successful");
-    }
-    else
-    {
-        return QString("Load not Successful");
-    }
+    return QString();
 }
 
-QString track::legacyLoadTrack(fstream& file)
+QString track::legacyLoadTrack(std::iostream& file)
 {
     int namelength = readInt(&file);
     name = QString(readString(&file, namelength).c_str());
@@ -1060,14 +1240,7 @@ QString track::legacyLoadTrack(fstream& file)
     povPos.x = readFloat(&file);
     povPos.y = readFloat(&file);
 
-    anchorNode->fEnergy = 0.5f*anchorNode->fVel*anchorNode->fVel + F_G*anchorNode->fPosHearty(0.9*fHeart);
-
-    anchorNode->changePitch(startPitch, false);
-    anchorNode->setRoll(anchorNode->fRoll);
-
-    updateAnchorGeometrics();
-
-    anchorNode->updateNorm();
+    rebuildAnchor();
 
     string temp;
     int size = readInt(&file);

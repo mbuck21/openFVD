@@ -24,6 +24,9 @@
 #include "draglabel.h"
 #include "lenassert.h"
 #include "smoothui.h"
+#include "qcustomplot.h"
+#include "measure.h"
+#include "finding.h"
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
@@ -33,6 +36,9 @@ graphWidget::graphWidget(QWidget *parent, trackHandler* _track) :
     ui(new Ui::graphWidget)
 {
     phantomChanges = true;
+    findingCount = 0;
+    measuresRoot = NULL;
+    findingsItem = NULL;
     ui->setupUi(this);
 
     transitionHandler = ui->transitionEditor;
@@ -88,6 +94,8 @@ graphWidget::graphWidget(QWidget *parent, trackHandler* _track) :
     pGraphList.append(new graphHandler(ui->selTree->topLevelItem(1)->child(1)->child(0), smoothedNForce, selTrack, yAxes[1], gloParent->mOptions->normColor));
     pGraphList.append(new graphHandler(ui->selTree->topLevelItem(1)->child(2)->child(0), smoothedLForce, selTrack, yAxes[1], gloParent->mOptions->latColor));
 
+    buildMeasureItems();
+
     ui->plotter->setInteraction(QCP::iRangeDrag, true);
     ui->plotter->setInteraction(QCP::iRangeZoom, true);
     ui->plotter->setInteraction(QCP::iSelectPlottables, true);
@@ -127,6 +135,13 @@ graphWidget::~graphWidget()
 void graphWidget::on_selTree_itemChanged(QTreeWidgetItem *item, int column)
 {
     if(column != 1 || phantomChanges) {
+        return;
+    }
+
+    if(item == findingsItem || measureItems.contains(item)) {
+        redrawMeasures();
+        setPlotRanges();
+        ui->plotter->replot();
         return;
     }
 
@@ -193,6 +208,9 @@ void graphWidget::setPlotRanges()
                 }
             }
         }
+        if(measureRange(yAxes[a], lowerBound, upperBound, minKey, maxKey)) {
+            yAxes[a]->setVisible(true);
+        }
         edge = (upperBound-lowerBound)/(6-a);
         edge = edge > fabs(upperBound) ? edge : fabs(upperBound)/(6-a);
         edge = edge > fabs(lowerBound) ? edge : fabs(lowerBound)/(6-a);
@@ -209,6 +227,18 @@ void graphWidget::setPlotRanges()
         }
     }
 
+    // Axes made for measures in other units than g: shown while a curve uses them
+    for(QMap<QString, QCPAxis*>::iterator it = unitAxes.begin(); it != unitAxes.end(); ++it) {
+        double lo = std::numeric_limits<double>::max(), hi = -std::numeric_limits<double>::max();
+        bool used = measureRange(it.value(), lo, hi, minKey, maxKey);
+        it.value()->setVisible(used);
+        if(used && lo <= hi) {
+            double pad = (hi-lo)*0.1;
+            if(pad <= 0) pad = 1;
+            it.value()->setRange(lo-pad, hi+pad);
+        }
+    }
+
     if(minKey > maxKey) {
         minKey = 0;
         maxKey = 1;
@@ -216,6 +246,249 @@ void graphWidget::setPlotRanges()
     edge = (ui->plotter->xAxis->range().upper-ui->plotter->xAxis->range().lower)/3.;
     ui->plotter->axisRect()->xLowerBoundary = minKey-edge;
     ui->plotter->axisRect()->xUpperBoundary = maxKey+edge;
+}
+
+// ---- The "Measures" group of the graph list -------------------------------
+
+// Measures the plot already draws under "Resulting Graphs" (normal and lateral
+// force, roll rate and acceleration, their rates of change, pitch and yaw
+// rate). They stay out of the "Measures" group so nothing is drawn twice. One
+// place to edit: a measure added to the registry later appears by itself
+// unless its id is listed here.
+static bool measureAlreadyPlotted(const QString& id)
+{
+    static const char* const plotted[] = {
+        "forceNormal", "forceLateral", "rollRate", "rollAccel",
+        "jerkNormal", "jerkLateral", "pitchRate", "yawRate", 0
+    };
+    for(int i = 0; plotted[i]; ++i) {
+        if(id == QLatin1String(plotted[i])) return true;
+    }
+    return false;
+}
+
+static QColor measureColor(int registryIndex)
+{
+    return QColor::fromHsv((registryIndex*67 + 20) % 360, 230, 190);
+}
+
+void graphWidget::buildMeasureItems()
+{
+    measuresRoot = new QTreeWidgetItem(ui->selTree);
+    measuresRoot->setText(0, "Measures");
+
+    const QVector<measureDef>& all = measureRegistry::all();
+    for(int i = 0; i < all.size(); ++i) {
+        if(measureAlreadyPlotted(all[i].id)) continue;
+        QTreeWidgetItem* item = new QTreeWidgetItem(measuresRoot);
+        item->setText(0, all[i].unit.isEmpty() ? all[i].name : all[i].name + " (" + all[i].unit + ")");
+        item->setToolTip(0, all[i].description);
+        item->setData(0, Qt::UserRole, all[i].id);
+        item->setCheckState(1, Qt::Unchecked);
+        QColor back = measureColor(i);
+        back.setAlpha(60);
+        item->setBackgroundColor(0, back);
+        item->setBackgroundColor(1, back);
+        measureItems.append(item);
+    }
+
+    findingsItem = new QTreeWidgetItem(measuresRoot);
+    findingsItem->setText(0, "Findings");
+    findingsItem->setToolTip(0, "Stretches of track where a check finds a problem, shaded on the plot");
+    findingsItem->setCheckState(1, Qt::Unchecked);
+}
+
+QCPAxis* graphWidget::axisForUnit(const QString& unit)
+{
+    if(unit == "g") return yAxes[1];
+    QMap<QString, QCPAxis*>::iterator it = unitAxes.find(unit);
+    if(it != unitAxes.end()) return it.value();
+    QCPAxis* axis = ui->plotter->axisRect()->addAxis(unitAxes.size() % 2 ? QCPAxis::atLeft : QCPAxis::atRight);
+    axis->setLabel(unit);
+    axis->grid()->setVisible(false);
+    axis->setVisible(false);
+    unitAxes.insert(unit, axis);
+    return axis;
+}
+
+void graphWidget::clearMeasureGraphs()
+{
+    for(int i = 0; i < measureGraphs.size(); ++i) {
+        ui->plotter->removeGraph(measureGraphs[i]);
+    }
+    measureGraphs.clear();
+    for(int i = 0; i < findingGraphs.size(); ++i) {
+        ui->plotter->removeGraph(findingGraphs[i]);
+    }
+    findingGraphs.clear();
+}
+
+// Redraws the curves of the ticked measures and the finding spans. Computes
+// only what is ticked: with nothing ticked this removes nothing and runs nothing.
+void graphWidget::redrawMeasures()
+{
+    clearMeasureGraphs();
+
+    QStringList ids;
+    QList<int> itemOf;
+    for(int i = 0; i < measureItems.size(); ++i) {
+        if(measureItems[i]->checkState(1) == Qt::Checked) {
+            ids.append(measureItems[i]->data(0, Qt::UserRole).toString());
+            itemOf.append(i);
+        }
+    }
+    bool wantFindings = findingsItem->checkState(1) == Qt::Checked;
+
+    track* t = selTrack ? selTrack->trackData : NULL;
+    bool noTrack = !t || t->lSections.isEmpty();
+    bool argument = (t && t->activeSection) ? t->activeSection->bArgument : TIME;
+
+    // Findings: one list item per sentence and the count in the label
+    bool wasPhantom = phantomChanges;
+    phantomChanges = true;
+    qDeleteAll(findingsItem->takeChildren());
+    QList<finding> found;
+    if(wantFindings && !noTrack) {
+        found = checkRegistry::runAll(t);
+    }
+    findingCount = found.size();
+    if(wantFindings) {
+        findingsItem->setText(0, QString("Findings (%1)").arg(found.size()));
+        for(int i = 0; i < found.size(); ++i) {
+            QTreeWidgetItem* line = new QTreeWidgetItem(findingsItem);
+            line->setText(0, found[i].text);
+            line->setToolTip(0, found[i].text);
+        }
+    } else {
+        findingsItem->setText(0, "Findings");
+    }
+    phantomChanges = wasPhantom;
+
+    if(noTrack) return;
+
+    // Shaded spans, behind everything else
+    for(int i = 0; i < found.size(); ++i) {
+        const finding& f = found[i];
+        double x0, x1;
+        if(argument == TIME) {
+            x0 = f.fromNode/F_HZ;
+            x1 = f.toNode/F_HZ;
+        } else {
+            x0 = t->getPoint(f.fromNode)->fTotalLength;
+            x1 = t->getPoint(f.toNode)->fTotalLength;
+        }
+        if(x1 < x0 + 0.0001) x1 = x0 + 0.0001;
+        QColor tint;
+        switch(f.severity) {
+        case findingInformation: tint = QColor(60, 120, 220, 55); break;
+        case findingWarning:     tint = QColor(240, 170, 0, 70); break;
+        default:                 tint = QColor(220, 30, 30, 70); break;
+        }
+        for(int side = 0; side < 2; ++side) {
+            double edge = side ? -20000. : 20000.;
+            QVector<double> x, y;
+            x.append(x0);               y.append(0.);
+            x.append(x0 + 0.00001);     y.append(edge);
+            x.append(x1 - 0.00001);     y.append(edge);
+            x.append(x1);               y.append(0.);
+            QCPGraph* span = new QCPGraph(ui->plotter->xAxis, ui->plotter->yAxis);
+            ui->plotter->addPlottable(span);
+            span->setLayer(QLatin1String("grid"));
+            span->setPen(Qt::NoPen);
+            span->setBrush(QBrush(tint));
+            span->setData(x, y);
+            span->setSelectable(false);
+            findingGraphs.append(span);
+        }
+    }
+
+    if(ids.isEmpty()) return;
+
+    // Curves: every ticked measure in one pass over the nodes
+    QVector<QVector<float> > values = measureRegistry::values(t, ids);
+    const unsigned max_segments_per_transition = 10000;
+    for(int k = 0; k < ids.size(); ++k) {
+        const QVector<float>& vals = values[k];
+        const measureDef* def = measureRegistry::find(ids[k]);
+        if(!def || vals.isEmpty()) continue;
+        QCPAxis* axis = axisForUnit(def->unit);
+        QColor color = measureColor(def - &measureRegistry::all()[0]);
+
+        for(int i = 0; i < t->lSections.size(); ++i) {
+            section* curSection = t->lSections[i];
+            unsigned int n1 = t->getNumPoints(curSection);
+            unsigned int n2 = n1 + curSection->lNodes.size()-1;
+            unsigned int step = (n2-n1)/max_segments_per_transition;
+            step = step < 50 ? 50 : step;
+            unsigned int last = n2;
+            if(last > (unsigned int)vals.size()-1) last = vals.size()-1;
+            if(t->lSections.size()-1 == i && n2) {
+                --n2;
+            }
+
+            QVector<double> x, y;
+            for(unsigned int j = n1; j < n2+step; j += step) {
+                unsigned int jj = j < last ? j : last;
+                if(!qIsFinite(vals[jj])) continue;
+                if(argument == TIME) {
+                    x.append(jj/F_HZ);
+                } else {
+                    x.append(t->getPoint(jj)->fTotalLength);
+                }
+                y.append(vals[jj]);
+            }
+
+            QCPGraph* curGraph = new QCPGraph(ui->plotter->xAxis, axis);
+            ui->plotter->addPlottable(curGraph);
+            curGraph->setPen(QPen(color, 1));
+            curGraph->setBrush(Qt::NoBrush);
+            curGraph->setData(x, y);
+            curGraph->setSelectable(false);
+            measureGraphs.append(curGraph);
+        }
+    }
+}
+
+// Adds what the measure curves on this axis need to setPlotRanges(): their
+// values inside the visible x range into lower/upper and their x extent into
+// minKey/maxKey, as the existing curves do. True if any curve uses the axis.
+bool graphWidget::measureRange(QCPAxis* axis, double& lower, double& upper, double& minKey, double& maxKey)
+{
+    bool used = false;
+    bool valid;
+    for(int i = 0; i < measureGraphs.size(); ++i) {
+        QCPGraph* g = measureGraphs[i];
+        if(g->valueAxis() != axis || g->data()->isEmpty()) continue;
+        used = true;
+        QCPRange keys = g->getKeyRange(valid);
+        maxKey = maxKey > keys.upper ? maxKey : keys.upper;
+        minKey = minKey < keys.lower ? minKey : keys.lower;
+        if(keys.upper > ui->plotter->xAxis->range().lower && keys.lower < ui->plotter->xAxis->range().upper) {
+            QCPRange vals = g->getValueRange(valid);
+            lower = lower < vals.lower ? lower : vals.lower;
+            upper = upper > vals.upper ? upper : vals.upper;
+        }
+    }
+    return used;
+}
+
+QString graphWidget::measuresSelfCheck(const QStringList& ids, bool findings)
+{
+    bool wasPhantom = phantomChanges;
+    phantomChanges = true;
+    for(int i = 0; i < measureItems.size(); ++i) {
+        measureItems[i]->setCheckState(1, ids.contains(measureItems[i]->data(0, Qt::UserRole).toString()) ? Qt::Checked : Qt::Unchecked);
+    }
+    findingsItem->setCheckState(1, findings ? Qt::Checked : Qt::Unchecked);
+    phantomChanges = wasPhantom;
+    redrawGraphs();
+    int points = 0;
+    for(int i = 0; i < measureGraphs.size(); ++i) {
+        points += measureGraphs[i]->data()->size();
+    }
+    return QString("measure items %1, curves %2, points %3, finding spans %4, findings %5, extra axes %6")
+            .arg(measureItems.size()).arg(measureGraphs.size()).arg(points)
+            .arg(findingGraphs.size()/2).arg(findingCount).arg(unitAxes.size());
 }
 
 void graphWidget::MousePressedPlotter()
@@ -404,6 +677,8 @@ void graphWidget::deactivateGraph(graphHandler *curGraph)
 
 void graphWidget::selectionChanged()
 {
+    // another transition selected: the next typed value is a step of its own
+    selTrack->endMergeRun();
     QList<QCPGraph*> selected = ui->plotter->selectedGraphs();
     for(int i = 0; i<4; ++i) {
         yAxes[i]->grid()->setVisible(false);
@@ -492,6 +767,7 @@ void graphWidget::redrawGraphs(bool otherArgument)
             ui->plotter->xAxis->setRange(rLower, rUpper);
         }
     }
+    redrawMeasures();
     setPlotRanges();
     ui->plotter->replot();
 }

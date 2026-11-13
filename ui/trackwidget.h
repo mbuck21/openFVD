@@ -20,6 +20,7 @@
 */
 
 #include <QWidget>
+#include <QVariantMap>
 #include "section.h"
 #include "smoothui.h"
 
@@ -34,8 +35,9 @@ class trackWidget;
 
 // The panel of one track: the anchor fields, the section list and the fields of the
 // selected section. Created and owned by trackHandler; creates the sectionHandlers
-// (one per list row) and the smoothUi. Most edit slots live here: each pushes an
-// undoAction, changes the model, then calls track::updateTrack().
+// (one per list row) and the smoothUi. Most edit slots live here: each runs a
+// named command (core/command.h), which changes the model, computes the track
+// and records one undo step.
 class trackWidget : public QWidget
 {
     Q_OBJECT
@@ -50,17 +52,25 @@ public:
     void setNames();
     void writeNames();
 
-    void setupAnchorFrame();
+    // Shows the anchor's values from the model. keep: a box left as it is (the
+    // one being typed in, when its command was accepted; a refused command
+    // passes NULL, so the box goes back to what the model holds).
+    void setupAnchorFrame(QWidget* keep = NULL);
     void setupStraightFrame();
     void setupCurvedFrame();
     void setupAdvFrame();
     void updateSectionFrame();
     void updateOptionsFrame();
 
-    void updateAnchorGeometrics();
     void setSelection(int index);
 
     void showAddedSection(int index);
+
+    // Around a reset of the track's model (trackHandler::trackAboutToReset()
+    // and trackReset()): drop the section rows and the selection; make the
+    // rows again.
+    void dropSections();
+    void showSections();
 
     QList<sectionHandler*> sectionList;
     sectionHandler* selSection;
@@ -151,7 +161,8 @@ private slots:
 
 private:
     void updateSectionIDs();
-    void showNewSection(sectionHandler* newSec, secType _type);
+    bool runSectionEdit(const char* name, const QVariantMap& args);
+    void showNewSection(sectionHandler* newSec);
     Ui::trackWidget *ui;
     bool phantomChanges;
 };

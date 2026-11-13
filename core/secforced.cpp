@@ -75,6 +75,10 @@ int secforced::updateSection(int node)
 		float diff = lNodes[0].forceNormal; // - normForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -84,6 +88,10 @@ int secforced::updateSection(int node)
 		diff = lNodes[0].forceLateral; // - latForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -103,6 +111,11 @@ int secforced::updateSection(int node)
     {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -209,6 +222,10 @@ int secforced::updateDistanceSection(int node)
 		float diff = lNodes[0].forceNormal; // - normForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -218,6 +235,10 @@ int secforced::updateDistanceSection(int node)
 		diff = lNodes[0].forceLateral; // - latForce->funcList.at(0)]-startValue;
         lenAssert(diff==diff);
         if(diff != diff) {
+            // nothing kept from the last update: no nodes and no length, as
+            // in a section made afresh
+            while(lNodes.size() > 1) lNodes.removeLast();
+            length = 0.f;
 			lNodes.append(lNodes[0]);
             return node;
         }
@@ -240,6 +261,11 @@ int secforced::updateDistanceSection(int node)
     while(length < end) {
         if(i >= lNodes.size()-1) {
 			lNodes.append(lNodes[i]);
+        } else {
+            // a node kept from the last update starts as a copy of the one
+            // before, as an appended one does: nothing of its old values is
+            // read below, so a recompute gives what a fresh computation gives
+            lNodes[i+1] = lNodes[i];
         }
 
 		mnode* prevNode = &lNodes[i];
@@ -339,12 +365,12 @@ float secforced::getMaxArgument()
     return min;
 }
 
-void secforced::saveSection(std::fstream& file)
+void secforced::saveSection(std::iostream& file)
 {
     file << "FRC";
     writeBytes(&file, (const char*)&bSpeed, sizeof(bool));
 
-    int namelength = sName.length();
+    int namelength = sName.toUtf8().length(); // bytes, as written below
     std::string name = sName.toStdString();
 
     writeBytes(&file, (const char*)&namelength, sizeof(int));
@@ -359,7 +385,7 @@ void secforced::saveSection(std::fstream& file)
     latForce->saveFunction(file);
 }
 
-void secforced::loadSection(std::fstream& file)
+void secforced::loadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -376,7 +402,7 @@ void secforced::loadSection(std::fstream& file)
     latForce->loadFunction(file);
 }
 
-void secforced::legacyLoadSection(std::fstream& file)
+void secforced::legacyLoadSection(std::iostream& file)
 {
     bSpeed = readBool(&file);
 
@@ -391,41 +417,6 @@ void secforced::legacyLoadSection(std::fstream& file)
     rollFunc->legacyLoadFunction(file);
     normForce->legacyLoadFunction(file);
     latForce->legacyLoadFunction(file);
-}
-
-void secforced::saveSection(std::stringstream& file)
-{
-    file << "FRC";
-    writeNulls(&file, 1);
-
-    int namelength = sName.length();
-    std::string name = sName.toStdString();
-
-    writeBytes(&file, (const char*)&namelength, sizeof(int));
-    file << name;
-
-    writeBytes(&file, (const char*)&iTime, sizeof(int));
-    writeBytes(&file, (const char*)&bOrientation, sizeof(bool));
-    writeBytes(&file, (const char*)&bArgument, sizeof(bool));
-    rollFunc->saveFunction(file);
-    normForce->saveFunction(file);
-    latForce->saveFunction(file);
-}
-
-void secforced::loadSection(std::stringstream& file)
-{
-    readNulls(&file, 1);
-
-    int namelength = readInt(&file);
-    sName = QString(readString(&file, namelength).c_str());
-
-    bSpeed = true;
-    iTime = readInt(&file);
-    bOrientation = readBool(&file);
-    bArgument = readBool(&file);
-    rollFunc->loadFunction(file);
-    normForce->loadFunction(file);
-    latForce->loadFunction(file);
 }
 
 bool secforced::isInFunction(int index, subfunc* func)

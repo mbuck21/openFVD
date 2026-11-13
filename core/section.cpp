@@ -230,7 +230,9 @@ void section::iFillPointList(QList<int> &List, float mPerNode)
             ++nodeCount;
         }
     }
-	if(List.size() > 1 && (lNodes[List.last()-parent->getNumPoints(this)+1].fTotalLength - lNodes[List[List.size()-2]-parent->getNumPoints(this)+1].fTotalLength < mPerNode/2.f)) {
+    // A negative entry marks the end of a straight section (fFillPointList()); its
+    // node number is the magnitude. Read as it was, it indexed far outside lNodes.
+	if(List.size() > 1 && (lNodes[qAbs(List.last())-parent->getNumPoints(this)+1].fTotalLength - lNodes[qAbs(List[List.size()-2])-parent->getNumPoints(this)+1].fTotalLength < mPerNode/2.f)) {
         List.removeAt(List.size()-2);
     }
 }
@@ -263,7 +265,9 @@ void section::fFillPointList(QList<int> &List, float mPerNode)
             ++nodeCount;
         }
     }
-	if(List.size() > 1 && (lNodes[List.last()-parent->getNumPoints(this)+1].fTotalLength - lNodes[List[List.size()-2]-parent->getNumPoints(this)+1].fTotalLength < mPerNode/2.f)) {
+    // A negative entry marks the end of a straight section (fFillPointList()); its
+    // node number is the magnitude. Read as it was, it indexed far outside lNodes.
+	if(List.size() > 1 && (lNodes[qAbs(List.last())-parent->getNumPoints(this)+1].fTotalLength - lNodes[qAbs(List[List.size()-2])-parent->getNumPoints(this)+1].fTotalLength < mPerNode/2.f)) {
         List.removeAt(List.size()-2);
     }
 }

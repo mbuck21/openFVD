@@ -57,6 +57,7 @@ subfunc::subfunc(float min, float max, float start, float diff, func* getparent)
     centerArg = 0.f;
     tensionArg = 0.f;
     symArg = diff;
+    arg1 = 0.f;     // a cubic transition does not set it, and it is saved (issue 31)
 
     startValue = start;
     parent = getparent;
@@ -301,7 +302,7 @@ bool subfunc::isSymmetric()
     return false;
 }
 
-void subfunc::saveSubFunc(fstream& file)
+void subfunc::saveSubFunc(std::iostream& file)
 {
     writeBytes(&file, (const char*)&degree, sizeof(enum eDegree));
     writeBytes(&file, (const char*)&minArgument, sizeof(float));
@@ -314,20 +315,7 @@ void subfunc::saveSubFunc(fstream& file)
     writeBytes(&file, (const char*)&locked, sizeof(bool));
 }
 
-void subfunc::saveSubFunc(stringstream& file)
-{
-    writeBytes(&file, (const char*)&degree, sizeof(enum eDegree));
-    writeBytes(&file, (const char*)&minArgument, sizeof(float));
-    writeBytes(&file, (const char*)&maxArgument, sizeof(float));
-    writeBytes(&file, (const char*)&startValue, sizeof(float));
-    writeBytes(&file, (const char*)&arg1, sizeof(float));
-    writeBytes(&file, (const char*)&symArg, sizeof(float));
-    writeBytes(&file, (const char*)&centerArg, sizeof(float));
-    writeBytes(&file, (const char*)&tensionArg, sizeof(float));
-    writeBytes(&file, (const char*)&locked, sizeof(bool));
-}
-
-void subfunc::loadSubFunc(fstream& file)
+void subfunc::loadSubFunc(std::iostream& file)
 {
     degree = (enum eDegree)readInt(&file);
     minArgument = readFloat(&file);
@@ -340,25 +328,11 @@ void subfunc::loadSubFunc(fstream& file)
     locked = readBool(&file);
 }
 
-void subfunc::legacyLoadSubFunc(fstream& file)
+void subfunc::legacyLoadSubFunc(std::iostream& file)
 {
     degree = (enum eDegree)readInt(&file);
     minArgument = readFloat(&file);
     maxArgument = readFloat(&file);
-    startValue = readFloat(&file);
-    arg1 = readFloat(&file);
-    symArg = readFloat(&file);
-    centerArg = readFloat(&file);
-    tensionArg = readFloat(&file);
-    locked = readBool(&file);
-}
-
-void subfunc::loadSubFunc(stringstream& file)
-{
-    degree = (enum eDegree)readInt(&file);
-    minArgument = readFloat(&file);
-    maxArgument = readFloat(&file);
-    parent->changeLength(maxArgument-minArgument, parent->getSubfuncNumber(this));
     startValue = readFloat(&file);
     arg1 = readFloat(&file);
     symArg = readFloat(&file);

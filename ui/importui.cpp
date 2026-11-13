@@ -112,6 +112,7 @@ void importUi::on_buttonBox_accepted()
             } else {
                 trackList[i]->trackData->loadTrack(fin);
             }
+            trackList[i]->clearHistory();   // the loaded track is the start of its undo list
             ui->treeWidget->takeTopLevelItem(0);
         }
     }

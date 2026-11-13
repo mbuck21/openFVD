@@ -21,14 +21,14 @@
 
 using namespace std;
 
-void writeBytes(fstream *file, const char* data, size_t length )
+void writeBytes(std::iostream *file, const char* data, size_t length )
 {
     for(size_t i = 0; i < length; i++) {
         file->write(data+length-1-i, 1);
     }
 }
 
-void writeNulls(fstream *file , size_t length )
+void writeNulls(std::iostream *file , size_t length )
 {
     char data[1] = {0x00};
     for(size_t i = 0; i < length; i++) {
@@ -36,7 +36,7 @@ void writeNulls(fstream *file , size_t length )
     }
 }
 
-string readString(fstream *file, size_t length)
+string readString(std::iostream *file, size_t length)
 {
     string temp = "";
     char c;
@@ -47,7 +47,7 @@ string readString(fstream *file, size_t length)
     return temp;
 }
 
-bool readNulls(fstream *file, size_t length)
+bool readNulls(std::iostream *file, size_t length)
 {
     char c;
     for(size_t i = 0; i < length; ++i) {
@@ -56,13 +56,13 @@ bool readNulls(fstream *file, size_t length)
     return true;
 }
 
-glm::vec3 readVec3(fstream *file)
+glm::vec3 readVec3(std::iostream *file)
 {
     glm::vec3 temp(readFloat(file), readFloat(file), readFloat(file));
     return temp;
 }
 
-float readFloat(fstream *file)
+float readFloat(std::iostream *file)
 {
     union {
         char c[4];
@@ -75,7 +75,7 @@ float readFloat(fstream *file)
     return temp.f;
 }
 
-int readInt(fstream *file)
+int readInt(std::iostream *file)
 {
     union {
         char c[4];
@@ -88,102 +88,20 @@ int readInt(fstream *file)
     return temp.i;
 }
 
-bool readBool(fstream *file)
+bool readBool(std::iostream *file)
 {
     char temp;
     file->get(temp);
     return temp != 0;
 }
 
-void readBytes(fstream *file, void* _ptr, size_t length)
+void readBytes(std::iostream *file, void* _ptr, size_t length)
 {
     for(size_t i = 0; i < length; i++) {
         file->read((char*)_ptr+length-1-i, 1);
     }
 }
 
-
-void writeBytes(stringstream *file, const char* data, size_t length )
-{
-    for(size_t i = 0; i < length; i++) {
-        file->write(data+length-1-i, 1);
-    }
-}
-
-void writeNulls(stringstream *file , size_t length )
-{
-    char data[1] = {0x00};
-    for(size_t i = 0; i < length; i++) {
-        writeBytes(file, data, 1);
-    }
-}
-
-string readString(stringstream *file, size_t length)
-{
-    string temp = "";
-    char c;
-    for(size_t i = 0; i < length; ++i) {
-        file->get(c);
-        temp.append(1, c);
-    }
-    return temp;
-}
-
-bool readNulls(stringstream *file, size_t length)
-{
-    char c;
-    for(size_t i = 0; i < length; ++i) {
-        file->get(c);
-        //if(c) return false;
-    }
-    return true;
-}
-
-glm::vec3 readVec3(stringstream *file)
-{
-    glm::vec3 temp(readFloat(file), readFloat(file), readFloat(file));
-    return temp;
-}
-
-float readFloat(stringstream *file)
-{
-    union {
-        char c[4];
-        float f;
-    } temp;
-    file->get(temp.c[3]);
-    file->get(temp.c[2]);
-    file->get(temp.c[1]);
-    file->get(temp.c[0]);
-    return temp.f;
-}
-
-int readInt(stringstream *file)
-{
-    union {
-        char c[4];
-        int i;
-    } temp;
-    file->get(temp.c[3]);
-    file->get(temp.c[2]);
-    file->get(temp.c[1]);
-    file->get(temp.c[0]);
-    return temp.i;
-}
-
-bool readBool(stringstream *file)
-{
-    char temp;
-    file->get(temp);
-    return temp != 0;
-}
-
-void readBytes(stringstream *file, void* _ptr, size_t length)
-{
-    for(size_t i = 0; i < length; i++) {
-        file->read((char*)_ptr+length-1-i, 1);
-    }
-}
 
 void writeToExportFile(std::fstream *file, QList<bezier_t*> &bezList)
 {
