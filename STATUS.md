@@ -4,7 +4,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-13, written by the session that planned Stage 3. **Stage 3 is planned and not started; no code has changed since Stage 2.** The owner accepted the plan's eight recommendations the same day. Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
+2026-11-13, written by the session that builds Stage 3, as it started. **Stage 3 is being built on the integration branch `claude/stage-3`; no piece is merged yet, so the code is still Stage 2's.** Wave 1 is in work: U1 (English units by default), P1 (the ride), A3a (the force-limit engine), F4 (additions to the saved file) and N3a (the kit for the NoLimits 2 session). The integration pull request lists every piece and its state. The owner accepted the plan's eight recommendations the same day. Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
 
 ## Focus
 
@@ -39,7 +39,7 @@ Open issues:
 
 The full list, with when each answer is needed, is the last section of `docs/roadmap.md`. The ones that matter now:
 
-- **The word for a session to build Stage 3.** The eight choices of decision record 0014 are answered (all accepted, 2026-11-13), so nothing in the stage waits for an answer.
+- **Nothing for Stage 3 right now.** The word to build it was given on 2026-11-13, and the eight choices of decision record 0014 are answered (all accepted, 2026-11-13), so nothing in the stage waits for an answer. One thing will be asked during the build: screen access to a copy of the 2016 program, to see that it opens a project with an appendix (F4).
 - **Two of those answers need his hands later,** each as an `owner` issue the building session files: buying ASTM F2291 (edition 26b, US$121) and typing its numbers into the limit file, once that file exists; and about an hour in NoLimits 2, once the kit for it is ready (needed before Stage 4).
 - **Try Stage 2,** if not done yet. Pull request #46's "For the owner" part says what to try first.
 - **#72, the start-rate boxes:** recommendation, leave it. No answer means it stays.
