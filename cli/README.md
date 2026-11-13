@@ -59,6 +59,12 @@ fvdcore check --list
 The findings as sentences, one per line, with the severity and the stretch (metres along the track; the sentence has the times), and a last line with the counts. `--json` prints them as an object. Exit code 0 when it ran, 1 on an error, 3 when `--fail-on` is given and a finding of that severity or worse exists. `--list` prints the checks: `basic`, and `forceLimits`, the force limits of ASTM F2291 (public numbers, not a certification) at the point the program follows, as warnings with the node stretch; on `four-sections.fvd` it gives the same six findings as `limits --trace` on its measures. `summary` prints it as the line "Force limits (ASTM F2291, public numbers): within / n findings" (`force_limits` in the JSON).
 
 ```
+fvdcore ride <project.fvd> [--track N] [--type ID] [--catalogue FILE] [--cars N] [--pitch M] [--rows N] [--seats N] [--reference centre|front|rear|N] [--table [--every-s X]] [--json] [--out FILE]
+fvdcore ride docs\research\r7-prototype\projects\camelback.fvd --cars 9 --pitch 2.2
+```
+A train ridden over the finished track (`core/trainride.h`; the model is decision record 0014 points 1 to 7 and R7): per car (car 1 is the front car) the lowest and highest vertical (`gz`), sideways (`gy`, + rider pressed to his right) and along-track force (`gx`, + pressed into the seat back) with where they happen, and the floater and ejector seconds, counted while the car is on the track; the ride's notes (held-speed cases met) and a stall with its place. The train is the program's own point unless `--type` (an id of `data/traintypes.json`, found beside or above the program or given with `--catalogue`) or the counts describe one; what the catalogue lacks is a stand-in (car pitch 2.5 m, rows 0.9 m and seats 0.55 m apart) and is listed as assumed. `--reference` is the car that is at the track's start at time 0 (the train's centre by default). `--table` prints the samples (every 0.01 s, or every `--every-s`) as tab-separated text, one column per car and force; `--json` one object `{"tracks": [...]}` (with `--table` also the samples). Nothing is saved in the project.
+
+```
 fvdcore totext <project.fvd> <out.json|-> [--force]
 fvdcore fromtext <in.json|-> <out.fvd> [--force]
 fvdcore totext samples\baseline\four-sections.fvd four.json

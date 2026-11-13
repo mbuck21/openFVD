@@ -54,6 +54,7 @@ extern const command cmdCompare;
 extern const command cmdSummary;
 extern const command cmdMeasures;
 extern const command cmdCheck;
+extern const command cmdRide;
 extern const command cmdToText;
 extern const command cmdFromText;
 extern const command cmdAdditions;
