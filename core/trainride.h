@@ -49,11 +49,13 @@
 //   gz = -f.vNorm   pressed into the seat (the program's forceNormal)
 //   gy = -f.vLat    the sign of the program's forceLateral: positive when the
 //                   rider is pressed toward his right (a left turn)
-//   gx =  f.vDir    pressed into the seat back (the existing forceAlong)
+//   gx =  f.vDir    pressed into the seat back (the sign of forceAlong; the
+//                   heartline's own acceleration, see feltAt() in trainride.cpp)
 // where f = (acceleration + g up) / g at that point. A car's forces are those
 // at the heartline at the car's centre; each row rides the track at its own
 // place; a seat adds the turning of the frame at its offset across the car and
-// up from the heartline (R3 section 7: alpha x r + omega x (omega x r)).
+// up from the heartline (R3 section 7: alpha x r + omega x (omega x r)), by
+// the same rule that carries the centre line's acceleration to the heartline.
 // The turning of the frame comes from the nodes' direction vectors over a span
 // of nodes (never from second differences of float positions, which are far
 // too noisy: docs/stage-3-plan.md section 3).
@@ -81,14 +83,15 @@ enum rideAxis
 struct ridePath
 {
     // per entry
-    QVector<double> s;          // centre-line distance from the track's start, m (fTotalLength)
-    QVector<double> sh;         // heartline distance from the start, m
+    QVector<double> s;          // centre-line distance from the track's start, m (summed in double; not fTotalLength)
+    QVector<double> sh;         // heartline distance from the start, m (the centre line's times rh)
     QVector<double> heartY;     // height of the heartline (vPos.y), m
     QVector<double> dirY, latY, normY;  // the frame's y components (vDir, vLat, vNorm)
     QVector<double> wD, wL, wN; // turning of the frame per metre of heartline about vDir (roll),
                                 // vLat (pitch: + toward the rider's head) and vNorm, rad/m
     QVector<double> dwD, dwL, dwN;  // their change per metre of heartline, rad/m^2
-    QVector<double> rh;         // heartline metres per centre-line metre
+    QVector<double> rh;         // heartline metres per centre-line metre (from the frame's turning)
+    QVector<double> drh;        // its change per centre-line metre
     QVector<double> held;       // the held speed there, m/s, or -1 on free track
     QVector<int> node;          // global node index of the entry
     QVector<int> section;       // 1-based section number of the entry
@@ -110,7 +113,7 @@ struct ridePath
     ridePath();
     int size() const { return s.size(); }
     bool isEmpty() const { return s.size() < 2; }
-    // Fills dwD, dwL, dwN from wD, wL, wN and sh; called by
+    // Fills dwD, dwL, dwN and drh from wD, wL, wN, rh, s and sh; called by
     // ridePathFromTrack(), and by a test that fills the arrays by hand.
     void deriveRates();
 };
@@ -175,7 +178,9 @@ struct trainRide
     QVector<double> time_s;
     QVector<double> position_m;     // the reference's centre-line distance
     QVector<double> speed_mps;      // the train's speed (centre line)
-    QVector<double> accel_mps2;     // its rate of change
+    QVector<double> accel_mps2;     // its rate of change: the acceleration of the centre line along the
+                                    // track, the same for every car (R7's along-track force is this / g
+                                    // plus vDir.y where the car is)
     QVector<double> carG;           // [sample][car][axis]
     QVector<double> seatG;          // [sample][car][row][seat][axis]
 

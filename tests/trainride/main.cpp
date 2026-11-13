@@ -212,6 +212,48 @@ static double carAt(const trainRide& r, int car, double x, int axis)
     return std::numeric_limits<double>::quiet_NaN();
 }
 
+// The train's acceleration along the centre line when a car passes place x.
+static double accelWhenCarAt(const trainRide& r, int car, double x)
+{
+    double off = r.carOffset_m.at(car);
+    for(int k = 1; k < r.samples(); ++k) {
+        double a = r.position_m.at(k - 1) + off, b = r.position_m.at(k) + off;
+        if(a <= x && x <= b) {
+            double f = b > a ? (x - a)/(b - a) : 0.0;
+            return r.accel_mps2.at(k - 1) + f*(r.accel_mps2.at(k) - r.accel_mps2.at(k - 1));
+        }
+    }
+    return std::numeric_limits<double>::quiet_NaN();
+}
+
+// A path's vDir.y at centre-line place x.
+static double dirYAt(const ridePath& p, double x)
+{
+    for(int i = 1; i < p.size(); ++i) {
+        if(p.s.at(i) >= x) {
+            double f = (x - p.s.at(i - 1))/(p.s.at(i) - p.s.at(i - 1));
+            return p.dirY.at(i - 1) + f*(p.dirY.at(i) - p.dirY.at(i - 1));
+        }
+    }
+    return p.dirY.last();
+}
+
+// One value per global node of the train's acceleration (car at the reference
+// place), by place, as the library's helpers do it.
+static QVector<double> accelByNode(const trainRide& r)
+{
+    QVector<double> out(r.nodePlace.size(), 0.0);
+    int k = 0, last = r.samples() - 1;
+    for(int i = 0; i < r.nodePlace.size(); ++i) {
+        double x = r.nodePlace.at(i);
+        while(k < last - 1 && r.position_m.at(k + 1) < x) ++k;
+        double pa = r.position_m.at(k), pb = r.position_m.at(qMin(k + 1, last));
+        double f = pb > pa ? qBound(0.0, (x - pa)/(pb - pa), 1.0) : 0.0;
+        out[i] = r.accel_mps2.at(k) + f*(r.accel_mps2.at(qMin(k + 1, last)) - r.accel_mps2.at(k));
+    }
+    return out;
+}
+
 // The share of the straight piece a..b (in time) with lo < g <= hi.
 static double share(double a, double b, double lo, double hi)
 {
@@ -332,14 +374,14 @@ static const double kAlongTol = 0.02;       // g, gx away from joins
 
 struct pointStats
 {
-    double dv, dz, dy, dx, dvSmoothed, dvSmoothedDesign, dvRaw;
+    double dv, dz, dy, dx, dvSmoothed, dvSmoothedDesign, dvRaw, measureOffWorst, measureOffSum;
     int nodes, speedNodes, forceNodes;
     QStringList excluded;
 };
 
 static pointStats comparePoint(track* t, const QString& label)
 {
-    pointStats st = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, QStringList() };
+    pointStats st = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, QStringList() };
     measureNodes n = measureRegistry::collect(t);
     QVector<QVector<float> > m = measureRegistry::values(n, QStringList() << "speed" << "forceNormal" << "forceLateral" << "forceAlong");
     rideOptions o;
@@ -355,6 +397,7 @@ static pointStats comparePoint(track* t, const QString& label)
     QVector<double> gz = trainRideCarByNode(r, 0, rideGz);
     QVector<double> gy = trainRideCarByNode(r, 0, rideGy);
     QVector<double> gx = trainRideCarByNode(r, 0, rideGx);
+    QVector<double> accel = accelByNode(r);
     // the first Bezier or NoLimits CSV section: it and everything after it are left out
     int firstImported = -1;
     for(int s = 0; s < t->lSections.size(); ++s) {
@@ -464,9 +507,12 @@ static pointStats comparePoint(track* t, const QString& label)
         if(std::fabs(m[1][i]) > 10.f || std::fabs(m[2][i]) > 10.f) { ++beyondTen; continue; }
         st.dz = qMax(st.dz, std::fabs(gz.at(i) - m[1][i]));
         st.dy = qMax(st.dy, std::fabs(gy.at(i) - m[2][i]));
-        // gx is vDir.y plus the train's acceleration on the centre line over g;
-        // the measure divides that acceleration by the heartline's length per
-        // metre of centre line (over its +-10 nodes, within the section)
+        // The along-track force: the measure forceAlong is vDir.y plus the
+        // centre-line speed's change over the heartline's distance, a / rh (rh
+        // over its +-10 nodes, within the section). The ride's own gx is the
+        // heartline's acceleration (rh a + v^2 drh/ds); its acceleration a is
+        // checked here in the measure's terms, and how far the measure is from
+        // the heartline's value is kept for issue 96.
         int lo = qMax(i - MEASURE_ALONG_HALFSPAN, n.sectionFirst.at(s) + 1), hi = qMin(i + MEASURE_ALONG_HALFSPAN, n.sectionLast.at(s));
         double rhNode = 1.0;
         if(hi > lo) {
@@ -474,8 +520,11 @@ static pointStats comparePoint(track* t, const QString& label)
             if(dsr > 1e-6) rhNode = (n.heartDist.at(hi) - n.heartDist.at(lo))/dsr;
         }
         double dirY = n.nodes.at(i)->vDir.y;
-        double gxMeasure = held ? gx.at(i) : dirY + (gx.at(i) - dirY)/rhNode;
+        double gxMeasure = held ? dirY : dirY + accel.at(i)/(kG*rhNode);
         st.dx = qMax(st.dx, std::fabs(gxMeasure - m[3][i]));
+        double off = std::fabs(gx.at(i) - m[3][i]);
+        st.measureOffWorst = qMax(st.measureOffWorst, off);
+        st.measureOffSum += off;
         ++st.forceNodes;
     }
     if(heldJoins) st.excluded << QString("%1 node(s) at joins into or out of held-speed sections (speed only)").arg(heldJoins);
@@ -506,8 +555,8 @@ static void checkPointOnBaseline(const QString& repo)
         if(!names[i].contains(".2016.")) files << baseline.filePath(names[i]);
     }
     files << QDir(repo).filePath("samples/import/nl1.ref.resaved.fvd") << QDir(repo).filePath("samples/import/nl2.ref.resaved.fvd");
-    double worstV = 0.0, worstZ = 0.0, worstY = 0.0, worstX = 0.0;
-    int tracks = 0;
+    double worstV = 0.0, worstZ = 0.0, worstY = 0.0, worstX = 0.0, offWorst = 0.0, offSum = 0.0;
+    int tracks = 0, offNodes = 0;
     for(int f = 0; f < files.size(); ++f) {
         coreProject p;
         QString name = QFileInfo(files[f]).fileName();
@@ -525,6 +574,13 @@ static void checkPointOnBaseline(const QString& repo)
             worstZ = qMax(worstZ, st.dz);
             worstY = qMax(worstY, st.dy);
             worstX = qMax(worstX, st.dx);
+            offWorst = qMax(offWorst, st.measureOffWorst);
+            offSum += st.measureOffSum;
+            offNodes += st.forceNodes;
+            if(st.forceNodes > 0) {
+                printf("    issue 96, %s: the measure forceAlong is off the heartline's along-track force by %.4f g at worst, "
+                       "%.5f g on average\n", qPrintable(label), st.measureOffWorst, st.measureOffSum/st.forceNodes);
+            }
             bool ok = st.dv <= kSpeedTol && st.dvSmoothed <= kSpeedTol && st.dz <= kForceTol && st.dy <= kForceTol && st.dx <= kAlongTol
                     && !st.excluded.contains("NOT FINITE");
             report(ok, QString("(1) %1: the point reproduces the design's speed within %2 m/s at %3 of %4 nodes (worst %5), "
@@ -538,6 +594,8 @@ static void checkPointOnBaseline(const QString& repo)
                                  "and %8 g, nodes within %9 of a section join left out)")
            .arg(tracks).arg(worstV, 0, 'g', 3).arg(kSpeedTol).arg(worstZ, 0, 'f', 4).arg(worstY, 0, 'f', 4)
            .arg(worstX, 0, 'f', 4).arg(kForceTol).arg(kAlongTol).arg(kJoinMargin));
+    printf("    issue 96, all tracks: the measure forceAlong is off the heartline's along-track force by %.4f g at worst, "
+           "%.5f g on average over %d nodes\n", offWorst, offNodes ? offSum/offNodes : 0.0, offNodes);
 }
 
 // ---------------------------------------------------------------------------
@@ -660,12 +718,17 @@ static void checkR7Shape(const QString& repo, int shape, worst& w)
         w.add(got, e.g, kR7G, &w.g, QString("%1 normal force, %2 %3 car at place %4").arg(files[shape]).arg(r7Names[e.train])
               .arg(carNames[e.car]).arg(e.place));
     }
+    // R7's along-track force is vDir.y plus the centre line's acceleration over
+    // g (ride.py: a/G + dir_y), not the heartline's: compared with the ride's
+    // centre-line acceleration (trainRide::accel_mps2) and the track's vDir.y there
+    ridePath path = ridePathFromTrack(t);
     for(unsigned i = 0; i < sizeof(r7Along)/sizeof(r7Along[0]); ++i) {
         const r7AtPlace& e = r7Along[i];
         if(e.shape != shape) continue;
         const trainRide& r = rides[e.train];
         int n = r7Cars[e.train];
-        double got = carAt(r, e.car == 0 ? 0 : n - 1, places[e.place], rideGx);
+        double x = places[e.place];
+        double got = accelWhenCarAt(r, e.car == 0 ? 0 : n - 1, x)/kG + dirYAt(path, x);
         w.add(got, e.g, kR7G, &w.g, QString("%1 along-track force, %2 %3 car at place %4").arg(files[shape]).arg(r7Names[e.train])
               .arg(carNames[e.car]).arg(e.place));
     }
@@ -731,6 +794,8 @@ static void checkR7(const QString& repo)
     for(int i = 0; i < w.over.size(); ++i) printf("    over: %s\n", qPrintable(w.over.at(i)));
     // (R7's values are rounded to two decimals; the limits are taken against
     // the rounded values as printed)
+    printf("    (R7's along-track tables are of the centre line's acceleration, as R7 computed them; the ride's own gx is "
+           "the heartline's, which differs by the heartline's length per metre of centre line)\n");
     report(w.over.isEmpty() && w.count > 300,
            QString("(2) R7's tables, %1 numbers with R7's three trains: worst %2 g (limit %3), %4 m/s (limit %5), "
                    "%6 s (limit %7), against R7's values as printed; %8 over")
@@ -839,6 +904,73 @@ static void checkClosedForm()
                .arg(rows[k].length).arg(rows[k].cars).arg(vt, 0, 'f', 5).arg(std::sqrt(v2t), 0, 'f', 5).arg(rows[k].train, 0, 'f', 4)
                .arg(nt, 0, 'f', 5).arg(nForm, 0, 'f', 5).arg(rows[k].force, 0, 'f', 4));
     }
+}
+
+// The along-track force at the heartline on a vertical circle: rail radius R,
+// heartline h toward the centre, frictionless, from the bottom at 20 m/s.
+// The mass point (0.1 h above the rail) sits at R - 0.1 h from the centre, so
+//   v^2 = v0^2 - 2 g (R - 0.1 h)(1 - cos theta),  a = -g (R - 0.1 h) sin theta / R,
+// the heartline runs at vh = v (R - h) / R, and the rider at the heartline is
+// pressed back by gx = sin theta + (R - h)/R a / g.
+static void checkAlongClosedForm()
+{
+    const double R = 10.0, h = 1.1, ds = 0.01, end = 2.2*R;
+    const double rh = (R - h)/R;
+    ridePath p;
+    for(int i = 0; i*ds <= end + 1e-9; ++i) {
+        double s = i*ds, th = s/R;
+        p.s << s;
+        p.sh << s*rh;
+        p.heartY << R*(1.0 - std::cos(th)) + h*std::cos(th);
+        p.dirY << std::sin(th);
+        p.latY << 0.0;
+        p.normY << -std::cos(th);
+        p.wD << 0.0;
+        p.wL << 1.0/(R - h);
+        p.wN << 0.0;
+        p.rh << rh;
+        p.held << -1.0;
+        p.node << i;
+        p.section << 1;
+        p.nodePlace << s;
+        p.nodeSection << 1;
+    }
+    p.deriveRates();
+    p.fHeart = h;
+    p.startSpeed = 20.0;
+    p.sectionCount = 1;
+    rideOptions o;
+    o.sampleInterval_s = 0.001;
+    trainRide r = rideTrainOnPath(p, trainSpec::point(), o);
+    double err = 0.0, errV = 0.0, errZ = 0.0, at90[4] = { 0.0, 0.0, 0.0, 0.0 }, best90 = 1e9;
+    int used = 0;
+    for(int k = 0; k < r.samples(); ++k) {
+        double th = r.position_m.at(k)/R;
+        if(th < 0.1 || th > 2.1) continue;
+        double v2 = 400.0 - 2.0*kG*(R - 0.1*h)*(1.0 - std::cos(th));
+        double a = -kG*(R - 0.1*h)*std::sin(th)/R;
+        double gx = std::sin(th) + rh*a/kG;
+        double vh = std::sqrt(v2)*rh;
+        double gz = std::cos(th) + vh*vh/(R - h)/kG;
+        err = qMax(err, std::fabs(r.car(k, 0, rideGx) - gx));
+        errZ = qMax(errZ, std::fabs(r.car(k, 0, rideGz) - gz));
+        errV = qMax(errV, std::fabs(r.speed_mps.at(k) - std::sqrt(v2)));
+        if(std::fabs(th - M_PI/2) < best90) {
+            best90 = std::fabs(th - M_PI/2);
+            at90[0] = gx;
+            at90[1] = r.car(k, 0, rideGx);
+            at90[2] = std::sin(th) + a/kG;          // R7's form, the centre line's acceleration
+            at90[3] = std::sin(th) + a/(rh*kG);     // the Stage 2 measure's form, a / rh
+        }
+        ++used;
+    }
+    report(r.valid && used > 500 && err < 0.001 && errZ < 0.001 && errV < 1e-4,
+           QString("the along-track force at the heartline on a vertical circle (rail radius %1 m, heartline %2 m, "
+                   "frictionless): worst %3 g against the closed form (limit 0.001 g; gz %4 g, speed %5 m/s); with the "
+                   "track vertical the closed form gives %6 g, the ride %7 g, the centre line's acceleration (R7's form) "
+                   "would give %8 g and the measure forceAlong's form %9 g")
+           .arg(R).arg(h).arg(err, 0, 'g', 2).arg(errZ, 0, 'g', 2).arg(errV, 0, 'g', 2).arg(at90[0], 0, 'f', 4)
+           .arg(at90[1], 0, 'f', 4).arg(at90[2], 0, 'f', 4).arg(at90[3], 0, 'f', 4));
 }
 
 // ---------------------------------------------------------------------------
@@ -1091,7 +1223,7 @@ static void checkByPlace(const QString& repo)
     // the crest: the highest node; what the front car feels there equals what it feels when it passes that place
     shapeData d = shapeOf(t);
     int top = argExt(d, d.hy, 0, d.s.last(), true);
-    double atCrest = carAt(r, 0, d.s[top], rideGz);
+    double atCrest = carAt(r, 0, r.nodePlace.at(top), rideGz);
     int notFront = 0, notRear = 0;
     for(int i = 0; i < nodes; ++i) {
         if(!passedFront.at(i)) ++notFront;
@@ -1099,7 +1231,7 @@ static void checkByPlace(const QString& repo)
     }
     // the front car starts 8.8 m ahead of the train's centre: it never passes the first 8.8 m
     int expectFront = 0;
-    for(int i = 0; i < nodes; ++i) if(d.s[i] < r.carOffset_m.at(0)) ++expectFront;
+    for(int i = 0; i < nodes; ++i) if(r.nodePlace.at(i) < r.carOffset_m.at(0)) ++expectFront;
     report(front.size() == nodes && rear.size() == nodes && std::fabs(front.at(top) - atCrest) < 1e-9
            && notFront == expectFront && notRear == 0 && front.at(top) < -0.4 && rear.at(top) < -0.3,
            QString("by place: one value per node (%1); at the crest node the front car's value is what it feels passing the "
@@ -1119,6 +1251,92 @@ static void checkByPlace(const QString& repo)
            && r.position_m.first() == r.trackStart_m,
            QString("samples every 0.01 s (%1 of them), the train's centre at the start at time 0, the last when the rear car "
                    "has passed the last node (%2 m past it)").arg(r.samples()).arg(rearEnd - r.trackEnd_m, 0, 'f', 3));
+}
+
+static const double kEarlyLateTol = 0.002;     // g
+
+// A straight held at 30 m/s of the given length, then a smooth drop: a
+// geometric section whose pitch rate eases from 0 to -40 degrees per second
+// (the transition is 3 s long; the section ends after its own length), free speed.
+static void dropTrack(track& t, float straightLength)
+{
+    t.newSection(straight);
+    section* s = t.lSections[0];
+    s->bSpeed = false;
+    s->fVel = 30.f;
+    s->rollFunc->changeLength(straightLength, 0);
+    t.newSection(geometric);
+    section* g = t.lSections[1];
+    g->normForce->changeLength(3.f, 0);
+    subfunc* sf = g->normForce->funcList[0];
+    sf->symArg = -40.f;
+    sf->parent->translateValues(sf);
+    t.updateTrack(0, 0);
+}
+
+// The drop's forces, sample by sample, while the car is on the geometric
+// section: the largest jump from one sample to the mean of its neighbours
+// (jitter), and the values against the place along the drop.
+struct dropForces
+{
+    QVector<double> along, value[3];
+    double jitter[3];
+    double accelJitter;
+};
+
+static dropForces forcesOnDrop(track& t)
+{
+    dropForces d;
+    for(int a = 0; a < 3; ++a) d.jitter[a] = 0.0;
+    d.accelJitter = 0.0;
+    trainRide r = rideTrain(&t, trainSpec::point());
+    measureNodes n = measureRegistry::collect(&t);
+    int first = n.sectionFirst.at(1), last = n.sectionLast.at(1);
+    double from = r.nodePlace.at(first) + 1.0, to = r.nodePlace.at(last) - 1.0;
+    for(int k = 1; k + 1 < r.samples(); ++k) {
+        double x = r.position_m.at(k);
+        if(x < from || x > to) continue;
+        d.along << x - r.nodePlace.at(first);
+        for(int a = 0; a < 3; ++a) {
+            d.value[a] << r.car(k, 0, a);
+            d.jitter[a] = qMax(d.jitter[a], std::fabs(r.car(k, 0, a) - 0.5*(r.car(k - 1, 0, a) + r.car(k + 1, 0, a))));
+        }
+        d.accelJitter = qMax(d.accelJitter, std::fabs(r.accel_mps2.at(k) - 0.5*(r.accel_mps2.at(k - 1) + r.accel_mps2.at(k + 1))));
+    }
+    return d;
+}
+
+static double valueAt(const dropForces& d, int axis, double x)
+{
+    for(int i = 1; i < d.along.size(); ++i) {
+        if(d.along.at(i) >= x) {
+            double f = (x - d.along.at(i - 1))/(d.along.at(i) - d.along.at(i - 1));
+            return d.value[axis].at(i - 1) + f*(d.value[axis].at(i) - d.value[axis].at(i - 1));
+        }
+    }
+    return d.value[axis].last();
+}
+
+static void checkEarlyAndLate()
+{
+    track early(glm::vec3(0.f, 50.f, 0.f), 0.f, 1.1f), late(glm::vec3(0.f, 50.f, 0.f), 0.f, 1.1f);
+    dropTrack(early, 10.f);
+    dropTrack(late, 3000.f);
+    dropForces e = forcesOnDrop(early), l = forcesOnDrop(late);
+    double diff[3] = { 0.0, 0.0, 0.0 };
+    for(int i = 0; i < e.along.size(); ++i) {
+        if(e.along.at(i) < l.along.first() || e.along.at(i) > l.along.last()) continue;
+        for(int a = 0; a < 3; ++a) diff[a] = qMax(diff[a], std::fabs(e.value[a].at(i) - valueAt(l, a, e.along.at(i))));
+    }
+    double worst = qMax(diff[0], qMax(diff[1], diff[2]));
+    report(e.along.size() > 50 && l.along.size() > 50 && worst < kEarlyLateTol
+           && l.jitter[rideGx] < kEarlyLateTol && e.jitter[rideGx] < kEarlyLateTol,
+           QString("the same smooth drop 10 m and 3000 m along a track: the forces agree within "
+                   "gz %1, gy %2, gx %3 g (limit %4 g); sample-to-sample jitter of gx early %5 g, late %6 g, of the "
+                   "acceleration early %7, late %8 m/s^2")
+           .arg(diff[0], 0, 'g', 2).arg(diff[1], 0, 'g', 2).arg(diff[2], 0, 'g', 2).arg(kEarlyLateTol)
+           .arg(e.jitter[rideGx], 0, 'g', 2).arg(l.jitter[rideGx], 0, 'g', 2).arg(e.accelJitter, 0, 'g', 2)
+           .arg(l.accelJitter, 0, 'g', 2) + QString(" (%1 and %2 samples on the drop)").arg(e.along.size()).arg(l.along.size()));
 }
 
 static void checkTiming()
@@ -1148,6 +1366,15 @@ static void checkTiming()
     report(r.valid && nodes >= 100000 && ms < 400.0,
            QString("timing: a %1-node track with 10 cars of 2 x 4 seats rides in %2 ms (limit 400 ms; the plan asks for "
                    "well under 500 ms), %3 samples").arg(nodes).arg(ms, 0, 'f', 1).arg(r.samples()));
+    // the same long track: the front car's gx from one sample to the mean of its neighbours
+    double jitter = 0.0;
+    for(int k = 1; k + 1 < r.samples(); ++k) {
+        double x = r.position_m.at(k) + r.carOffset_m.at(0);
+        if(x < 20.0 || x > r.trackEnd_m - 20.0) continue;
+        jitter = qMax(jitter, std::fabs(r.car(k, 0, rideGx) - 0.5*(r.car(k - 1, 0, rideGx) + r.car(k + 1, 0, rideGx))));
+    }
+    report(jitter < kEarlyLateTol, QString("on that 1010 m track (held speed) the front car's gx jitters by %1 g from sample "
+                                           "to sample (limit %2 g)").arg(jitter, 0, 'g', 2).arg(kEarlyLateTol));
 }
 
 int main(int argc, char *argv[])
@@ -1163,10 +1390,12 @@ int main(int argc, char *argv[])
     checkPointOnBaseline(repo);
     checkR7(repo);
     checkClosedForm();
+    checkAlongClosedForm();
     checkSeats(repo);
     checkUnchanged(repo);
     checkStall(repo);
     checkByPlace(repo);
+    checkEarlyAndLate();
     checkTiming();
     printf("%s\n", allOk ? "PASS" : "FAIL");
     return allOk ? 0 : 1;
