@@ -17,6 +17,7 @@ SOURCES += \
     $$PWD/cmd_limits.cpp \
     $$PWD/cmd_measures.cpp \
     $$PWD/cmd_nodes.cpp \
+    $$PWD/cmd_ride.cpp \
     $$PWD/cmd_selftest.cpp \
     $$PWD/cmd_session.cpp \
     $$PWD/cmd_summary.cpp \
