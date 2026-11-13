@@ -230,6 +230,19 @@ double optionsMenu::getLengthFactor()
     }
 }
 
+void optionsMenu::setBoxRange(QDoubleSpinBox* box, double factor)
+{
+    // The limits typed into the .ui form are metric. Remember them the first
+    // time, then always scale those, never the already scaled ones. In metric
+    // the factor is 1.0 and the range is exactly the form's.
+    if(!box->property("metricMin").isValid()) {
+        box->setProperty("metricMin", box->minimum());
+        box->setProperty("metricMax", box->maximum());
+    }
+    box->setRange(box->property("metricMin").toDouble() * factor,
+                  box->property("metricMax").toDouble() * factor);
+}
+
 void optionsMenu::on_rollColor0_clicked()
 {
     colorPicker->setOption(QColorDialog::ShowAlphaChannel, true);
