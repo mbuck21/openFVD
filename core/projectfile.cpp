@@ -134,7 +134,7 @@ appendixResult readAppendix(std::iostream& file, int trackCount)
     if(size < 7) return dropped(QString("the appendix is cut off inside its version number"));
     int version = intAt(rest, 3);
     if(version > APPENDIX_VERSION) {
-        return dropped(QString("the appendix was written by a newer program (appendix version %1; this program reads version %2)")
+        return dropped(QString("they were saved by a newer version of FVD++ (appendix version %1; this version reads version %2)")
                        .arg(version).arg(APPENDIX_VERSION));
     }
     if(version < 1) return dropped(QString("the appendix version %1 is not a valid version").arg(version));
@@ -315,6 +315,9 @@ QString readProject(std::iostream& file, projectFileClient* client)
         }
     }
     client->projectAdditionsRead(appendix.state == APPENDIX_READ ? appendix.project : QJsonObject());
+    if(appendix.state == APPENDIX_DROPPED) {
+        client->projectAdditionsDropped(appendix.reason);
+    }
     for(int i = 0; i < loaded.size(); ++i) {
         client->projectTrackLoaded(loaded[i]);
     }
@@ -327,8 +330,9 @@ QString readProject(std::iostream& file, projectFileClient* client)
     }
     QString droppedText;
     if(appendix.state == APPENDIX_DROPPED) {
-        droppedText = QString("The additions saved after the end of the project could not be read and were dropped (%1). "
-                              "The tracks loaded as saved; saving the project now writes it without those additions.")
+        droppedText = QString("The additions saved after the end of the project could not be read (%1). "
+                              "The tracks are loaded without them. Saving will ask for a new file name, "
+                              "so that the original file keeps its additions.")
                       .arg(appendix.reason);
         qWarning("%s", qPrintable(droppedText));
     }

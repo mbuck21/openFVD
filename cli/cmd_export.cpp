@@ -103,6 +103,8 @@ bool writeProjectExports(coreProject& project, const QDir& dir, const QString& s
     }
 
     QString resavedName = stem + ".resaved.fvd";
+    // <stem>.resaved.fvd is never the loaded <stem>.fvd itself; checked all the same
+    if(refuseOverwritingDropped(project, dir.filePath(resavedName), error)) return false;
     QString saveResult = saveProjectFile(dir.filePath(resavedName), project.texPath, trackList, &project);
     if(saveResult.contains("Error")) {
         error = QString("saving ") + resavedName + ": " + saveResult;

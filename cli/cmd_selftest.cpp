@@ -43,6 +43,9 @@
 #include "../core/finding.h"
 #include "../core/nolimitsimporter.h"
 #include "../core/ridesummary.h"
+#include "../core/exportfuncs.h"
+
+#include <sstream>
 
 static QByteArray readAll(const QString& fileName)
 {
@@ -242,6 +245,70 @@ static void checkSessionAndImport(bool& allOk, const QString& repo, const QStrin
 // Exports samples/baseline/four-sections.fvd and compares the Spline export
 // and the re-saved project with the 2016 binary's files, byte for byte; then
 // tries the other commands on the same project.
+// An int as the project file writes one (writeBytes(): big-endian).
+static QByteArray fileInt(int value)
+{
+    std::stringbuf buf(std::ios::in | std::ios::out | std::ios::binary);
+    std::iostream io(&buf);
+    writeBytes(&io, (const char*)&value, sizeof(int));
+    std::string s = buf.str();
+    return QByteArray(s.data(), (int)s.size());
+}
+
+static void writeAll(const QString& fileName, const QByteArray& bytes)
+{
+    QFile file(fileName);
+    if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(bytes);
+}
+
+// A project whose appendix is dropped on loading (here: written by a newer
+// program, appendix version 2) is never written over, not even with --force;
+// another output file is allowed. A warning that quotes "Error" from the file
+// is still a warning.
+static void checkDroppedAppendix(bool& allOk, const QString& tmp, const QString& resaved)
+{
+    QByteArray plain = readAll(resaved);
+    QByteArray doc("{\"needs\":[],\"project\":{},\"tracks\":[{\"train\":{\"cars\":3}}]}");
+    QByteArray newer = plain + "FVX" + fileInt(2) + fileInt(doc.size()) + doc + "EOX";
+    QString file = QDir(tmp).filePath("newer-appendix.fvd");
+    writeAll(file, newer);
+
+    int code = cmdAdditions.run(QStringList() << file << "--track" << "1" << "--set" << "x=1" << "--force");
+    report(allOk, !plain.isEmpty() && code == 1 && readAll(file) == newer,
+           QString("additions over a file whose appendix version 2 was dropped is refused even with --force; "
+                   "the file is unchanged (exit code %1)").arg(code));
+    QString other = QDir(tmp).filePath("newer-appendix-other.fvd");
+    code = cmdAdditions.run(QStringList() << file << "--track" << "1" << "--set" << "x=1" << "--out" << other);
+    report(allOk, code == 0 && readAll(other).startsWith(plain) && readAll(file) == newer,
+           QString("... and with --out another file it writes that file (exit code %1)").arg(code));
+    QString json = QDir(tmp).filePath("newer-appendix.json");
+    code = cmdToText.run(QStringList() << file << file << "--force");
+    int code2 = cmdToText.run(QStringList() << file << json);
+    report(allOk, code == 1 && code2 == 0 && readAll(file) == newer,
+           QString("totext over that file is refused even with --force, to another file it writes (exit codes %1, %2)").arg(code).arg(code2));
+    QString error;
+    QByteArray in = requestLine(QString("{\"op\":\"save\",\"path\":%1,\"force\":true}").arg(q(file)))
+                  + requestLine(QString("{\"op\":\"totext\",\"path\":%1,\"force\":true}").arg(q(file)))
+                  + requestLine(QString("{\"op\":\"save\",\"path\":%1}").arg(q(QDir(tmp).filePath("newer-session.fvd"))));
+    QList<QJsonObject> r = replies(sessionRunText(file, 1, in, &error));
+    report(allOk, r.size() == 3 && !r[0].value("ok").toBool() && !r[1].value("ok").toBool() && r[2].value("ok").toBool()
+           && readAll(file) == newer,
+           QString("the session's save and totext over that file are refused, a save elsewhere is done (%1 replies)").arg(r.size()));
+
+    // an unknown key "ErrorLog" at the appendix's top: dropped with a warning
+    // that quotes the word "Error", and the project still loads
+    QByteArray odd("{\"ErrorLog\":1,\"needs\":[],\"project\":{},\"tracks\":[{}]}");
+    QString oddFile = QDir(tmp).filePath("errorlog-key.fvd");
+    writeAll(oddFile, plain + "FVX" + fileInt(1) + fileInt(odd.size()) + odd + "EOX");
+    coreProject p;
+    QStringList warnings;
+    bool loaded = loadProject(oddFile, p, error, &warnings);
+    QByteArray printed;
+    code = runCaptured(cmdSummary, QStringList() << oddFile, QDir(tmp).filePath("captured-errorlog.txt"), printed);
+    report(allOk, loaded && p.tracks.size() == 1 && warnings.size() == 1 && warnings[0].contains("ErrorLog") && code == 0,
+           QString("a dropped appendix whose key is \"ErrorLog\" loads with a warning; summary exits %1").arg(code));
+}
+
 static int runSelftest(const QStringList& args)
 {
     if(args.size() != 1) {
@@ -371,6 +438,9 @@ static int runSelftest(const QStringList& args)
 
     // (gen-normal-shapes.fvd: its sections do not hold the speed, so friction changes the ride sheet)
     checkSessionAndImport(allOk, repo, tmp.path(), QDir(baseline).filePath("gen-normal-shapes.fvd"));
+
+    // a dropped appendix protects the file it came from
+    checkDroppedAppendix(allOk, tmp.path(), QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
 
     // angle changes go the short way round: -179 to +179 degrees is 2, not 358
     double turn = wrap180(179.0 - (-179.0));

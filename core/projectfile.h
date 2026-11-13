@@ -79,6 +79,15 @@ public:
     // every track was read and holds its own additions, before the
     // projectTrackLoaded() calls. A client that keeps none need not implement it.
     virtual void projectAdditionsRead(const QJsonObject& additions) { Q_UNUSED(additions); }
+
+    // Reading. The file has an appendix that could not be used (damaged, or
+    // written by a newer program), so every addition in it was dropped; the
+    // tracks loaded as saved and the load returns a "Warning: ". reason says
+    // why, in plain words. The file itself still holds those additions, so a
+    // client must not write the project back over it: the windows forget the
+    // file name (Save asks for a new one), fvdcore refuses to write over it.
+    // Called before projectLoadFinished(), after projectAdditionsRead().
+    virtual void projectAdditionsDropped(const QString& reason) { Q_UNUSED(reason); }
 };
 
 // Writes a project: the header, the ground texture path, the tracks, the end
@@ -91,6 +100,12 @@ QString writeProject(std::iostream& file, const QString& texPath, const QList<tr
 // Reads a project into new tracks obtained from the client, which must not be
 // NULL here (it is the only source of tracks). Returns
 // "Load Successfull.", a text starting "Warning: " or a text starting "Error".
+// Tell them apart by the start of the text only: a warning can quote words
+// from the file. An appendix with an unknown name under "needs" refuses the
+// load ("Error: This project needs ..."); any other fault of the appendix
+// drops all its additions, loads the tracks, returns a warning and calls
+// projectAdditionsDropped(), and the original file is then protected from
+// being written over (see there).
 // The client's projectTrackLoaded() is called for each track once the whole
 // file, appendix included, was read, so that each track already holds its
 // additions then (the windows start the track's undo history there).

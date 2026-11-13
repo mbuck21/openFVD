@@ -251,7 +251,9 @@ void MainWindow::loadProject(QString fileName)
 
     QString output = ui->projectTab->loadProject(fileName);
 
-    if(output.contains("Warning:") || output.contains("Error:")) {
+    // An error or a warning is told by how the text starts: a warning can
+    // quote words from the file.
+    if(output.startsWith("Warning:") || output.startsWith("Error:")) {
         QMessageBox mb(this);
         mb.setWindowTitle(tr("Application"));
         mb.setText(output);
@@ -259,8 +261,13 @@ void MainWindow::loadProject(QString fileName)
         mb.setDefaultButton(QMessageBox::Ok);
         mb.exec();
 
-        if(output.contains("Warning:")) currentFileName = fileName;
-        else if(output.contains("Error:")) on_actionNew_triggered();
+        // When the file's additions could not be read, the file name is
+        // forgotten as after File > New: Save asks for a new name, and the
+        // original file keeps its additions.
+        if(output.startsWith("Warning:")) {
+            if(!ui->projectTab->additionsDropped) currentFileName = fileName;
+        }
+        else if(output.startsWith("Error:")) on_actionNew_triggered();
     } else {
         ui->statusBar->showMessage(output, 5000);
         currentFileName = fileName;
@@ -268,7 +275,11 @@ void MainWindow::loadProject(QString fileName)
 
     glView->paintMode = true;
 
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    if(currentFileName.isEmpty() && ui->projectTab->additionsDropped) {
+        this->setWindowTitle(QString("FVD++ - unsaved Work"));
+    } else {
+        this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    }
 }
 
 #ifdef Q_OS_MAC
@@ -292,7 +303,9 @@ void MainWindow::on_actionLoad_triggered()
 
     QString output = ui->projectTab->loadProject(fileName);
 
-    if(output.contains("Warning:") || output.contains("Error:")) {
+    // An error or a warning is told by how the text starts: a warning can
+    // quote words from the file.
+    if(output.startsWith("Warning:") || output.startsWith("Error:")) {
         QMessageBox mb(this);
         mb.setWindowTitle(tr("Application"));
         mb.setText(output);
@@ -300,8 +313,13 @@ void MainWindow::on_actionLoad_triggered()
         mb.setDefaultButton(QMessageBox::Ok);
         mb.exec();
 
-        if(output.contains("Warning:")) currentFileName = fileName;
-        else if(output.contains("Error:")) on_actionNew_triggered();
+        // When the file's additions could not be read, the file name is
+        // forgotten as after File > New: Save asks for a new name, and the
+        // original file keeps its additions.
+        if(output.startsWith("Warning:")) {
+            if(!ui->projectTab->additionsDropped) currentFileName = fileName;
+        }
+        else if(output.startsWith("Error:")) on_actionNew_triggered();
     } else {
         ui->statusBar->showMessage(output, 5000);
         currentFileName = fileName;
@@ -309,7 +327,11 @@ void MainWindow::on_actionLoad_triggered()
 
     glView->paintMode = true;
 
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    if(currentFileName.isEmpty() && ui->projectTab->additionsDropped) {
+        this->setWindowTitle(QString("FVD++ - unsaved Work"));
+    } else {
+        this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    }
 }
 
 void MainWindow::on_actionSave_triggered()

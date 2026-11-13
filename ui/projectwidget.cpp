@@ -105,6 +105,8 @@ void projectWidget::init()
         cleanUp();
     }
     additions = QJsonObject();
+    additionsDropped = false;
+    droppedReason.clear();
 
     qDebug() << glView;
 
@@ -449,6 +451,8 @@ void projectWidget::projectCleared()
 {
     this->cleanUp();
     additions = QJsonObject();
+    additionsDropped = false;
+    droppedReason.clear();
 }
 
 bool projectWidget::projectGroundTexture(const QString& path)

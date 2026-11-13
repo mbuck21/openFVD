@@ -100,7 +100,10 @@ public:
         while(!tracks.isEmpty()) delete tracks.takeFirst();
     }
 
-    void projectCleared() { clear(); additions = QJsonObject(); additionsWhenLoaded.clear(); }
+    QStringList droppedReasons;     // each projectAdditionsDropped() heard
+
+    void projectCleared() { clear(); additions = QJsonObject(); additionsWhenLoaded.clear(); droppedReasons.clear(); }
+    void projectAdditionsDropped(const QString& reason) { droppedReasons.append(reason); }
     bool projectGroundTexture(const QString& path) { texPath = path; return textureOk; }
     track* projectNewTrack()
     {
@@ -260,6 +263,7 @@ static void checkBaseline()
         saveProjectFile(out, q.texPath, q.tracks, &q);
         QByteArray second = readFile(out);
         check(result == "Load Successfull." && again == "Load Successfull." && noAdditions
+              && p.droppedReasons.isEmpty() && q.droppedReasons.isEmpty()
               && !first.contains("FVX") && first.endsWith("EOP") && first == second,
               QString("baseline %1: loads without additions; re-saved with no FVX, ending in EOP; "
                       "save, load, save gives the same %2 bytes").arg(name).arg(first.size()));
@@ -308,7 +312,8 @@ static void checkWithAdditions()
     writeFile(file, with);
     testProject q;
     QString result = loadProjectFile(file, &q);
-    check(result == "Load Successfull." && q.tracks.size() == 1, QString("a project with an appendix loads: %1").arg(result));
+    check(result == "Load Successfull." && q.tracks.size() == 1 && q.droppedReasons.isEmpty(),
+          QString("a project with an appendix loads, and the client hears of nothing dropped: %1").arg(result));
     check(q.tracks.size() == 1 && q.tracks[0]->additions == trackAdditionsA() && q.additions == projectAdditionsA(),
           "the track's and the project's additions come back as saved, unknown keys included");
     QString file2 = QDir(tmpPath).filePath("with2.fvd");
@@ -374,7 +379,10 @@ static void checkDamage()
     cases << damage{"no tracks list", appendix(QByteArray("{\"needs\":[],\"project\":{}}")), false, "no list \"tracks\""};
     cases << damage{"an unknown key at the top", appendix(QByteArray("{\"needs\":[],\"project\":{},\"tracks\":[{}],\"extra\":1}")), false,
                     "unknown key \"extra\""};
-    cases << damage{"appendix version 2", appendix(2, doc, len), false, "newer program (appendix version 2"};
+    cases << damage{"appendix version 2", appendix(2, doc, len), false, "saved by a newer version of FVD++ (appendix version 2"};
+    cases << damage{"an unknown key named \"ErrorLog\" at the top",
+                    appendix(QByteArray("{\"ErrorLog\":1,\"needs\":[],\"project\":{},\"tracks\":[{}]}")), false,
+                    "unknown key \"ErrorLog\""};
     cases << damage{"appendix version 0", appendix(0, doc, len), false, "version 0 is not a valid version"};
     cases << damage{"an unknown needs name", appendix(QByteArray("{\"needs\":[\"designForCar\"],\"project\":{},\"tracks\":[{\"train\":{}}]}")),
                     true, "needs \"designForCar\""};
@@ -391,9 +399,12 @@ static void checkDamage()
         } else {
             bool none = p.additions.isEmpty();
             for(int t = 0; t < p.tracks.size(); ++t) none = none && p.tracks[t]->additions.isEmpty();
-            check(result.startsWith("Warning: ") && result.contains(d.says) && !result.contains("Error")
+            check(result.startsWith("Warning: ") && result.contains(d.says)
+                  && result.contains("Saving will ask for a new file name, so that the original file keeps its additions.")
                   && p.tracks.size() == 1 && none && saved(p) == without,
                   QString("damage, %1: the track loads as saved, the additions are dropped: %2").arg(d.name, result));
+            check(p.droppedReasons.size() == 1 && p.droppedReasons[0].contains(d.says) && result.contains(p.droppedReasons[0]),
+                  QString("damage, %1: the client hears that the additions were dropped, with the reason").arg(d.name));
         }
     }
 
@@ -401,8 +412,8 @@ static void checkDamage()
     testProject p;
     p.textureOk = false;
     QString result = load(without + QByteArray("FV"), p);
-    check(result.startsWith("Warning: Could Not find corresponding texture.") && result.contains("were dropped")
-          && p.tracks.size() == 1,
+    check(result.startsWith("Warning: Could Not find corresponding texture.") && result.contains("could not be read")
+          && p.tracks.size() == 1 && p.droppedReasons.size() == 1,
           QString("damage beside a missing texture: one warning says both: %1").arg(result));
 }
 

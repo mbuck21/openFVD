@@ -17,7 +17,7 @@ Read the root `CLAUDE.md` first, then `docs/codebase-map.md` for the data model 
 |---|---|---|---|
 | `trackListener` | `tracklistener.h` | geometry changed, status text, smoothing applied, section added during a load, load finished | `trackHandler` (`ui/trackhandler.*`); `track::mListener` is NULL for a track without one |
 | `smoothHandlerListener` | `smoothhandler.h` | a smoothing entry's shown values changed, or it was deleted | `smoothUi` (`ui/smoothui.*`) |
-| `projectFileClient` | `projectfile.h` | reading and writing a project: tracks cleared, ground texture, new track, smoothing updated, track loaded, load finished, track about to be saved | `projectWidget` (`ui/projectwidget.*`) |
+| `projectFileClient` | `projectfile.h` | reading and writing a project: tracks cleared, ground texture, new track, smoothing updated, track loaded, load finished, track about to be saved; the project's additions (`projectAdditions()`, `projectAdditionsRead()`) and an appendix dropped on loading (`projectAdditionsDropped()`, after which the file must not be written over) | `projectWidget` (`ui/projectwidget.*`) |
 
 A new call from core to a window means a new virtual function on one of these, implemented in `ui/`. Never an `#include` of a window class.
 

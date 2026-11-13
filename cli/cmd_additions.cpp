@@ -147,6 +147,12 @@ static int runAdditions(const QStringList& args)
     // Written to --out, or back over the project itself; either way an
     // existing file is replaced only with --force.
     QString out = values.contains("--out") ? values.value("--out") : file;
+    // A file whose appendix could not be read still holds those additions:
+    // never written over, not even with --force.
+    if(refuseOverwritingDropped(project, out, error)) {
+        fprintf(stderr, "%s\n", qPrintable(error));
+        return 1;
+    }
     if(QFileInfo(out).exists() && !flags.contains("--force")) {
         fprintf(stderr, "%s already exists; give --force to replace it\n", qPrintable(out));
         return 1;

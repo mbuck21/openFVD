@@ -60,6 +60,7 @@ public:
     void projectTrackSaving(track* which);
     QJsonObject projectAdditions() { return additions; }
     void projectAdditionsRead(const QJsonObject& read) { additions = read; }
+    void projectAdditionsDropped(const QString& reason) { additionsDropped = true; droppedReason = reason; }
 
     void init();
     void cleanUp();
@@ -70,6 +71,11 @@ public:
     trackHandler* selTrack;
     QString texPath;
     QJsonObject additions;  // the project's own additions (appendix of the file), kept as read
+    // The last load dropped the file's appendix (projectAdditionsDropped()):
+    // the main window then forgets the file name, so Save does not write over
+    // the file that still holds the additions. Cleared by the next load and by New.
+    bool additionsDropped = false;
+    QString droppedReason;
 
 
 
