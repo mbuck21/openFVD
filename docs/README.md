@@ -10,6 +10,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 - **Building or the toolchain:** `docs/building.md`. **Checking a change:** `docs/testing.md`.
 - **GitHub process (pull requests, issues, labels, the Claude workflows):** "Working with the owner" in `CLAUDE.md`, then `docs/development-workflow.md`.
 - **A feature from the roadmap:** its research note in `docs/research/` first.
+- **Building Stage 3 (the train):** `docs/stage-3-plan.md`, then decision record 0014.
 - **What is going on right now:** `STATUS.md`. **What comes next and in what order:** `docs/roadmap.md`. **What the owner asked for:** `docs/feature-requests.md`.
 - **Why things are the way they are:** `docs/decisions/`.
 - **Skip, or grep only:** `ui/qcustomplot.cpp` and `.h` (a vendored library), `readme.txt` (upstream changelog; the same text is `README.md` and `bin/win64/readme.txt`).
@@ -56,6 +57,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/development-workflow.md` | How a session runs a task here. | current |
 | `docs/feature-requests.md` | The owner's feature list (`FR-1` to `FR-19`) with the architect's notes on what each needs. | current |
 | `docs/roadmap.md` | Where each request is in the plan, the seven shared pieces, the eight stages and their pieces, what is serial and what runs together, what is asked of the owner and by when. | current |
+| `docs/stage-3-plan.md` | The build plan for Stage 3 (the train): what is already known about the code, each piece with what it must do and how it is proved, the order, and which piece waits for which of the owner's choices. Written for the session that builds the stage. | current until Stage 3 closes |
 | `docs/maybe-later.md` | Ideas deliberately left out, each with its trigger. | current |
 | `docs/decisions/0001-fork-and-workflow.md` | The fork, the workflow and the first rules. | accepted |
 | `docs/decisions/0002-api-credits-first-subscription-fallback.md` | The GitHub workflows spend API credits first, the subscription second. | superseded by 0005 |
@@ -70,7 +72,7 @@ Pick the kind of task and read only what is listed. Root `CLAUDE.md` comes first
 | `docs/decisions/0011-undo-by-snapshot-commands-on-top.md` | Undo restores a snapshot of the track; named commands are built on top, group by group; what the owner will notice. | accepted |
 | `docs/decisions/0012-measures-the-command-line-program-the-ride-sheet.md` | Measures as a registry in core, the command-line program in `cli/`, the ride sheet and its definitions; R11 deferred. | accepted |
 | `docs/decisions/0013-every-command-ends-in-the-reopened-state.md` | After every command the running track is the one a save and a reopen give; a test proves it for every command; the measurements that led to it. | accepted |
-| `docs/decisions/0014-stage-3-the-train-on-the-finished-track.md` | Stage 3 is the train: a second computation over the finished track, the force limits as an engine with its numbers as data, the seat map and the ride strip, the saved-file appendix, what waits for Stage 4; the choices put to the owner. | proposed |
+| `docs/decisions/0014-stage-3-the-train-on-the-finished-track.md` | Stage 3 is the train: a second computation over the finished track, the force limits as an engine with its numbers as data, the seat map and the ride strip, the saved-file appendix, what waits for Stage 4; the choices put to the owner. | provisional |
 | `.github/pull_request_template.md` | The pull request layout. | current |
 | `.github/ISSUE_TEMPLATE/claude.yml`, `owner.yml` | The two issue forms. | current |
 | `.github/workflows/claude.yml` | `@claude` mentions. Secret `CLAUDE_CODE_OAUTH_TOKEN`, plus the Claude GitHub App. | current |

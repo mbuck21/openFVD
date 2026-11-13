@@ -1,8 +1,8 @@
 # 0014: Stage 3 is the train: ridden over the finished track, checked at every seat, optional throughout
 
-- Status: proposed (the structure is the architect's and is being built; the product choices in "Asked of the owner" wait for his word)
+- Status: provisional. Written by the planning session of 2026-11-13; nothing of it is built. It becomes accepted when the owner has answered the choices at the end and the session that builds Stage 3 has written his answers in.
 - Date: 2026-11-13
-- Needs owner approval: yes for the eight choices listed at the end; no for how it is built.
+- Needs owner approval: yes for the eight choices listed at the end; no for how it is built. The build plan that follows from this record is `docs/stage-3-plan.md`.
 
 ## Context
 
@@ -56,7 +56,7 @@ A designer shapes a hill, exports, rides it in NoLimits 2 in the back row, finds
 
 ### The saved file
 
-14. **One mechanism for additions (F4), built now:** an appendix after the project's end marker. The reader of the 2016 program, and of this fork until now, stops at `EOP`, so everything after it is ignored there. The appendix starts with its own tag and version number and holds tagged blocks, each a length and a text payload (JSON, UTF-8), so a later addition is a new block or a new key, never a new binary layout. A block the program does not know is kept and written back. The text form of a project (F3) carries the same blocks.
+14. **One mechanism for additions (F4), built now:** an appendix after the project's end marker. The reader of the 2016 program, and of this fork until now, stops at `EOP`, so everything after it is ignored there. The appendix starts with its own tag and version number and holds one text document (JSON, UTF-8) in which each feature owns one key, per track or for the project, so a later addition is a new key or a new field, never a new binary layout. A key the program does not know is kept and written back. A project with nothing to add gets no appendix and is written byte for byte as today. The text form of a project (F3) carries the same additions. Until it has been tried on the 2016 binary itself, "the 2016 program ignores the appendix" is read from the code only.
 15. **What that means for rule 4** ("the `.fvd` format changes only with a version bump and a load path for old files"): the main version stays `v0.77` while additions do not change the computed track, so such a project still opens in the 2016 program (which drops the appendix if it re-saves). The appendix has its own version number. The first addition that changes the computed track (designing for a car, a launch) bumps the main version, so the 2016 program refuses the file instead of computing a different ride. This is the recommendation already made in record 0010; it needs the owner's word because it amends a rule that does not bend.
 16. **The train is part of the track's state:** every change of it is a named command and an undo step, like any other edit.
 
@@ -68,20 +68,20 @@ A designer shapes a hill, exports, rides it in NoLimits 2 in the back row, finds
 
 ## Asked of the owner
 
-Each with the architect's recommendation; what is built before the answers does not depend on them.
+Each with the architect's recommendation. `docs/stage-3-plan.md` says which piece waits for which answer; most of the stage can be built on the recommendations.
 
 1. **The split** (point 17): design-for-a-car in Stage 4 with the real numbers. Recommended. The alternative is to build it at the end of Stage 3 on stand-in train lengths.
 2. **The seat check as proposed** (point 12): seat map showing the whole ride by default, "at the cursor" as a second mode, colour by test, the ride strip, the track coloured by the worst seat; the 3D train later. Recommended.
 3. **No train by default** (point 1 of the walk-through): a project has no train until one is ticked. Recommended. The alternative is a generic train on every new project.
 4. **The train's centre as the default reference** (point 13). Recommended.
-5. **Buying ASTM F2291** (the current edition 26b, US$121). Recommended now that the check is being built: R13 could corroborate only two of the twelve uncertain items from public sources, and found one contradiction. The owner reads the copy himself and types the numbers into the limit file (the seller's terms prohibit giving the text to an AI). Until then the check runs on the public numbers and marks their confidence.
+5. **Buying ASTM F2291** (the current edition 26b, US$121). Recommended once the check is built: R13 could corroborate only two of the twelve uncertain items from public sources, and found one contradiction. The owner reads the copy himself and types the numbers into the limit file (the seller's terms prohibit giving the text to an AI). Until then the check runs on the public numbers and marks their confidence.
 6. **The saved file** (points 14 and 15): train settings in an appendix the 2016 program ignores, the main version unchanged until a feature changes the computed track; rule 4 reworded to say so. Recommended.
-7. **A short session in NoLimits 2** to settle what R12 could not: an `owner` issue with exact steps, needed before Stage 4's numbers, not before Stage 3.
+7. **A short session in NoLimits 2** to settle what R12 could not: an `owner` issue with exact steps, written once Stage 3 has prepared the test tracks and a recorder for it; needed before Stage 4's numbers, not before Stage 3. The alternative is to allow the building session screen access to NoLimits 2 so that it runs the experiments itself.
 8. **The order after the train:** the rest of the old Stage 3 next, as it was. Recommended unless the solver matters more than the train's numbers.
 
-## Where enforced
+## Where it will be enforced
 
-- `docs/roadmap.md` (reworked: Stages 3 and 4 are the train; the later stages renumbered).
-- `core/trainspec.*`, `core/trainride.*`, `core/forcelimits.*`, `data/limits/`; `tests/trainride/`, `tests/forcelimits/`.
+- `docs/roadmap.md` (reworked: Stages 3 and 4 are the train; the later stages renumbered) and `docs/stage-3-plan.md` (the pieces and their proofs).
+- When built: `core/trainspec.*`, `core/trainride.*`, `core/forcelimits.*`, `data/limits/`; `tests/trainride/`, `tests/forcelimits/`, `tests/appendix/`.
 - The baseline comparison (`docs/testing.md`) on every piece: unchanged, with no tolerance.
 - `CLAUDE.md` rule 4, reworded once the owner agrees to choice 6.

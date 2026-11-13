@@ -4,13 +4,14 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-12, written by the lead session at the end of Stage 2. **Stage 2 is complete and in `master`:** it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
+2026-11-13, written by the session that planned Stage 3. **Stage 3 is planned and not started; no code has changed since Stage 2.** Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
 
 ## Focus
 
 - **Stage 2 of the roadmap is finished: "reach and measure".** The program can be driven and measured without a person, every edit of a track is a named command, and the questions behind the newer requests were answered by experiment. It was built in 30 pull requests into the integration branch (#47 to #81) under decision records 0011, 0012 and 0013.
 - **Saved files did not change, and every project still computes exactly as the 2016 program does.** The comparison with the 2016 binary passes with no tolerance, the owner's own project included.
-- **Stage 3 is next and not started:** "see the ride, aim a section" (`docs/roadmap.md`): the radius and force checks, comfort measures, riding the finished track, the energy margin, the forces of an imported track, the knock-on table, the Solve button, and the automation interface. It waits for the owner's word, and for the owner's answer on one change of order (below).
+- **Stage 3 is planned, not built: the train.** The owner set its priorities on 2026-11-13: a whole-train simulation with friction as in NoLimits 2, the number of cars and which car the design is for, the ASTM force check at every seat shown at a glance, and English units by default. The plan is three documents: decision record 0014 (the design, provisional, ending in eight choices for the owner), `docs/roadmap.md` (reworked: Stage 3 shows the train and changes no design, Stage 4 is the train's real numbers and the design following a car, the old Stage 3's other pieces are Stage 5) and `docs/stage-3-plan.md` (the build plan, written so a fresh session can start from it). Another session builds the stage at the owner's word.
+- **Two research notes came with the plan.** R12: NoLimits 2 has no mass anywhere and uses the same two resistance numbers as this program; how it couples its cars and what a lift crest does are not published and need a short session in NoLimits 2. R13: of the twelve uncertain force-limit items of R3, two are now corroborated, six still rest on one source and one is contradicted between editions.
 
 ## Milestone now
 
@@ -29,7 +30,7 @@ Open issues:
 - #72 (`owner`): the two start-rate boxes come back about 2 percent larger. Leave or make them agree (below).
 - #65 (`owner`): NoLimits 2 tracks as CSV, for the deferred import experiment (R11).
 - #64 (`claude`): undo for adding, deleting and importing a track (a project-level history). Not in the plan yet.
-- #63 (`claude`, `bug`): defects and quirks of the original program found during Stage 2, 21 items. None fixed here; most belong to Stage 3 pieces. The one to know: a track imported from NoLimits 1 (a Bezier section) does not reopen repeatably, so decision 0013's rule does not hold for it yet (item 16).
+- #63 (`claude`, `bug`): defects and quirks of the original program found during Stage 2, 21 items. None fixed here; most belong to pieces of the stages after the train. The one to know: a track imported from NoLimits 1 (a Bezier section) does not reopen repeatably, so decision 0013's rule does not hold for it yet (item 16).
 - #41 (`claude`, `bug`): defects in the importers, the export and smoothing dialogs.
 - #30, #28 (`claude`): FR-11 to FR-18 and parametric elements. Their Stage 2 experiments are written up (R7 to R10, E1); R11 is deferred.
 - #18 (`claude`): three latent defects in the core. #13 (`owner`): three checks deferred from the baseline. #3 (`claude`): Qt 5.15 or Qt 6.
@@ -38,16 +39,18 @@ Open issues:
 
 The full list, with when each answer is needed, is the last section of `docs/roadmap.md`. The ones that matter now:
 
-- **Try Stage 2 and say the word for Stage 3.** Pull request #46's "For the owner" part says what to try first.
-- **The train sooner?** R7 measured how much a whole train differs from the point the program moves: little in speed, a lot in the forces at the front and rear cars (a camelback asked for -0.2 g gives about -0.45 g at the ends of a 20 m train; the rear car over a slow lift crest can see -1.5 g where the program shows 0.6 g). Its recommendation, and the lead's: build "ride the finished track with a whole train and report every car" (the first step of P2) right after Stage 3 instead of in Stage 6. `docs/research/r7-train-against-point.md`.
+- **The eight choices of decision record 0014,** each with a recommendation: the split between Stage 3 and Stage 4; how the seat check is shown; no train by default; the train's centre as the default reference; buying ASTM F2291 (edition 26b, US$121); train settings saved in an appendix the 2016 program ignores, with rule 4 in `CLAUDE.md` reworded; a short session in NoLimits 2; the order after the train. `docs/stage-3-plan.md` says which piece waits for which answer; only the Train panel waits before it can be built.
+- **The word for a session to build Stage 3.**
+- **Try Stage 2,** if not done yet. Pull request #46's "For the owner" part says what to try first.
 - **#72, the start-rate boxes:** recommendation, leave it. No answer means it stays.
 - **#65, one or two NoLimits 2 tracks exported as CSV,** when convenient; needed before Stage 6.
 - **A slower edit near the end of a very long ride.** Because every edit now ends in the reopened state, an edit computes the whole track once: about 13 ms on a normal ride (14,000 nodes), about 77 ms on a 150,000-node ride, wherever the edit is. Before, an edit of the last section of a long ride took 1 ms and an early one 78 ms. The limit set for typing is 150 ms. Say so if a long ride feels slow to edit; the next step would be to settle when typing stops.
-- **Before Stage 4, not before:** the questions at the end of R5 and R6, now with E1's answers beside them, and whether a project that uses a new feature may stop opening in the 2016 program.
-- **When the force check is built (Stage 3):** whether to buy ASTM F2291 and transcribe twelve numbers by hand (`docs/research/r3-force-limits.md`).
+- **Before "hold the ride together" (now Stage 6), not before:** the questions at the end of R5 and R6, now with E1's answers beside them.
 - #13, when convenient.
 
 ## Verified
+
+Nothing was built or verified for the Stage 3 plan: it is documents only. What follows is the verification of Stage 2, which is still the state of the code.
 
 **The whole verification, from an empty `build` folder,** on the closing piece's commit `9026da7` (2026-11-12; the commits after it change documents only), the owner's project included:
 

@@ -67,6 +67,7 @@ flowchart TD
         V1[V1 Train settings, ride sheet, plot, colour]
         V2[V2 Train panel: seat map and ride strip]
         X1[X1 Trial: design for a car]
+        N3a[N3a Kit for the NoLimits 2 session]
     end
     subgraph S4[Stage 4: the train's numbers, design for a car]
         N3[N3 NoLimits 2 comparison]
@@ -110,7 +111,8 @@ flowchart TD
     A1 --> A2 & A3 & A7 & P1
     D2 --> A2 & D5
     RR --> A7 & A6 & P3 & P1
-    RT --> P1 & A3 & N3
+    RT --> P1 & A3 & N3a
+    N3a --> N3
     F3 --> F4
     T1 --> D5
     F4 --> D5
@@ -156,7 +158,7 @@ flowchart TD
 
 **Parallel (safe to run at the same time):**
 
-- In Stage 3: U1, P1, A3 and F4 with each other from the first day (new files, or files no other piece edits); then D5 with A4; then V1 with V2.
+- In Stage 3: U1, P1, A3, F4 and N3a with each other from the first day (new files, or files no other piece edits); then D5 with A4; then V1 with V2.
 - In Stage 5, every piece with every other, except that I1 needs P1 (done by then): each is a new measure, a new computation or a new panel.
 - In Stage 6: G4, P3 and G3 with each other; G2 after G4 and P3.
 - FR-9 (more train types) at any time: each type is a data entry.
@@ -212,7 +214,9 @@ Done on `claude/stage-2` in 30 pull requests into the integration branch (#47 to
 
 ## Stage 3: the train on the finished track
 
-**Goal.** The program rides the finished track with a whole train and checks what every seat feels against the force limits. **Nothing in this stage changes what a project computes;** a project without a train is today's program. Decision record 0014 has the design and the reasons.
+**Planned on 2026-11-13, not started.** The two research notes are written; no code is. `docs/stage-3-plan.md` is the build plan (each piece, its order, its proof), and decision record 0014 (provisional) has the design, the reasons and the owner's choices.
+
+**Goal.** The program rides the finished track with a whole train and checks what every seat feels against the force limits. **Nothing in this stage changes what a project computes;** a project without a train is today's program.
 
 **What the owner gets:** a train chosen in Track Properties (type, cars, car length, rows, seats) and saved with the project; what each car and each seat feels, on the ride sheet, the plot and the 3D track; the ASTM F2291 limits checked at every seat, with a seat map and a ride strip that show which seats and where; English units on a fresh install.
 
@@ -228,12 +232,13 @@ Done on `claude/stage-2` in 30 pull requests into the integration branch (#47 to
 | **A4** | Every seat checked: the ride kept current per track after each edit; the limit engine run for every seat; train measures (the watched car, the band over all cars, the worst seat's share of a limit) and train findings; `fvdcore ride --check`. | P1, A3, D5 | Opus | FR-4 |
 | **V1** | The train where the designer already looks: the settings in Track Properties; ranges over the cars and the limits line on the ride sheet; a "Train" group on the plot; train measures in "colour by measure". | D5, A4 | Sonnet | FR-4, FR-11, FR-18 |
 | **V2** | The Train panel: the seat map (whole ride by default, "at the cursor" as a second mode, colour by test, click a seat for its findings) and the ride strip (the ride against the rows of the train). | A4 | Sonnet | FR-4 |
+| **N3a** | The kit for the owner's session in NoLimits 2: test tracks exported as elements, a recorder for NoLimits 2's telemetry, a fit of friction and drag from a coast-down, and a one-page procedure; then the `owner` issue with those steps. | R12 | Sonnet | FR-11 |
 | **X1** | Trial by script: the design following the train's speed for a chosen car, on the camelback, a loop and a lift crest: does the repetition settle, how many rounds, how far do shapes move. | P1 | Opus | FR-11 |
 
 **What the research at the start of the stage found:**
 
 - **NoLimits 2 has no mass (R12).** Its scripting interface, its help and its park file hold no mass for a car, a train or a rider. Its resistance is two numbers chosen by a "Physics Model" setting: a constant friction and an air resistance, the same pair as the program's `fFriction` and `fResistance` (the FVD++ author said version 0.75 moved to "NL2 style"). So the train needs no mass setting to behave like NoLimits 2, and the ride's default (the project's own two numbers) is already NoLimits 2's kind of model. One user's coast-down fits: friction about 0.026 for steel and 0.017 for wood; drag 2e-5 for the "NL 2.0" model and 1e-4 for "NL 2.2" (low confidence, one tester).
-- **Not established from public sources (R12):** how the cars are coupled, where a car's mass sits, whether friction depends on the load in a valley, what a train does over a lift crest, which physics model is the default today, and the length of any car. R12 proposes six short experiments in NoLimits 2 (an `owner` issue); they are needed for Stage 4, not for Stage 3.
+- **Not established from public sources (R12):** how the cars are coupled, where a car's mass sits, whether friction depends on the load in a valley, what a train does over a lift crest, which physics model is the default today, and the length of any car. R12 proposes six short experiments in NoLimits 2; N3a prepares them and files the `owner` issue. They are needed for Stage 4, not for Stage 3.
 - **NoLimits 2 shows the forces of one selected seat (R12),** and its telemetry carries the train, car and seat numbers with one speed and one force vector. That is what the comparison in Stage 4 reads.
 - **The limit numbers (R13):** two of R3's twelve uncertain items are now corroborated (the reversal rule and the weightless-to-positive rule), three partly, six still rest on one source, and one is contradicted: the 2006 edition makes the radii of the combined-direction rule the 0.2 s limits **times 1.1**, where Rohde's formulas have no factor. The data file takes the stricter reading (no factor) and says so. The 2006 edition names the restraint types for the eyes-front line (base case, over-the-shoulder, prone), which the train's restraint kind follows.
 - **A check at every seat goes beyond the test practice (R13).** The measuring practice puts one accelerometer per car, usually in the front, middle and rear car; no public text says the limits hold at every seat or says anything about inner against outer seats. The program labels the every-seat check as its own extension of the standard's method.
@@ -341,20 +346,20 @@ The stages follow the dependencies; the order of Stages 3 and 4 is the owner's o
 
 ## Asked of the owner, and by when
 
-Everything about how to build this is the architect's call. These are not; each comes with a recommendation when its time comes. Number 4 and numbers 13 to 19 are the choices of decision record 0014, put to the owner on 2026-11-13; what is built before the answers does not depend on them.
+Everything about how to build this is the architect's call. These are not; each comes with a recommendation when its time comes. Number 4 and numbers 13 to 19 are the choices of decision record 0014, put to the owner on 2026-11-13; `docs/stage-3-plan.md` says which piece waits for which answer.
 
 | # | What | Needed |
 |---|---|---|
 | 1 | The word to start Stage 2. | given 2026-11-11 |
 | 2 | One or two NoLimits 2 tracks exported as CSV, for R11 (deferred); and a larger finished layout of the owner's as a test track, if one turns up. | before Stage 8 |
 | 3 | What counts as airtime and as an inversion on the ride sheet. | given 2026-11-11 (decision record 0012) |
-| 4 | Whether to buy ASTM F2291 (US$121, the current edition 26b) and transcribe the uncertain numbers by hand; the seller prohibits giving it to an AI (R3, R13). Recommendation: yes, now that the check is being built; the check works on the public numbers until then and marks them. | during Stage 3; no answer means the public numbers stay, marked |
+| 4 | Whether to buy ASTM F2291 (US$121, the current edition 26b) and transcribe the uncertain numbers by hand; the seller prohibits giving it to an AI (R3, R13). Recommendation: yes; the check works on the public numbers until then and marks them. | during Stage 3; no answer means the public numbers stay, marked |
 | 5 | R5's questions: the ranking of the directions; solve on a button or live; which values the program may change; what to do when a pin cannot be met. Recommendation: a button, and a result to accept. | before G2, Stage 6; G1 is built on the recommendation |
 | 6 | The saved file: may a project that uses a feature the 2016 program cannot compute stop opening in the 2016 program? Recommendation: yes, by a new file version, and only for such a project (number 17). | before P2, Stage 4 |
 | 7 | For elements (R6, section 4.4): which numbers define the camelback, whether elements hold position by default, which elements come first. | in E2, Stage 6 |
 | 8 | Whether designing for the train becomes the default for new projects once P2 exists. | before P2, Stage 4 |
 | 9 | How much NoLimits 2 block-script compatibility is worth (R4 recommends the standard automatic behaviour). | before Stage 8 |
-| 10 | The word to start Stage 3. | given 2026-11-13, with its priorities: the train, the cars and the design car, the ASTM check at every seat, English units |
+| 10 | The priorities of Stage 3. | given 2026-11-13: the train, the cars and the design car, the ASTM check at every seat, English units. The stage is planned; another session builds it at the owner's word |
 | 11 | Whether the train moves up. | given 2026-11-13: the train is the next stage |
 | 12 | Issue #72: a typed start rate comes back about 2 percent larger, as in the 2016 program. Leave it, or make the two conversions agree. Recommendation: leave it. | any time; no answer means it stays |
 | 13 | The split: Stage 3 shows the train and changes no design; the design following a chosen car (P2) comes in Stage 4 with the real numbers. Recommendation: yes. | before X1 is read, end of Stage 3 |
