@@ -7,12 +7,14 @@
 INCLUDEPATH += $$PWD
 
 SOURCES += \
+    $$PWD/cmd_additions.cpp \
     $$PWD/cmd_check.cpp \
     $$PWD/cmd_commands.cpp \
     $$PWD/cmd_compare.cpp \
     $$PWD/cmd_export.cpp \
     $$PWD/cmd_help.cpp \
     $$PWD/cmd_import.cpp \
+    $$PWD/cmd_limits.cpp \
     $$PWD/cmd_measures.cpp \
     $$PWD/cmd_nodes.cpp \
     $$PWD/cmd_ride.cpp \

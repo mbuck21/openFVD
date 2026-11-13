@@ -496,6 +496,7 @@ QJsonObject session::opSave(const QJsonObject& req)
 {
     QString path, error;
     if(!writablePath(req, &path, &error)) return errorReply(error);
+    if(refuseOverwritingDropped(project, path, error)) return errorReply(error);
     QString result = saveProjectFile(path, project.texPath, project.tracks, &project);
     if(result.contains("Error")) return errorReply(QString("saving ") + path + ": " + result);
     return okReply();
@@ -505,6 +506,7 @@ QJsonObject session::opToText(const QJsonObject& req)
 {
     QString path, error;
     if(!writablePath(req, &path, &error)) return errorReply(error);
+    if(refuseOverwritingDropped(project, path, error)) return errorReply(error);
     QByteArray out;
     QString result = writeProjectText(out, project.texPath, project.tracks, &project);
     if(result.startsWith("Error")) return errorReply(result);

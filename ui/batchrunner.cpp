@@ -193,10 +193,10 @@ int batchRunner::runExport()
     // on any warning and remembers the file name (the .bak autosave uses it).
     QString loadResult = w->project->loadProject(projectFile);
     qDebug("batch mode: loaded %s: %s", qPrintable(projectFile), qPrintable(loadResult));
-    if(loadResult.contains("Error")) {
+    if(loadResult.startsWith("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
     }
-    if(loadResult.contains("Warning")) {
+    if(loadResult.startsWith("Warning")) {
         lReport.append(QString("warning: ") + loadResult);
     }
 
@@ -243,7 +243,7 @@ int batchRunner::runRideSheet()
         return finish(false, QString("could not set up OpenGL"));
     }
     QString loadResult = w->project->loadProject(projectFile);
-    if(loadResult.contains("Error")) {
+    if(loadResult.startsWith("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
     }
     if(w->project->trackList.size() < 1) {
@@ -721,10 +721,10 @@ int batchRunner::runUndoCheck()
         return finish(false, QString("could not set up OpenGL"));
     }
     QString loadResult = w->project->loadProject(projectFile);
-    if(loadResult.contains("Error")) {
+    if(loadResult.startsWith("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
     }
-    if(loadResult.contains("Warning")) {
+    if(loadResult.startsWith("Warning")) {
         lReport.append(QString("warning: ") + loadResult);
     }
     if(w->project->trackList.isEmpty() || w->project->trackList[0]->trackData->lSections.isEmpty()) {
@@ -927,7 +927,7 @@ int batchRunner::runMergeCheck()
         return finish(false, QString("could not set up OpenGL"));
     }
     QString loadResult = w->project->loadProject(projectFile);
-    if(loadResult.contains("Error")) {
+    if(loadResult.startsWith("Error")) {
         return finish(false, QString("loading ") + projectFile + ": " + loadResult);
     }
     if(w->project->trackList.isEmpty() || w->project->trackList[0]->trackData->lSections.isEmpty()) {
