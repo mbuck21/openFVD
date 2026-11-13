@@ -21,7 +21,10 @@
 */
 
 #include <QString>
+#include <QStringList>
 #include <QList>
+#include <QByteArray>
+#include <QJsonObject>
 #include <fstream>
 
 class track;
@@ -64,16 +67,53 @@ public:
 
     // Writing. The track is written next.
     virtual void projectTrackSaving(track* which) = 0;
+
+    // Writing. The project's own additions (not a track's), for the appendix;
+    // an empty object when it has none. A client that keeps none need not
+    // implement it.
+    virtual QJsonObject projectAdditions() { return QJsonObject(); }
+
+    // Reading. The project's own additions as read from the appendix (an
+    // empty object when the file has none, or they were dropped as damaged).
+    // Called before projectLoadFinished(); the binary reader calls it once
+    // every track was read and holds its own additions, before the
+    // projectTrackLoaded() calls. A client that keeps none need not implement it.
+    virtual void projectAdditionsRead(const QJsonObject& additions) { Q_UNUSED(additions); }
 };
 
 // Writes a project: the header, the ground texture path, the tracks, the end
-// mark. Returns "Project Saved!". The client may be NULL.
+// mark "EOP", then the appendix when the project or a track has additions
+// (nothing after "EOP" otherwise, so such a project is written byte for byte
+// as before the appendix existed). Returns "Project Saved!". The client may be
+// NULL (then the project has no additions of its own).
 QString writeProject(std::iostream& file, const QString& texPath, const QList<track*>& tracks, projectFileClient* client);
 
 // Reads a project into new tracks obtained from the client, which must not be
 // NULL here (it is the only source of tracks). Returns
 // "Load Successfull.", a text starting "Warning: " or a text starting "Error".
+// The client's projectTrackLoaded() is called for each track once the whole
+// file, appendix included, was read, so that each track already holds its
+// additions then (the windows start the track's undo history there).
 QString readProject(std::iostream& file, projectFileClient* client);
+
+// The appendix (docs/decisions/0014, points 14 and 15; docs/codebase-map.md,
+// "Saved project file"). After "EOP": the three bytes "FVX", the appendix
+// version (an int, written as writeBytes() writes one), the length of the
+// document in bytes (the same), the document (compact UTF-8 JSON,
+// {"needs": [...], "project": {...}, "tracks": [{...}, ...]}, one object per
+// track in file order), and the three bytes "EOX".
+const int APPENDIX_VERSION = 1;
+
+// An additions object as the bytes the program writes and keeps in a track's
+// state: compact JSON, keys in Qt's order, so equal additions give equal bytes.
+// An empty object gives an empty array (no bytes).
+QByteArray additionsBytes(const QJsonObject& additions);
+// The reverse: an empty object for no bytes (or bytes that are not an object).
+QJsonObject additionsFromBytes(const QByteArray& bytes);
+
+// The names a project may list under "needs" that this program understands.
+// None yet: any name in "needs" refuses the load.
+QStringList knownAppendixNeeds();
 
 // The same, opening the file fileName first ("Error: File is NULL" when it
 // cannot be opened).

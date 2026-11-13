@@ -81,8 +81,20 @@ Binary, written field by field with the helpers in `core/exportfuncs.cpp` (`writ
 | 4. A section block: a three-letter tag (`STR`, `CUR`, `FRC`, `GEO`, `BEZ`, `CSV`), the subtype's fields, then its functions; a function is `"FUNC"`, a count, and one `subfunc` record per piece | `saveSection()` in each `core/sec*.cpp`, `func::saveFunction()`, `subfunc::saveSubFunc()` | `loadSection()` in each `core/sec*.cpp` (the tag `switch` is in `track::loadTrack()`), `func::loadFunction()`, `subfunc::loadSubFunc()` |
 | 5. The smoothing entries: count, then one record each | `smoothHandler::saveSmooth()` | `smoothHandler::loadSmooth()` |
 | 6. `"EOP"` ends the project | `writeProject()` | `readProject()` |
+| 7. The appendix, only when the project or a track has additions (`track::additions`, the client's `projectAdditions()`): `"FVX"`, the appendix version (`int`, 1, `APPENDIX_VERSION`), the length of the document (`int`), the document (compact UTF-8 JSON, written first byte first, `{"needs":[],"project":{...},"tracks":[{...},...]}`, one object per track in file order, each feature owning one key), `"EOX"`. Nothing after `EOP` otherwise, so a project without additions is written byte for byte as before | `writeAppendix()` in `writeProject()` | `readAppendix()` in `readProject()`; the 2016 program's reader stops at `EOP` (read from the code; to be tried on the binary) |
 
 `saveProjectFile()` and `loadProjectFile()` open the file and call the two above. `projectWidget::saveProject()` and `loadProject()` call them with `this` as the `projectFileClient`.
+
+**The appendix** (decision record 0014, points 14 and 15; root rule 4) is the one way to add a saved value that does not change the computed track. A track's additions are `track::additions` (a `QJsonObject`), part of its undo state (`trackState::additions`, compact JSON bytes); the project's own are kept by the client (`projectWidget::additions`, `coreProject::additions`) through `projectFileClient::projectAdditions()` and `projectAdditionsRead()`. Keys the program does not know are kept and written back. `readProject()` reads the appendix once every track is read, gives each track its additions and only then calls `projectTrackLoaded()` for the tracks, so a track's undo history starts with them. What a load does with an appendix:
+
+| Found after `EOP` | The load |
+|---|---|
+| nothing | as before |
+| a whole appendix, version 1, every check passed | the additions go to the project and the tracks; `"Load Successfull."` |
+| an unknown name under `"needs"` (none is known yet) | refused: `"Error: This project needs ..."`; no track is kept |
+| anything else: bytes that are not `FVX`, cut off in the tag, the version, the length, the document or `EOX`, a length that does not match, bytes after `EOX`, a version above 1 (a newer program) or below 1, a document that is not JSON or not an object, no `needs` list, an unknown key at the top, no `project` object or `tracks` list, a `tracks` count other than the project's, a track entry that is not an object | the tracks load as saved and every addition is dropped; the message starts `"Warning: "` and names the fault; saving then writes the project without an appendix |
+
+The text form carries the same additions (`docs/project-text-format.md`). `fvdcore additions` shows and edits them (`cli/README.md`). `tests/appendix` checks all of the above.
 
 Because structs and `QColor` are dumped raw (`track::saveTrack()` asserts `sizeof(QColor) == 16`), the format is tied to the compiler's layout and to the platform; each section class, function and sub-function also has save, load and legacy load on `std::iostream`. `MainWindow::backupSave()` writes `<name>.fvd.bak` every minute (`doAutoSave()`) and after each export.
 
@@ -123,7 +135,7 @@ Global state to know about: `MainWindow* gloParent` and `glViewWidget* glView`, 
 - **Ride sheet panel:** `ui/ridesheet.*` (class `rideSheet`, the third pane of the main window's splitter, shown or hidden by Visualize > Ride sheet). It only formats `computeRideSummary()` from `core/ridesummary.*`. `trackHandler::trackGeometryChanged()` and `trackLoaded()` call `MainWindow::rideSheetChanged()`, which restarts a 150 ms timer in the panel; the panel recomputes once when it fires and is told again when the tab, the selected track or the unit option changes. A new row: `rideSheet::addRow()` and `refreshNow()`.
 - **Rendering or visualisation mode:** `shaders/track.vert` for the colouring (the ramps; `track.frag` only lights the colour), `glViewWidget::drawTrack()` for uniforms, `trackMesh::appendTrackNode()` and `updateMeasureValues()` for the per-vertex values, `MainWindow::useShader()` and the Visualize menu in `ui/mainwindow.ui` (and `buildMeasureMenu()` for the measure entries) for the switch.
 - **Track style (rail cross-section):** `enum trackStyle` in `core/track.h`, the pipe options in `trackMesh::buildMeshes()` (`renderer/trackmesh.cpp`), the combo box in `ui/trackproperties.ui`.
-- **File format:** `track::saveTrack()`/`loadTrack()` and the per-section writers; bump the version string in `writeProject()` (`core/projectfile.cpp`) and add a branch in `readProject()` so old files still open.
+- **File format:** a saved value that does not change the computed track is a new key of the track's or the project's additions (the appendix, "Saved project file"), with no change to the binary layout. Anything before `EOP`, and the first saved value that changes the computed track: `track::saveTrack()`/`loadTrack()` and the per-section writers; bump the version string in `writeProject()` (`core/projectfile.cpp`) and add a branch in `readProject()` so old files still open (root rule 4).
 - **Build or dependency:** `fvd.pro` and `core/core.pri`. See `docs/building.md`.
 
 ## Known rough edges (not yet fixed)

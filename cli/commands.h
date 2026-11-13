@@ -56,6 +56,7 @@ extern const command cmdMeasures;
 extern const command cmdCheck;
 extern const command cmdToText;
 extern const command cmdFromText;
+extern const command cmdAdditions;
 extern const command cmdImport;
 extern const command cmdSession;
 extern const command cmdCommands;

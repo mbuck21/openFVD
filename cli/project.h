@@ -41,6 +41,7 @@ public:
 
     QList<track*> tracks;
     QString texPath;
+    QJsonObject additions;  // the project's own additions (the file's appendix)
 
     void clear();
 
@@ -51,6 +52,8 @@ public:
     void projectTrackLoaded(track*) {}
     void projectLoadFinished() {}
     void projectTrackSaving(track*) {}
+    QJsonObject projectAdditions() { return additions; }
+    void projectAdditionsRead(const QJsonObject& read) { additions = read; }
 };
 
 // Loads a project file into project. On failure returns false and error holds

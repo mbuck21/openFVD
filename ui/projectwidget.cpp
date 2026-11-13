@@ -104,6 +104,7 @@ void projectWidget::init()
     if(trackList.size() || ui->trackListWidget->topLevelItemCount() || selTrack) {
         cleanUp();
     }
+    additions = QJsonObject();
 
     qDebug() << glView;
 
@@ -447,6 +448,7 @@ trackHandler* projectWidget::handlerFor(track* which)
 void projectWidget::projectCleared()
 {
     this->cleanUp();
+    additions = QJsonObject();
 }
 
 bool projectWidget::projectGroundTexture(const QString& path)

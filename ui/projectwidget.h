@@ -58,6 +58,8 @@ public:
     void projectTrackLoaded(track* which);
     void projectLoadFinished();
     void projectTrackSaving(track* which);
+    QJsonObject projectAdditions() { return additions; }
+    void projectAdditionsRead(const QJsonObject& read) { additions = read; }
 
     void init();
     void cleanUp();
@@ -67,6 +69,8 @@ public:
     QList<trackHandler*> trackList;
     trackHandler* selTrack;
     QString texPath;
+    QJsonObject additions;  // the project's own additions (appendix of the file), kept as read
+
 
 
 public slots:

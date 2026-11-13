@@ -35,7 +35,11 @@ void coreProject::clear()
     }
 }
 
-void coreProject::projectCleared() { clear(); }
+void coreProject::projectCleared()
+{
+    clear();
+    additions = QJsonObject();
+}
 
 // The image resources of resources.qrc: this program does not link them, so
 // they are accepted by name.

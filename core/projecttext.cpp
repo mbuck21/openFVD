@@ -504,6 +504,9 @@ QJsonObject textWriter::writeTrack(track* t, int trackNo)
     }
     smoothing["custom"] = custom;
     o["smoothing"] = smoothing;
+
+    // the track's additions (the binary file's appendix), only when it has some
+    if(!t->additions.isEmpty()) o["additions"] = t->additions;
     return o;
 }
 
@@ -529,6 +532,8 @@ QString writeProjectText(QByteArray& out, const QString& texPath, const QList<tr
     root["binaryVersion"] = QString(BINARY_VERSION);
     root["groundTexture"] = texPath;
     root["tracks"] = trackArray;
+    QJsonObject projectAdditions = client ? client->projectAdditions() : QJsonObject();
+    if(!projectAdditions.isEmpty()) root["additions"] = projectAdditions;
 
     QByteArray text = QJsonDocument(root).toJson(QJsonDocument::Indented);
     if(!text.endsWith('\n')) text.append('\n');
@@ -604,11 +609,13 @@ struct trackData {
     QList<sectionData> sections;
     smoothData whole;
     QList<smoothData> custom;
+    QJsonObject additions;
 };
 
 struct projectData {
     QString groundTexture;
     QList<trackData> tracks;
+    QJsonObject additions;
 };
 
 // One JSON object being read: remembers which keys were asked for, so that
@@ -1236,6 +1243,9 @@ bool textReader::readTrack(const QJsonValue& v, const QString& where, trackData*
         }
         smr.finish();
     }
+
+    // optional: the track's additions, kept as they are, unknown keys included
+    if(r.has("additions")) out->additions = r.getObject("additions");
     r.finish();
     return error.isEmpty();
 }
@@ -1262,6 +1272,7 @@ bool textReader::readProject(const QJsonObject& root, projectData* out)
         if(!readTrack(tracks[i], QString("track %1").arg(i+1), &t)) return false;
         out->tracks.append(t);
     }
+    if(r.has("additions")) out->additions = r.getObject("additions");
     r.finish();
     return error.isEmpty();
 }
@@ -1349,6 +1360,7 @@ static void buildSmoothing(smoothHandler* h, const smoothData& d, bool custom)
 static void buildTrack(track* t, const trackData& d, projectFileClient* client)
 {
     t->name = d.name;
+    t->additions = d.additions;
     for(int i = 0; i < 3; ++i) {
         memcpy((void*)&t->display.colors[i], (const void*)d.colorBytes[i], sizeof(QColor));
     }
@@ -1496,6 +1508,7 @@ QString readProjectText(const QByteArray& in, projectFileClient* client)
     if(!client->projectGroundTexture(data.groundTexture)) {
         warnings.prepend(QString("Could not find corresponding texture. Loaded default texture instead."));
     }
+    client->projectAdditionsRead(data.additions);
     for(int i = 0; i < data.tracks.size(); ++i) {
         track* t = client->projectNewTrack();
         buildTrack(t, data.tracks[i], client);
