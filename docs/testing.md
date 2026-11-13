@@ -101,6 +101,8 @@ FVD.exe --batch-ride-sheet <project.fvd> <outdir>
 
 loads the project, opens track 1 as a person would, makes the ride sheet panel (`ui/ridesheet.*`) refresh at once and writes every label and value of the panel, one line each (`<object name> | <label> | <value>`, for example `rideLengthValue | Length | 54.5 m`), to `<outdir>/<project>.ridesheet.txt`, with a report `<project>.batch.txt` ending `OK` or `ERROR: <what>`. With the unit setting at metres and m/s, each number equals the one `fvdcore summary <project>` prints for the same project (to the printed decimals); that is how the panel is checked against core without a screen. Not part of `run-baseline.py`.
 
+**Batch mode always runs in metric (m/s, m).** `batchRunner::createHiddenWindow()` sets the unit option in memory to metric whatever `options.cfg` says, and never saves it, so the file keeps its value (a fresh install writes `Measures 2`, English). The scripted scenarios convert typed values with the unit factors, and a conversion to feet and back can move the last digit of a float, which the exact comparison with the 2016 binary would catch.
+
 ## Scripted test projects
 
 ```

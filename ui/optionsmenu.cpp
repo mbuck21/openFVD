@@ -44,7 +44,7 @@ optionsMenu::optionsMenu(QWidget *parent) :
     optionsFile = common::getResource("options.cfg", true);
 
     if(!QFileInfo(QString(optionsFile)).exists() || !loadFromOptionsFile()) {
-        measures = 0;
+        measures = english;
         drawGrid = true;
         backgroundColor = QColor(80, 140, 160);
 #ifndef Q_OS_MAC // on Win / Unix

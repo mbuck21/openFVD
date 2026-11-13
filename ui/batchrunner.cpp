@@ -149,6 +149,12 @@ MainWindow* batchRunner::createHiddenWindow()
 #endif
     qApp->installEventFilter(new noShowFilter(qApp));
     MainWindow* w = new MainWindow(); // never deleted: ~MainWindow() calls exit(0)
+    // Batch output is always metric (m/s, m), whatever options.cfg says: the
+    // scripted scenarios convert typed values with the options' factors, and a
+    // trip to feet and back moves the last digit of a float, which would break
+    // the exact comparison with the 2016 binary. Only the value in memory is
+    // set; nothing in batch mode saves the options, so options.cfg is untouched.
+    w->mOptions->measures = metricMPS;
     glView->initializeWithoutShowing();
 #ifdef Q_OS_WIN
     LockSetForegroundWindow(LSFW_UNLOCK);
