@@ -5,8 +5,8 @@ CONFIG -= app_bundle
 TARGET = traintypes
 TEMPLATE = app
 
-SOURCES += main.cpp ../../core/traintype.cpp
-HEADERS += ../../core/traintype.h
+SOURCES += main.cpp ../../core/traintype.cpp ../../core/trainspec.cpp
+HEADERS += ../../core/traintype.h ../../core/trainspec.h
 
 # The test gets the repository folder as its first argument (tools/run-tests.sh
 # passes it) and finds data/traintypes.json from there.

@@ -29,7 +29,7 @@
 //
 // A new command: write its commandSpec in the group's file
 // (commands_anchor.cpp, commands_section.cpp, commands_transition.cpp,
-// commands_track.cpp, commands_smoothing.cpp) and append it to the list that
+// commands_track.cpp, commands_smoothing.cpp, commands_train.cpp) and append it to the list that
 // file's function returns. Nothing else is registered by hand; the test
 // tests/commands/ runs every command with undo and redo and fails when a
 // description, a unit or an example is missing.
@@ -177,7 +177,7 @@ typedef std::function<bool(track* t, int trackIndex, commandTarget* out)> comman
 struct commandSpec
 {
     QString name;           // "<object>.<verb><Property>": objects anchor, track, section,
-                            // straight, curve, transition, smoothing ("transition.setChange")
+                            // straight, curve, transition, smoothing, train ("transition.setChange")
     QString description;    // one sentence in plain words
     commandTargetKind target;
     QList<commandParam> params;
@@ -214,20 +214,21 @@ struct commandSpec
     QJsonObject describeJson() const;
 };
 
-// The five groups. Each lives in its own file so that units adding commands
+// The six groups. Each lives in its own file so that units adding commands
 // to different groups do not touch the same file.
 QList<commandSpec> anchorCommands();        // commands_anchor.cpp
 QList<commandSpec> sectionCommands();       // commands_section.cpp
 QList<commandSpec> transitionCommands();    // commands_transition.cpp
 QList<commandSpec> trackCommands();         // commands_track.cpp
 QList<commandSpec> smoothingCommands();     // commands_smoothing.cpp
+QList<commandSpec> trainCommands();         // commands_train.cpp (the track's train; they change no node)
 
 // The list of every command, and the one way to run one.
 class commandRegistry
 {
 public:
     // Every command, in group order (anchor, section, transition, track,
-    // smoothing), each group in its file's order. Built once.
+    // smoothing, train), each group in its file's order. Built once.
     static const QList<commandSpec>& all();
     static const commandSpec* find(const QString& name);
 

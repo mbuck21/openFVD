@@ -15,6 +15,7 @@ SOURCES += \
     $$PWD/commands_section.cpp \
     $$PWD/commands_smoothing.cpp \
     $$PWD/commands_track.cpp \
+    $$PWD/commands_train.cpp \
     $$PWD/commands_transition.cpp \
     $$PWD/elementfile.cpp \
     $$PWD/exportfuncs.cpp \
@@ -40,6 +41,7 @@ SOURCES += \
     $$PWD/track.cpp \
     $$PWD/trackhistory.cpp \
     $$PWD/trackstate.cpp \
+    $$PWD/tracktrain.cpp \
     $$PWD/trainride.cpp \
     $$PWD/trainspec.cpp \
     $$PWD/traintype.cpp
@@ -71,9 +73,12 @@ HEADERS += \
     $$PWD/trackhistory.h \
     $$PWD/tracklistener.h \
     $$PWD/trackstate.h \
+    $$PWD/tracktrain.h \
     $$PWD/trainride.h \
     $$PWD/trainspec.h \
     $$PWD/traintype.h
 
 # The force-limit data (core/forcelimits.h), embedded in every program built from core/, fvdcore included.
 RESOURCES += $$PWD/../data/limits/limits.qrc
+# The train catalogue (core/traintype.h), for the same reason: the track's train commands (core/commands_train.cpp) read it.
+RESOURCES += $$PWD/../data/traintypes.qrc

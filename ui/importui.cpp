@@ -24,6 +24,7 @@
 #include "mainwindow.h"
 #include "lenassert.h"
 #include "optionsmenu.h"
+#include <QMessageBox>
 
 using namespace std;
 
@@ -51,6 +52,15 @@ importUi::importUi(QWidget *parent, QString _fileName) :
     fin.seekg (0, ios::end);
     int length = fin.tellg();
     int id = 0;
+
+    // The tracks' additions (the appendix after "EOP", core/projectfile.h),
+    // which track::loadTrack() does not read: each imported track brings its
+    // own. The search for tracks below stops at the end of the project, so
+    // that text in the appendix is never taken for a track.
+    additions = readProjectFileAdditions(fileName);
+    if(additions.projectEnd >= 0 && additions.projectEnd + 3 < length) {
+        length = (int)additions.projectEnd + 3;
+    }
 
     legacymode = false;
 
@@ -112,12 +122,23 @@ void importUi::on_buttonBox_accepted()
             } else {
                 trackList[i]->trackData->loadTrack(fin);
             }
+            // its own additions (its train among them), found by its place in the file
+            int fileTrack = additions.trackStarts.indexOf((qint64)posList[i]);
+            if(fileTrack >= 0 && fileTrack < additions.tracks.size()) {
+                trackList[i]->trackData->additions = additions.tracks[fileTrack];
+            }
             trackList[i]->clearHistory();   // the loaded track is the start of its undo list
             ui->treeWidget->takeTopLevelItem(0);
         }
     }
 
     fin.close();
+
+    if(!trackList.isEmpty() && !additions.problem.isEmpty()) {
+        QMessageBox::warning(gloParent, tr("Import Track from Project"),
+                             tr("The additions saved after the end of that project (such as a track's train) could not be read: %1. "
+                                "The tracks are imported without them.").arg(additions.problem));
+    }
 
     ((projectWidget*)parent())->appendTracks(trackList);
     delete this;

@@ -21,6 +21,7 @@
 
 #include <QDialog>
 #include "projectwidget.h"
+#include "projectfile.h"
 
 namespace Ui {
 class importUi;
@@ -45,6 +46,7 @@ private:
     Ui::importUi *ui;
     QString fileName;
     bool legacymode;
+    projectFileAdditions additions;     // the other project's appendix, per track by its place in the file
 };
 
 #endif // IMPORTUI_H

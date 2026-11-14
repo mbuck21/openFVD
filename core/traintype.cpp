@@ -29,9 +29,69 @@
 #include <QDebug>
 #include <cmath>
 
-static const int SCHEMA_VERSION = 1;
+// Schema 2 added carPitch, rowOffsets, seatOffsets, friction and drag per
+// type. A file of schema 1 (without them) is still read: they are then not
+// present, as when the file has null.
+static const int SCHEMA_VERSION = 2;
+static const int OLDEST_SCHEMA_VERSION = 1;
 
 namespace {
+
+bool knownConfidence(const QString& conf)
+{
+    return conf == "verified" || conf == "likely" || conf == "estimate" || conf == "unverified";
+}
+
+// Reads one sourced list of numbers out of obj[key], as readSourced() reads a
+// number: missing, null or a null value gives a list that is not present.
+bool readSourcedList(const QJsonObject& obj, const QString& key, sourcedList& out, QString* error)
+{
+    out = sourcedList();
+    const QJsonValue v = obj.value(key);
+    if (v.isUndefined() || v.isNull())
+        return true;
+    if (!v.isObject())
+    {
+        *error = QString("\"%1\" must be an object with value, source and confidence (or null)").arg(key);
+        return false;
+    }
+    const QJsonObject o = v.toObject();
+    const QJsonValue val = o.value("value");
+    if (val.isUndefined() || val.isNull())
+        return true;
+    if (!val.isArray() || val.toArray().isEmpty())
+    {
+        *error = QString("\"%1\".value must be a list of numbers that is not empty").arg(key);
+        return false;
+    }
+    QList<float> values;
+    const QJsonArray arr = val.toArray();
+    for (int i = 0; i < arr.size(); ++i)
+    {
+        if (!arr.at(i).isDouble() || !std::isfinite(arr.at(i).toDouble()) || std::fabs(arr.at(i).toDouble()) > 100.0)
+        {
+            *error = QString("\"%1\".value must hold finite numbers of metres (between -100 and 100)").arg(key);
+            return false;
+        }
+        values.append((float)arr.at(i).toDouble());
+    }
+    if (!o.value("source").isString())
+    {
+        *error = QString("\"%1\".source must be a string").arg(key);
+        return false;
+    }
+    const QString conf = o.value("confidence").toString();
+    if (!knownConfidence(conf))
+    {
+        *error = QString("\"%1\".confidence must be verified, likely, estimate or unverified").arg(key);
+        return false;
+    }
+    out.bPresent = true;
+    out.lValues = values;
+    out.sSource = o.value("source").toString();
+    out.sConfidence = conf;
+    return true;
+}
 
 // Reads one sourced value out of obj[key]. A missing key or null gives a value
 // that is not present; a bad shape sets *error (and returns false).
@@ -61,7 +121,7 @@ bool readSourced(const QJsonObject& obj, const QString& key, sourcedValue& out, 
         return false;
     }
     const QString conf = o.value("confidence").toString();
-    if (conf != "verified" && conf != "likely" && conf != "estimate" && conf != "unverified")
+    if (!knownConfidence(conf))
     {
         *error = QString("\"%1\".confidence must be verified, likely, estimate or unverified").arg(key);
         return false;
@@ -128,9 +188,22 @@ bool readTrain(const QJsonObject& obj, trainType& t, QString* error)
           || !readCount(obj, "seatsAcross", t.iSeatsAcross, &problem)
           || !readCount(obj, "rowsPerCar", t.iRowsPerCar, &problem)
           || !readCount(obj, "carsPerTrain", t.iCarsPerTrain, &problem)
-          || !readSourced(obj, "carLength", t.carLength, &problem))
+          || !readSourced(obj, "carLength", t.carLength, &problem)
+          || !readSourced(obj, "carPitch", t.carPitch, &problem)
+          || !readSourcedList(obj, "rowOffsets", t.rowOffsets, &problem)
+          || !readSourcedList(obj, "seatOffsets", t.seatOffsets, &problem)
+          || !readSourced(obj, "friction", t.friction, &problem)
+          || !readSourced(obj, "drag", t.drag, &problem))
     {
     }
+    else if (t.carPitch.bPresent && !(t.carPitch.fValue > 0.0f))
+        problem = "\"carPitch\".value must be above 0";
+    else if ((t.friction.bPresent && t.friction.fValue < 0.0f) || (t.drag.bPresent && t.drag.fValue < 0.0f))
+        problem = "\"friction\" and \"drag\" must be 0 or more";
+    else if (t.rowOffsets.bPresent && t.iRowsPerCar > 0 && t.rowOffsets.lValues.size() != t.iRowsPerCar)
+        problem = QString("\"rowOffsets\" has %1 rows, \"rowsPerCar\" says %2").arg(t.rowOffsets.lValues.size()).arg(t.iRowsPerCar);
+    else if (t.seatOffsets.bPresent && t.iSeatsAcross > 0 && t.seatOffsets.lValues.size() != t.iSeatsAcross)
+        problem = QString("\"seatOffsets\" has %1 seats, \"seatsAcross\" says %2").arg(t.seatOffsets.lValues.size()).arg(t.iSeatsAcross);
     else if (!readSourced(obj, "heartline", t.heartline, &problem))
     {
     }
@@ -192,9 +265,10 @@ QList<trainType> trainCatalogue::load(const QString& path, QString* error)
     }
     const QJsonObject root = doc.object();
     const QJsonValue ver = root.value("schemaVersion");
-    if (!ver.isDouble() || ver.toDouble() != (double)SCHEMA_VERSION)
+    const double version = ver.toDouble(-1.0);
+    if (!ver.isDouble() || version != std::floor(version) || version < OLDEST_SCHEMA_VERSION || version > SCHEMA_VERSION)
     {
-        *err = QString("schemaVersion must be %1").arg(SCHEMA_VERSION);
+        *err = QString("schemaVersion must be %1 to %2").arg(OLDEST_SCHEMA_VERSION).arg(SCHEMA_VERSION);
         return QList<trainType>();
     }
     if (!root.value("trains").isArray())

@@ -130,6 +130,22 @@ QJsonObject additionsFromBytes(const QByteArray& bytes);
 // None yet: any name in "needs" refuses the load.
 QStringList knownAppendixNeeds();
 
+// The additions of another project's tracks, for "Import Track from Project"
+// (ui/importui.cpp), which reads single tracks with track::loadTrack() and so
+// never reaches the appendix. Reads the project's tracks without computing
+// them, to find its end, then its appendix as readProject() does.
+struct projectFileAdditions
+{
+    QList<qint64> trackStarts;      // per track, the place in the file just after its tag "TRC"
+    qint64 projectEnd;              // the place of the end mark "EOP", -1 when it was not reached
+    QList<QJsonObject> tracks;      // per track its additions (empty objects without an appendix)
+    QJsonObject project;            // the project's own additions
+    QString problem;                // empty when the additions could be read (or there are none);
+                                    // else why not, in plain words, and tracks holds empty objects
+    projectFileAdditions() : projectEnd(-1) {}
+};
+projectFileAdditions readProjectFileAdditions(const QString& fileName);
+
 // The same, opening the file fileName first ("Error: File is NULL" when it
 // cannot be opened).
 QString saveProjectFile(const QString& fileName, const QString& texPath, const QList<track*>& tracks, projectFileClient* client);

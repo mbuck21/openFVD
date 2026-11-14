@@ -20,12 +20,15 @@
 // fvdcore ride: a train ridden over a project's finished track
 // (core/trainride.h). Per car the lowest and highest of each force and the
 // airtime, as text, as JSON (--json) or, with --table, the samples as
-// tab-separated text. The train is the program's own point unless --type or
-// the counts describe one; nothing is saved in the project. Metric units only.
+// tab-separated text. The train is the one --type or the counts describe;
+// without them, each track's own train when it has one switched on
+// (core/tracktrain.h), else the program's own point. Nothing is saved in the
+// project. Metric units only.
 
 #include "commands.h"
 #include "project.h"
 
+#include "../core/tracktrain.h"
 #include "../core/trainride.h"
 #include "../core/trainspec.h"
 #include "../core/traintype.h"
@@ -101,11 +104,12 @@ static bool wholeNumber(const QMap<QString, QString>& values, const QString& key
     return true;
 }
 
-static QString trainText(const trainRide& r, const QStringList& assumed)
+static QString trainText(const trainRide& r, const QStringList& assumed, const QString& source)
 {
     const trainSpec& s = r.spec;
     QString what = s.sTypeId;
-    if(what.isEmpty()) what = (s == trainSpec::point()) ? QString("the program's own point") : QString("given on the command line");
+    if(what.isEmpty()) what = (s == trainSpec::point()) ? QString("the program's own point") : QString("a train without a catalogue type");
+    if(!source.isEmpty()) what += " (" + source + ")";
     QString t = QString("  Train: %1, %2 car(s)").arg(what).arg(s.iCars);
     if(s.iCars > 1) t += QString(" %1 m apart (%2 m)").arg(f(s.fCarPitch, 2)).arg(f(s.trainLength(), 1));
     t += QString(", %1 row(s) of %2 seat(s); reference: %3\n").arg(s.rows()).arg(s.seatsPerRow())
@@ -124,11 +128,12 @@ static QString where(const rideExtreme& e)
     return QString("%1 (%2 m)").arg(f(e.value, 2)).arg(f(e.place_m, 1));
 }
 
-static QString rideText(const trainRide& r, int trackNumber, const QString& name, const QStringList& assumed)
+static QString rideText(const trainRide& r, int trackNumber, const QString& name, const QStringList& assumed,
+                        const QString& source)
 {
     QString t = QString("Track %1: %2\n").arg(trackNumber).arg(name);
-    if(!r.valid) return t + "  No ride: " + r.error + "\n";
-    t += trainText(r, assumed);
+    if(!r.valid) return t + "  Train: " + source + "\n  No ride: " + r.error + "\n";
+    t += trainText(r, assumed, source);
     double duration = r.samples() ? r.time_s.last() : 0.0;
     t += QString("  Ride: %1 s, %2 samples every %3 s; the reference starts at the track's start, the ride ends when the "
                  "rearmost row has passed the last node\n").arg(f(duration, 2)).arg(r.samples()).arg(r.options.sampleInterval_s);
@@ -164,11 +169,12 @@ static QJsonValue extremeJson(const rideExtreme& e)
 }
 
 static QJsonObject rideJson(const trainRide& r, int trackNumber, const QString& name, const QStringList& assumed,
-                            bool withSamples, int every)
+                            const QString& source, bool withSamples, int every)
 {
     QJsonObject o;
     o["track"] = trackNumber;
     o["name"] = name;
+    o["train_source"] = source;
     o["valid"] = r.valid;
     if(!r.valid) {
         o["error"] = r.error;
@@ -289,7 +295,9 @@ static int runRide(const QStringList& args)
         if(!ok || trackNumber < 1) { fprintf(stderr, "--track needs a whole number of 1 or more\n"); return 1; }
     }
 
-    // the train
+    // the train: as the options say, or (none given) each track's own
+    const bool trainGiven = values.contains("--type") || values.contains("--cars") || values.contains("--pitch")
+            || values.contains("--rows") || values.contains("--seats") || values.contains("--reference");
     trainSpec spec = trainSpec::point();
     QStringList assumed;
     if(values.contains("--type")) {
@@ -367,14 +375,33 @@ static int runRide(const QStringList& args)
     QJsonArray tracks;
     for(int i = 0; i < numbers.size(); ++i) {
         track* t = project.tracks.at(numbers.at(i) - 1);
-        trainRide r = rideTrain(t, spec);
+        // Without train options, each track rides its own train when it has
+        // one switched on (core/tracktrain.h), else the program's own point.
+        trainSpec use = spec;
+        QStringList useAssumed = assumed;
+        QString source = QString("given on the command line");
+        if(!trainGiven) {
+            QString why;
+            if(simulatedTrainOfTrack(t, &use, &why)) {
+                source = QString("the track's own train");
+                useAssumed = trainOfTrack(t).lAssumed;
+            } else {
+                use = trainSpec::point();
+                useAssumed.clear();
+                source = trackHasTrain(t) ? QString("the track's train is not used: %1").arg(why)
+                                          : QString("the track has no train");
+            }
+        }
+        trainRide r = rideTrain(t, use);
         if(json) {
-            tracks.append(rideJson(r, numbers.at(i), t->name, assumed, table, every));
+            tracks.append(rideJson(r, numbers.at(i), t->name, useAssumed, source, table, every));
         } else if(table) {
             if(numbers.size() > 1) text += QString("# track %1: %2\n").arg(numbers.at(i)).arg(t->name);
+            // the table's first line stays its header unless the track's own train is ridden
+            if(!trainGiven && source == "the track's own train") text += QString("# train: %1\n").arg(source);
             text += r.valid ? rideTable(r, every) : QString("# no ride: %1\n").arg(r.error);
         } else {
-            text += rideText(r, numbers.at(i), t->name, assumed);
+            text += rideText(r, numbers.at(i), t->name, useAssumed, source);
             if(i + 1 < numbers.size()) text += "\n";
         }
     }
@@ -405,7 +432,8 @@ const command cmdRide = {
     "ride",
     "fvdcore ride <project.fvd> [--track N] [--type ID] [--catalogue FILE] [--cars N] [--pitch M] [--rows N] [--seats N] "
     "[--reference centre|front|rear|N] [--table [--every-s X]] [--json] [--out FILE]",
-    "ride a train over the finished track (the program's own point unless a train is given): per car the lowest and "
-    "highest force and the airtime; --table the samples every 0.01 s; nothing is saved",
+    "ride a train over the finished track (the train the options give; without them each track's own train when it "
+    "has one switched on, else the program's own point): per car the lowest and highest force and the airtime; "
+    "--table the samples every 0.01 s; nothing is saved",
     runRide
 };

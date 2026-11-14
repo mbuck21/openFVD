@@ -99,6 +99,27 @@ Judged harmless and so not limited beyond being finite: positions, angles (roll,
 
 The additions are JSON as they stand, not numbers of the model: the rules above for floats (shortest decimal, `"-0"`, `"inf"`) do not apply inside them. Text to model to text and binary to text to binary both give them back exactly (`tests/appendix`).
 
+### The track's train
+
+A track's train is its additions' key `"train"` (`core/tracktrain.h`; decision record 0014, points 13 and 16). A track without the key has no train: not simulated, the program's own point, the reference at the train's centre. The train's own writer puts its floats as the text form does (shortest decimal, `"-0"` for negative zero), so every field reads back exactly. Every field but `simulate` is left out at its default; any other key inside `"train"` (or inside its `"resistance"`) is kept and written back. The train commands (`train.*`, `fvdcore commands`) change it; switching a train off with nothing else set, or `train.clear`, takes the key away.
+
+| Key | Kind | Meaning |
+|---|---|---|
+| `simulate` | bool, always written | the train is ridden (`fvdcore ride` without train options rides it) |
+| `type` | text | the catalogue id (`data/traintypes.json`) |
+| `cars` | whole number, default 1 | cars in the train |
+| `carPitch` | m, default 0 | one car's centre to the next, along the track's centre line |
+| `rows`, `seats` | lists of m, default `[0]` | row places along the car (+ toward the front, front row first); seat places across (+ toward the rider's right) |
+| `seatUp` | m, default 0 | where a rider's forces are taken, above the heartline |
+| `carMass`, `riderMass`, `load`, `carMassFactors`, `massAtDesignPoint`, `massAboveRail` | kg, kg, 0 to 1, list per car, bool, m | the mass fields of `trainSpec` (no box on screen; decision record 0014, point 5); defaults 700, 75, 1, none, true, 0 |
+| `resistance` | object `fromProject`, `rolling`, `rollingLoad`, `linear` (1/s), `drag` (1/m) | the ride's four resistance terms; left out while it is the project's own |
+| `referenceCar` | whole number, 1 = front car | left out for the train's centre |
+| `restraint` | `lapbar`, `otsr`, `vest`, `prone`, `other` | left out for none |
+| `extendedAirtime` | bool | the force limits' extended -Gz line allowed (a separate choice, not implied by a restraint) |
+| `assumed` | list of names | the fields that hold stand-ins (`trainSpec::fromType()`), for the windows to mark |
+
+Example, after `train.setType nl2-hyper-coaster`, `train.setCars 7`, `train.setReference 7`, `train.setRestraint otsr` and `train.setSimulate on` (the keys in the order Qt writes them): `"train": {"assumed": ["fCarPitch", "rowCount", "lRowOffsets", "seatCount", "lSeatOffsets", "fCarMass", "fRiderMass", "fLoad"], "carPitch": 2.5, "cars": 7, "referenceCar": 7, "restraint": "otsr", "rows": [0.45, -0.45], "seats": [-0.275, 0.275], "simulate": true, "type": "nl2-hyper-coaster"}`.
+
 ### A colour
 
 | Key | Type | What |

@@ -21,10 +21,14 @@
 // Prints one line per check and a last line PASS or FAIL; exit code 0 or 1.
 
 #include "../../core/traintype.h"
+#include "../../core/trainspec.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMap>
 #include <QStringList>
 #include <QTemporaryDir>
@@ -89,13 +93,13 @@ static const int OWNER_COUNT = (int)(sizeof(OWNER_TABLE) / sizeof(OWNER_TABLE[0]
 static const char* GOOD_ENTRY =
     "{\"id\":\"%1\",\"name\":\"X\",\"heartline\":{\"value\":1.0,\"source\":\"s\",\"confidence\":\"%2\"}}";
 
-static QString writeDoc(const QTemporaryDir& dir, const QString& file, const QString& entries)
+static QString writeDoc(const QTemporaryDir& dir, const QString& file, const QString& entries, int schema = 1)
 {
     const QString path = dir.filePath(file);
     QFile f(path);
     if (f.open(QIODevice::WriteOnly))
     {
-        f.write(QString("{\"schemaVersion\":1,\"trains\":[%1]}").arg(entries).toUtf8());
+        f.write(QString("{\"schemaVersion\":%2,\"trains\":[%1]}").arg(entries).arg(schema).toUtf8());
         f.close();
     }
     return path;
@@ -196,6 +200,87 @@ int main(int argc, char** argv)
         check("a small valid document loads",
               trainCatalogue::load(writeDoc(dir, "ok.json", QString(GOOD_ENTRY).arg("fine", "likely")), &good).size() == 1
               && good.isEmpty(), good);
+    }
+
+    // Schema 2: car pitch, row and seat offsets, friction and drag per type.
+    {
+        QFile f(jsonPath);
+        QJsonObject root;
+        if (f.open(QIODevice::ReadOnly))
+            root = QJsonDocument::fromJson(f.readAll()).object();
+        check("data/traintypes.json is schema 2", root.value("schemaVersion").toDouble() == 2.0);
+        const QJsonArray arr = root.value("trains").toArray();
+        bool allKeys = !arr.isEmpty();
+        for (int i = 0; i < arr.size(); ++i)
+        {
+            const QJsonObject o = arr.at(i).toObject();
+            const char* keys[] = { "carPitch", "rowOffsets", "seatOffsets", "friction", "drag" };
+            for (int k = 0; k < 5; ++k)
+                if (!o.contains(keys[k]))
+                    allKeys = false;
+        }
+        check("every entry has carPitch, rowOffsets, seatOffsets, friction and drag (null until Stage 4)", allKeys);
+        bool noneFilled = true;
+        for (int i = 0; i < trains.size(); ++i)
+        {
+            const trainType& t = trains.at(i);
+            if (t.carPitch.bPresent || t.rowOffsets.bPresent || t.seatOffsets.bPresent || t.friction.bPresent || t.drag.bPresent)
+                noneFilled = false;
+        }
+        check("none of the five is filled in yet (Stage 4 brings the numbers)", noneFilled);
+    }
+    if (dir.isValid())
+    {
+        const QString src = "\"source\":\"s\",\"confidence\":\"estimate\"";
+        const QString full = QString("{\"id\":\"full\",\"name\":\"Full\",\"rowsPerCar\":2,\"seatsAcross\":4,"
+                                     "\"heartline\":{\"value\":1.1,%1},\"carPitch\":{\"value\":2.35,%1},"
+                                     "\"rowOffsets\":{\"value\":[0.4,-0.45],%1},\"seatOffsets\":{\"value\":[-0.9,-0.3,0.3,0.9],%1},"
+                                     "\"friction\":{\"value\":0.026,%1},\"drag\":{\"value\":0.0001,%1},"
+                                     "\"carLength\":{\"value\":3.0,%1}}").arg(src);
+        QString why;
+        const QList<trainType> two = trainCatalogue::load(writeDoc(dir, "two.json", full, 2), &why);
+        check("a schema 2 document with every new field loads", two.size() == 1 && why.isEmpty(), why);
+        if (two.size() == 1)
+        {
+            const trainType& t = two.at(0);
+            check("its new fields are read", t.carPitch.bPresent && t.carPitch.fValue == 2.35f
+                  && t.rowOffsets.lValues == (QList<float>() << 0.4f << -0.45f)
+                  && t.seatOffsets.lValues.size() == 4 && t.seatOffsets.sConfidence == "estimate"
+                  && t.friction.fValue == 0.026f && t.drag.fValue == 0.0001f);
+            QStringList assumed;
+            const trainSpec spec = trainSpec::fromType(t, &assumed);
+            check("fromType() takes the car pitch before the car length", spec.fCarPitch == 2.35f);
+            check("fromType() takes the row and seat offsets as given", spec.lRowOffsets == t.rowOffsets.lValues
+                  && spec.lSeatOffsets == t.seatOffsets.lValues);
+            check("fromType() takes friction and drag, so not the project's", !spec.resistance.bFromProject
+                  && spec.resistance.fRolling == 0.026f && spec.resistance.fDrag == 0.0001f);
+            check("and does not call them assumed", !assumed.contains("fCarPitch") && !assumed.contains("lRowOffsets")
+                  && !assumed.contains("lSeatOffsets") && !assumed.contains("rowCount") && !assumed.contains("seatCount"),
+                  assumed.join(", "));
+        }
+        // null fields (the shipped file's state): the stand-ins as before
+        const QString nulls = QString("{\"id\":\"nulls\",\"name\":\"N\",\"heartline\":{\"value\":1.0,%1},"
+                                      "\"carPitch\":null,\"rowOffsets\":null,\"seatOffsets\":null,\"friction\":null,\"drag\":null}").arg(src);
+        const QList<trainType> withNulls = trainCatalogue::load(writeDoc(dir, "nulls.json", nulls, 2), &why);
+        check("a schema 2 document with the new fields null loads", withNulls.size() == 1 && why.isEmpty(), why);
+        const QList<trainType> old = trainCatalogue::load(writeDoc(dir, "old.json", QString(GOOD_ENTRY).arg("old", "likely"), 1), &why);
+        check("the old file shape (schema 1, without the new fields) still loads", old.size() == 1 && why.isEmpty(), why);
+        if (withNulls.size() == 1 && old.size() == 1)
+        {
+            QStringList a1, a2;
+            trainSpec s1 = trainSpec::fromType(withNulls.at(0), &a1);
+            trainSpec s2 = trainSpec::fromType(old.at(0), &a2);
+            s1.sTypeId = s2.sTypeId;
+            check("a type with the new fields null gives the same train and stand-ins as the old shape", s1 == s2 && a1 == a2
+                  && s1.resistance.bFromProject && a1.contains("fCarPitch") && a1.contains("lRowOffsets"));
+        }
+        checkRejected("schema 3", writeDoc(dir, "three.json", QString(GOOD_ENTRY).arg("x", "likely"), 3), "schemaVersion");
+        const QString wrongRows = QString(full).replace("[0.4,-0.45]", "[0.4,0,-0.45]");
+        checkRejected("row offsets that disagree with rowsPerCar", writeDoc(dir, "rows.json", wrongRows, 2), "rowOffsets");
+        const QString badList = QString(full).replace("[-0.9,-0.3,0.3,0.9]", "[-0.9,\"a\",0.3,0.9]");
+        checkRejected("a seat offset that is not a number", writeDoc(dir, "seats.json", badList, 2), "seatOffsets");
+        const QString badPitch = QString(full).replace("\"carPitch\":{\"value\":2.35", "\"carPitch\":{\"value\":0");
+        checkRejected("a car pitch of 0", writeDoc(dir, "pitch.json", badPitch, 2), "carPitch");
     }
 
     check("a missing file is rejected with a message",
