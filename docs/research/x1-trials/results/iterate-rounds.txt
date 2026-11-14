@@ -1,0 +1,273 @@
+
+## camelback-centre-T-plain
+round 0: change from last round - m; chosen car felt - asked -0.07 at 117 m (RMS 0.029); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 2.800 m; chosen car felt - asked -0.15 at 152 m (RMS 0.046); crest at 107.29, 30.46 m; design speed at the crest 15.92 m/s
+round 2: change from last round 1.196 m; chosen car felt - asked +0.09 at 150 m (RMS 0.020); crest at 106.95, 30.35 m; design speed at the crest 15.62 m/s
+round 3: change from last round 0.416 m; chosen car felt - asked -0.02 at 151 m (RMS 0.004); crest at 107.01, 30.36 m; design speed at the crest 15.70 m/s
+round 4: change from last round 0.063 m; chosen car felt - asked +0.02 at 148 m (RMS 0.002); crest at 107.01, 30.36 m; design speed at the crest 15.69 m/s
+round 5: change from last round 0.009 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 107.01, 30.36 m; design speed at the crest 15.69 m/s
+
+## camelback-centre-D-plain
+round 0: change from last round - m; chosen car felt - asked -0.07 at 117 m (RMS 0.029); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 6.281 m; chosen car felt - asked -0.22 at 151 m (RMS 0.074); crest at 107.39, 30.73 m; design speed at the crest 15.93 m/s
+round 2: change from last round 2.403 m; chosen car felt - asked +0.18 at 151 m (RMS 0.051); crest at 106.85, 30.58 m; design speed at the crest 15.45 m/s
+round 3: change from last round 1.462 m; chosen car felt - asked -0.04 at 151 m (RMS 0.011); crest at 106.93, 30.59 m; design speed at the crest 15.56 m/s
+round 4: change from last round 0.400 m; chosen car felt - asked +0.02 at 148 m (RMS 0.003); crest at 106.91, 30.59 m; design speed at the crest 15.55 m/s
+round 5: change from last round 0.058 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 106.91, 30.59 m; design speed at the crest 15.55 m/s
+round 6: change from last round 0.006 m; chosen car felt - asked +0.02 at 148 m (RMS 0.002); crest at 106.91, 30.59 m; design speed at the crest 15.55 m/s
+
+## camelback-front-T-plain
+round 0: change from last round - m; chosen car felt - asked -0.60 at 151 m (RMS 0.213); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 7.502 m; chosen car felt - asked -0.63 at 154 m (RMS 0.180); crest at 111.58, 31.97 m; design speed at the crest 16.16 m/s
+round 2: change from last round 10.338 m; chosen car felt - asked +0.13 at 151 m (RMS 0.030); crest at 111.60, 32.13 m; design speed at the crest 15.59 m/s
+round 3: change from last round 1.481 m; chosen car felt - asked +0.02 at 147 m (RMS 0.005); crest at 111.57, 32.13 m; design speed at the crest 15.54 m/s
+round 4: change from last round 0.241 m; chosen car felt - asked +0.02 at 147 m (RMS 0.002); crest at 111.57, 32.13 m; design speed at the crest 15.54 m/s
+round 5: change from last round 0.003 m; chosen car felt - asked +0.02 at 148 m (RMS 0.002); crest at 111.57, 32.13 m; design speed at the crest 15.54 m/s
+
+## camelback-front-D-plain
+round 0: change from last round - m; chosen car felt - asked -0.60 at 151 m (RMS 0.213); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 14.377 m; chosen car felt - asked -0.32 at 151 m (RMS 0.096); crest at 110.96, 30.18 m; design speed at the crest 16.38 m/s
+round 2: change from last round 8.467 m; chosen car felt - asked -0.09 at 151 m (RMS 0.029); crest at 111.67, 30.49 m; design speed at the crest 16.53 m/s
+round 3: change from last round 1.514 m; chosen car felt - asked +0.03 at 150 m (RMS 0.009); crest at 111.63, 30.48 m; design speed at the crest 16.46 m/s
+round 4: change from last round 0.735 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 111.63, 30.48 m; design speed at the crest 16.46 m/s
+round 5: change from last round 0.015 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 111.63, 30.48 m; design speed at the crest 16.46 m/s
+
+## camelback-rear-T-plain
+round 0: change from last round - m; chosen car felt - asked -0.52 at 77 m (RMS 0.200); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 5.951 m; chosen car felt - asked -0.18 at 163 m (RMS 0.059); crest at 103.73, 30.18 m; design speed at the crest 16.37 m/s
+round 2: change from last round 2.201 m; chosen car felt - asked -0.06 at 163 m (RMS 0.023); crest at 102.85, 29.94 m; design speed at the crest 16.34 m/s
+round 3: change from last round 1.558 m; chosen car felt - asked -0.05 at 150 m (RMS 0.019); crest at 103.12, 30.02 m; design speed at the crest 16.68 m/s
+round 4: change from last round 0.532 m; chosen car felt - asked +0.03 at 148 m (RMS 0.009); crest at 102.94, 29.98 m; design speed at the crest 16.50 m/s
+round 5: change from last round 0.283 m; chosen car felt - asked +0.01 at 144 m (RMS 0.004); crest at 103.03, 30.00 m; design speed at the crest 16.60 m/s
+round 6: change from last round 0.145 m; chosen car felt - asked +0.02 at 146 m (RMS 0.003); crest at 102.99, 29.99 m; design speed at the crest 16.55 m/s
+round 7: change from last round 0.072 m; chosen car felt - asked +0.01 at 146 m (RMS 0.002); crest at 103.00, 30.00 m; design speed at the crest 16.58 m/s
+round 8: change from last round 0.036 m; chosen car felt - asked +0.01 at 146 m (RMS 0.002); crest at 103.00, 29.99 m; design speed at the crest 16.56 m/s
+round 9: change from last round 0.018 m; chosen car felt - asked +0.01 at 146 m (RMS 0.002); crest at 103.00, 30.00 m; design speed at the crest 16.57 m/s
+
+## camelback-rear-D-plain
+round 0: change from last round - m; chosen car felt - asked -0.52 at 77 m (RMS 0.200); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 26.617 m; chosen car felt - asked -1.16 at 162 m (RMS 0.427); crest at 106.32, 35.44 m; design speed at the crest 17.61 m/s
+round 2: change from last round 27.602 m; chosen car felt - asked +3.43 at 151 m (RMS 0.942); crest at 98.17, 32.94 m; design speed at the crest 11.90 m/s
+round 3: change from last round 25.339 m; chosen car felt - asked -1.27 at 151 m (RMS 0.430); crest at 103.19, 34.63 m; design speed at the crest 17.72 m/s
+round 4: change from last round 21.121 m; chosen car felt - asked +2.35 at 151 m (RMS 0.640); crest at 98.60, 33.22 m; design speed at the crest 12.66 m/s
+round 5: change from last round 17.440 m; chosen car felt - asked -0.96 at 151 m (RMS 0.312); crest at 101.96, 34.28 m; design speed at the crest 16.46 m/s
+round 6: change from last round 14.355 m; chosen car felt - asked +1.35 at 151 m (RMS 0.384); crest at 99.09, 33.38 m; design speed at the crest 13.21 m/s
+round 7: change from last round 11.670 m; chosen car felt - asked -0.69 at 151 m (RMS 0.221); crest at 101.28, 34.08 m; design speed at the crest 15.70 m/s
+round 8: change from last round 9.539 m; chosen car felt - asked +0.81 at 151 m (RMS 0.236); crest at 99.44, 33.50 m; design speed at the crest 13.61 m/s
+round 9: change from last round 7.729 m; chosen car felt - asked -0.48 at 151 m (RMS 0.152); crest at 100.88, 33.96 m; design speed at the crest 15.25 m/s
+round 10: change from last round 6.291 m; chosen car felt - asked +0.50 at 151 m (RMS 0.148); crest at 99.68, 33.58 m; design speed at the crest 13.89 m/s
+round 11: change from last round 5.093 m; chosen car felt - asked -0.33 at 151 m (RMS 0.103); crest at 100.63, 33.88 m; design speed at the crest 14.96 m/s
+round 12: change from last round 4.136 m; chosen car felt - asked +0.32 at 151 m (RMS 0.095); crest at 99.84, 33.63 m; design speed at the crest 14.08 m/s
+round 13: change from last round 3.348 m; chosen car felt - asked -0.22 at 151 m (RMS 0.069); crest at 100.47, 33.83 m; design speed at the crest 14.78 m/s
+round 14: change from last round 2.716 m; chosen car felt - asked +0.20 at 151 m (RMS 0.061); crest at 99.97, 33.67 m; design speed at the crest 14.21 m/s
+round 15: change from last round 2.198 m; chosen car felt - asked -0.15 at 151 m (RMS 0.046); crest at 100.36, 33.80 m; design speed at the crest 14.67 m/s
+round 16: change from last round 1.782 m; chosen car felt - asked +0.13 at 151 m (RMS 0.040); crest at 100.03, 33.69 m; design speed at the crest 14.29 m/s
+round 17: change from last round 1.443 m; chosen car felt - asked -0.10 at 151 m (RMS 0.030); crest at 100.30, 33.78 m; design speed at the crest 14.60 m/s
+round 18: change from last round 1.170 m; chosen car felt - asked +0.09 at 150 m (RMS 0.026); crest at 100.08, 33.71 m; design speed at the crest 14.35 m/s
+round 19: change from last round 0.947 m; chosen car felt - asked -0.07 at 151 m (RMS 0.020); crest at 100.27, 33.76 m; design speed at the crest 14.55 m/s
+round 20: change from last round 0.768 m; chosen car felt - asked +0.06 at 150 m (RMS 0.017); crest at 100.11, 33.72 m; design speed at the crest 14.38 m/s
+
+## camelback-rear-D-damped
+round 0: change from last round - m; chosen car felt - asked -0.52 at 77 m (RMS 0.200); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 26.617 m; chosen car felt - asked -1.16 at 162 m (RMS 0.427); crest at 106.32, 35.44 m; design speed at the crest 17.61 m/s
+round 2: change from last round 14.263 m; chosen car felt - asked +0.52 at 151 m (RMS 0.150); crest at 101.67, 34.04 m; design speed at the crest 14.29 m/s
+round 3: change from last round 5.922 m; chosen car felt - asked +0.35 at 162 m (RMS 0.109); crest at 100.78, 33.79 m; design speed at the crest 14.17 m/s
+round 4: change from last round 2.284 m; chosen car felt - asked +0.17 at 163 m (RMS 0.052); crest at 100.49, 33.75 m; design speed at the crest 14.30 m/s
+round 5: change from last round 0.945 m; chosen car felt - asked +0.08 at 164 m (RMS 0.024); crest at 100.36, 33.74 m; design speed at the crest 14.38 m/s
+round 6: change from last round 0.448 m; chosen car felt - asked +0.04 at 164 m (RMS 0.012); crest at 100.28, 33.74 m; design speed at the crest 14.42 m/s
+round 7: change from last round 0.234 m; chosen car felt - asked +0.02 at 165 m (RMS 0.006); crest at 100.24, 33.74 m; design speed at the crest 14.44 m/s
+round 8: change from last round 0.129 m; chosen car felt - asked +0.02 at 148 m (RMS 0.004); crest at 100.21, 33.74 m; design speed at the crest 14.45 m/s
+round 9: change from last round 0.074 m; chosen car felt - asked +0.01 at 148 m (RMS 0.003); crest at 100.19, 33.74 m; design speed at the crest 14.45 m/s
+round 10: change from last round 0.043 m; chosen car felt - asked +0.02 at 148 m (RMS 0.002); crest at 100.19, 33.74 m; design speed at the crest 14.46 m/s
+round 11: change from last round 0.025 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 100.18, 33.74 m; design speed at the crest 14.46 m/s
+round 12: change from last round 0.015 m; chosen car felt - asked +0.01 at 148 m (RMS 0.002); crest at 100.18, 33.74 m; design speed at the crest 14.46 m/s
+
+## camelback-centre-T-re-solved
+round 0: change from last round - m; chosen car felt - asked -0.07 at 117 m (RMS 0.029); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 0.978 m; chosen car felt - asked -0.05 at 153 m (RMS 0.012); crest at 107.13, 30.00 m; design speed at the crest 15.93 m/s
+round 2: change from last round 0.212 m; chosen car felt - asked +0.02 at 150 m (RMS 0.004); crest at 107.13, 30.00 m; design speed at the crest 15.90 m/s
+round 3: change from last round 0.048 m; chosen car felt - asked +0.01 at 149 m (RMS 0.002); crest at 107.13, 30.00 m; design speed at the crest 15.90 m/s
+round 4: change from last round 0.001 m; chosen car felt - asked +0.01 at 149 m (RMS 0.002); crest at 107.13, 30.00 m; design speed at the crest 15.90 m/s
+
+## camelback-front-T-re-solved
+round 0: change from last round - m; chosen car felt - asked -0.60 at 151 m (RMS 0.213); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 3.238 m; chosen car felt - asked -0.28 at 153 m (RMS 0.073); crest at 110.97, 30.00 m; design speed at the crest 16.39 m/s
+round 2: change from last round 0.868 m; chosen car felt - asked -0.04 at 153 m (RMS 0.011); crest at 111.70, 30.00 m; design speed at the crest 16.67 m/s
+round 3: change from last round 0.142 m; chosen car felt - asked +0.01 at 150 m (RMS 0.002); crest at 111.79, 30.00 m; design speed at the crest 16.72 m/s
+round 4: change from last round 0.055 m; chosen car felt - asked +0.01 at 150 m (RMS 0.002); crest at 111.79, 30.00 m; design speed at the crest 16.72 m/s
+round 5: change from last round 0.003 m; chosen car felt - asked +0.02 at 150 m (RMS 0.002); crest at 111.79, 30.00 m; design speed at the crest 16.72 m/s
+
+## camelback-rear-T-re-solved
+round 0: change from last round - m; chosen car felt - asked -0.52 at 77 m (RMS 0.200); crest at 106.72, 30.00 m; design speed at the crest 15.47 m/s
+round 1: change from last round 3.325 m; chosen car felt - asked +0.19 at 167 m (RMS 0.058); crest at 103.64, 30.00 m; design speed at the crest 16.34 m/s
+round 2: change from last round 1.180 m; chosen car felt - asked +0.06 at 169 m (RMS 0.016); crest at 103.09, 30.00 m; design speed at the crest 16.53 m/s
+round 3: change from last round 0.247 m; chosen car felt - asked +0.01 at 153 m (RMS 0.004); crest at 103.00, 30.00 m; design speed at the crest 16.56 m/s
+round 4: change from last round 0.097 m; chosen car felt - asked +0.02 at 153 m (RMS 0.002); crest at 102.99, 30.00 m; design speed at the crest 16.56 m/s
+round 5: change from last round 0.022 m; chosen car felt - asked +0.01 at 153 m (RMS 0.002); crest at 102.99, 30.00 m; design speed at the crest 16.56 m/s
+round 6: change from last round 0.004 m; chosen car felt - asked +0.01 at 152 m (RMS 0.002); crest at 102.99, 30.00 m; design speed at the crest 16.56 m/s
+
+## loop-centre-T-plain
+round 0: change from last round - m; chosen car felt - asked +0.31 at 68 m (RMS 0.137); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 7.445 m; chosen car felt - asked -0.50 at 82 m (RMS 0.178); crest at 34.69, 20.60 m; design speed at the crest 13.63 m/s
+round 2: change from last round 12.306 m; chosen car felt - asked +0.34 at 79 m (RMS 0.112); crest at 35.23, 20.24 m; design speed at the crest 12.92 m/s
+round 3: change from last round 5.398 m; chosen car felt - asked +0.17 at 95 m (RMS 0.049); crest at 34.98, 20.32 m; design speed at the crest 13.29 m/s
+round 4: change from last round 1.328 m; chosen car felt - asked +0.05 at 79 m (RMS 0.016); crest at 35.05, 20.30 m; design speed at the crest 13.16 m/s
+round 5: change from last round 0.607 m; chosen car felt - asked +0.02 at 92 m (RMS 0.005); crest at 35.04, 20.31 m; design speed at the crest 13.20 m/s
+round 6: change from last round 0.134 m; chosen car felt - asked +0.01 at 80 m (RMS 0.004); crest at 35.05, 20.30 m; design speed at the crest 13.19 m/s
+round 7: change from last round 0.046 m; chosen car felt - asked -0.01 at 53 m (RMS 0.003); crest at 35.05, 20.30 m; design speed at the crest 13.19 m/s
+round 8: change from last round 0.012 m; chosen car felt - asked +0.01 at 80 m (RMS 0.003); crest at 35.05, 20.30 m; design speed at the crest 13.19 m/s
+
+## loop-centre-D-plain
+round 0: change from last round - m; chosen car felt - asked +0.31 at 68 m (RMS 0.137); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 3.908 m; chosen car felt - asked -0.38 at 81 m (RMS 0.139); crest at 34.79, 20.35 m; design speed at the crest 13.61 m/s
+round 2: change from last round 9.045 m; chosen car felt - asked +0.25 at 79 m (RMS 0.084); crest at 35.22, 20.00 m; design speed at the crest 13.13 m/s
+round 3: change from last round 3.872 m; chosen car felt - asked -0.09 at 79 m (RMS 0.031); crest at 34.99, 20.09 m; design speed at the crest 13.45 m/s
+round 4: change from last round 1.138 m; chosen car felt - asked +0.04 at 79 m (RMS 0.013); crest at 35.06, 20.06 m; design speed at the crest 13.33 m/s
+round 5: change from last round 0.396 m; chosen car felt - asked +0.01 at 92 m (RMS 0.003); crest at 35.05, 20.07 m; design speed at the crest 13.37 m/s
+round 6: change from last round 0.095 m; chosen car felt - asked +0.01 at 80 m (RMS 0.004); crest at 35.05, 20.07 m; design speed at the crest 13.36 m/s
+round 7: change from last round 0.030 m; chosen car felt - asked -0.01 at 54 m (RMS 0.003); crest at 35.05, 20.07 m; design speed at the crest 13.36 m/s
+round 8: change from last round 0.007 m; chosen car felt - asked +0.01 at 80 m (RMS 0.003); crest at 35.05, 20.07 m; design speed at the crest 13.36 m/s
+
+## loop-front-T-plain
+round 0: change from last round - m; chosen car felt - asked +1.58 at 58 m (RMS 0.757); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 17.278 m; chosen car felt - asked -3.93 at 87 m (RMS 2.400); crest at 34.21, 29.22 m; design speed at the crest 13.75 m/s
+round 2: change from last round 10.252 m; chosen car felt - asked -3.45 at 83 m (RMS 1.120); crest at 38.23, 29.34 m; design speed at the crest 1.98 m/s; STALL
+
+## loop-front-T-damped
+round 0: change from last round - m; chosen car felt - asked +1.58 at 58 m (RMS 0.757); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 17.278 m; chosen car felt - asked -3.93 at 87 m (RMS 2.400); crest at 34.21, 29.22 m; design speed at the crest 13.75 m/s
+round 2: change from last round 8.002 m; chosen car felt - asked -5.14 at 87 m (RMS 2.403); crest at 35.79, 28.72 m; design speed at the crest 11.14 m/s; STALL
+
+## loop-front-D-plain
+round 0: change from last round - m; chosen car felt - asked +1.58 at 58 m (RMS 0.757); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 29.117 m; chosen car felt - asked -4.18 at 81 m (RMS 1.986); crest at 71.85, 33.42 m; design speed at the crest 21.51 m/s; STALL
+
+## loop-front-D-damped
+round 0: change from last round - m; chosen car felt - asked +1.58 at 58 m (RMS 0.757); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 29.117 m; chosen car felt - asked -4.18 at 81 m (RMS 1.986); crest at 71.85, 33.42 m; design speed at the crest 21.51 m/s; STALL
+
+## loop-rear-T-plain
+round 0: change from last round - m; chosen car felt - asked +1.70 at 77 m (RMS 0.725); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 16.663 m; chosen car felt - asked +2.57 at 83 m (RMS 1.239); crest at 36.66, 13.27 m; design speed at the crest 13.72 m/s
+round 2: change from last round 58.897 m; chosen car felt - asked -1.80 at 92 m (RMS 0.857); crest at 23.50, 18.66 m; design speed at the crest 24.37 m/s
+round 3: change from last round 64.840 m; chosen car felt - asked +5.02 at 77 m (RMS 1.531); crest at 58.90, 20.48 m; design speed at the crest 30.20 m/s
+round 4: change from last round 41.067 m; chosen car felt - asked +2.92 at 105 m (RMS 0.969); crest at 21.79, 19.48 m; design speed at the crest 24.19 m/s
+round 5: change from last round 40.328 m; chosen car felt - asked +5.45 at 75 m (RMS 1.693); crest at 50.66, 24.35 m; design speed at the crest 23.51 m/s; STALL
+
+## loop-rear-T-damped
+round 0: change from last round - m; chosen car felt - asked +1.70 at 77 m (RMS 0.725); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 16.663 m; chosen car felt - asked +2.57 at 83 m (RMS 1.239); crest at 36.66, 13.27 m; design speed at the crest 13.72 m/s
+round 2: change from last round 32.997 m; chosen car felt - asked +1.45 at 103 m (RMS 0.400); crest at 32.59, 15.24 m; design speed at the crest 17.27 m/s
+round 3: change from last round 3.415 m; chosen car felt - asked +0.84 at 103 m (RMS 0.252); crest at 32.87, 14.87 m; design speed at the crest 16.98 m/s
+round 4: change from last round 4.015 m; chosen car felt - asked +0.46 at 104 m (RMS 0.137); crest at 32.64, 14.85 m; design speed at the crest 17.17 m/s
+round 5: change from last round 2.134 m; chosen car felt - asked +0.25 at 105 m (RMS 0.075); crest at 32.53, 14.83 m; design speed at the crest 17.25 m/s
+round 6: change from last round 1.203 m; chosen car felt - asked +0.14 at 105 m (RMS 0.042); crest at 32.48, 14.82 m; design speed at the crest 17.29 m/s
+round 7: change from last round 0.660 m; chosen car felt - asked +0.08 at 105 m (RMS 0.023); crest at 32.44, 14.81 m; design speed at the crest 17.32 m/s
+round 8: change from last round 0.361 m; chosen car felt - asked +0.04 at 105 m (RMS 0.013); crest at 32.41, 14.81 m; design speed at the crest 17.33 m/s
+round 9: change from last round 0.198 m; chosen car felt - asked +0.02 at 104 m (RMS 0.008); crest at 32.42, 14.80 m; design speed at the crest 17.33 m/s
+round 10: change from last round 0.108 m; chosen car felt - asked +0.01 at 104 m (RMS 0.005); crest at 32.41, 14.80 m; design speed at the crest 17.34 m/s
+round 11: change from last round 0.060 m; chosen car felt - asked +0.01 at 104 m (RMS 0.004); crest at 32.40, 14.80 m; design speed at the crest 17.34 m/s
+round 12: change from last round 0.033 m; chosen car felt - asked +0.01 at 89 m (RMS 0.003); crest at 32.40, 14.80 m; design speed at the crest 17.34 m/s
+round 13: change from last round 0.018 m; chosen car felt - asked +0.01 at 86 m (RMS 0.003); crest at 32.40, 14.80 m; design speed at the crest 17.34 m/s
+
+## loop-rear-D-plain
+round 0: change from last round - m; chosen car felt - asked +1.70 at 77 m (RMS 0.725); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 23.732 m; chosen car felt - asked +4.75 at 56 m (RMS 1.803); crest at 38.93, 11.71 m; design speed at the crest 14.25 m/s
+round 2: change from last round 77.159 m; chosen car felt - asked -4.19 at 84 m (RMS 1.953); crest at 18.37, 24.28 m; design speed at the crest 29.05 m/s
+round 3: change from last round 80.229 m; chosen car felt - asked +13.41 at 86 m (RMS 3.852); crest at 38.99, 10.86 m; design speed at the crest 13.95 m/s
+round 4: change from last round 70.774 m; chosen car felt - asked -2.06 at 55 m (RMS 1.198); crest at 20.60, 29.02 m; design speed at the crest 26.89 m/s; STALL
+
+## loop-rear-D-damped
+round 0: change from last round - m; chosen car felt - asked +1.70 at 77 m (RMS 0.725); crest at 36.55, 19.96 m; design speed at the crest 12.39 m/s
+round 1: change from last round 23.732 m; chosen car felt - asked +4.75 at 56 m (RMS 1.803); crest at 38.93, 11.71 m; design speed at the crest 14.25 m/s
+round 2: change from last round 45.964 m; chosen car felt - asked +0.78 at 95 m (RMS 0.295); crest at 34.38, 14.75 m; design speed at the crest 18.56 m/s
+round 3: change from last round 6.725 m; chosen car felt - asked +0.79 at 93 m (RMS 0.269); crest at 35.75, 13.75 m; design speed at the crest 17.53 m/s
+round 4: change from last round 5.271 m; chosen car felt - asked +0.33 at 93 m (RMS 0.098); crest at 35.36, 13.84 m; design speed at the crest 17.98 m/s
+round 5: change from last round 1.222 m; chosen car felt - asked +0.18 at 93 m (RMS 0.055); crest at 35.34, 13.79 m; design speed at the crest 18.05 m/s
+round 6: change from last round 0.790 m; chosen car felt - asked +0.09 at 93 m (RMS 0.027); crest at 35.29, 13.79 m; design speed at the crest 18.11 m/s
+round 7: change from last round 0.337 m; chosen car felt - asked +0.05 at 93 m (RMS 0.014); crest at 35.26, 13.78 m; design speed at the crest 18.14 m/s
+round 8: change from last round 0.171 m; chosen car felt - asked +0.03 at 92 m (RMS 0.008); crest at 35.25, 13.78 m; design speed at the crest 18.15 m/s
+round 9: change from last round 0.084 m; chosen car felt - asked +0.01 at 92 m (RMS 0.005); crest at 35.24, 13.78 m; design speed at the crest 18.16 m/s
+round 10: change from last round 0.043 m; chosen car felt - asked +0.01 at 92 m (RMS 0.004); crest at 35.24, 13.78 m; design speed at the crest 18.16 m/s
+round 11: change from last round 0.022 m; chosen car felt - asked +0.01 at 80 m (RMS 0.003); crest at 35.24, 13.78 m; design speed at the crest 18.16 m/s
+round 12: change from last round 0.011 m; chosen car felt - asked +0.01 at 80 m (RMS 0.003); crest at 35.23, 13.78 m; design speed at the crest 18.17 m/s
+
+## liftcrest-centre-T-plain
+round 0: change from last round - m; chosen car felt - asked -0.46 at 2 m (RMS 0.098); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 7.648 m; chosen car felt - asked -0.19 at 68 m (RMS 0.075); crest at 11.49, -3.27 m; design speed at the crest 10.58 m/s
+round 2: change from last round 19.684 m; chosen car felt - asked +0.41 at 48 m (RMS 0.109); crest at 6.28, -1.49 m; design speed at the crest 5.92 m/s
+round 3: change from last round 10.512 m; chosen car felt - asked +0.62 at 74 m (RMS 0.162); crest at 9.26, -2.49 m; design speed at the crest 8.74 m/s
+round 4: change from last round 4.441 m; chosen car felt - asked +0.15 at 51 m (RMS 0.045); crest at 7.04, -1.74 m; design speed at the crest 6.65 m/s
+round 5: change from last round 4.690 m; chosen car felt - asked +0.20 at 73 m (RMS 0.052); crest at 8.43, -2.20 m; design speed at the crest 7.97 m/s
+round 6: change from last round 2.456 m; chosen car felt - asked -0.07 at 71 m (RMS 0.022); crest at 7.44, -1.87 m; design speed at the crest 7.04 m/s
+round 7: change from last round 2.002 m; chosen car felt - asked +0.07 at 72 m (RMS 0.019); crest at 8.09, -2.08 m; design speed at the crest 7.65 m/s
+round 8: change from last round 1.217 m; chosen car felt - asked -0.04 at 71 m (RMS 0.011); crest at 7.64, -1.93 m; design speed at the crest 7.22 m/s
+round 9: change from last round 0.897 m; chosen car felt - asked +0.03 at 71 m (RMS 0.008); crest at 7.94, -2.03 m; design speed at the crest 7.51 m/s
+round 10: change from last round 0.579 m; chosen car felt - asked -0.02 at 72 m (RMS 0.006); crest at 7.74, -1.97 m; design speed at the crest 7.32 m/s
+round 11: change from last round 0.408 m; chosen car felt - asked +0.01 at 71 m (RMS 0.003); crest at 7.87, -2.01 m; design speed at the crest 7.45 m/s
+round 12: change from last round 0.271 m; chosen car felt - asked -0.01 at 74 m (RMS 0.003); crest at 7.78, -1.98 m; design speed at the crest 7.36 m/s
+round 13: change from last round 0.187 m; chosen car felt - asked +0.01 at 71 m (RMS 0.001); crest at 7.84, -2.00 m; design speed at the crest 7.42 m/s
+round 14: change from last round 0.126 m; chosen car felt - asked -0.01 at 75 m (RMS 0.002); crest at 7.80, -1.98 m; design speed at the crest 7.37 m/s
+round 15: change from last round 0.086 m; chosen car felt - asked +0.00 at 53 m (RMS 0.001); crest at 7.83, -2.00 m; design speed at the crest 7.41 m/s
+round 16: change from last round 0.058 m; chosen car felt - asked +0.01 at 51 m (RMS 0.001); crest at 7.81, -1.99 m; design speed at the crest 7.38 m/s
+round 17: change from last round 0.040 m; chosen car felt - asked +0.00 at 53 m (RMS 0.001); crest at 7.82, -1.99 m; design speed at the crest 7.40 m/s
+round 18: change from last round 0.027 m; chosen car felt - asked +0.01 at 54 m (RMS 0.001); crest at 7.81, -1.99 m; design speed at the crest 7.39 m/s
+round 19: change from last round 0.018 m; chosen car felt - asked +0.00 at 51 m (RMS 0.001); crest at 7.82, -1.99 m; design speed at the crest 7.40 m/s
+
+## liftcrest-centre-D-plain
+round 0: change from last round - m; chosen car felt - asked -0.46 at 2 m (RMS 0.098); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 12.195 m; chosen car felt - asked -0.35 at 62 m (RMS 0.117); crest at 9.50, -2.74 m; design speed at the crest 9.43 m/s
+round 2: change from last round 5.302 m; chosen car felt - asked +0.31 at 61 m (RMS 0.095); crest at 6.56, -1.66 m; design speed at the crest 6.50 m/s
+round 3: change from last round 4.045 m; chosen car felt - asked -0.14 at 61 m (RMS 0.042); crest at 7.87, -2.14 m; design speed at the crest 7.88 m/s
+round 4: change from last round 1.558 m; chosen car felt - asked +0.08 at 60 m (RMS 0.025); crest at 7.13, -1.87 m; design speed at the crest 7.11 m/s
+round 5: change from last round 0.976 m; chosen car felt - asked -0.04 at 61 m (RMS 0.012); crest at 7.50, -2.00 m; design speed at the crest 7.50 m/s
+round 6: change from last round 0.457 m; chosen car felt - asked +0.02 at 58 m (RMS 0.007); crest at 7.31, -1.93 m; design speed at the crest 7.29 m/s
+round 7: change from last round 0.251 m; chosen car felt - asked -0.01 at 63 m (RMS 0.003); crest at 7.40, -1.97 m; design speed at the crest 7.40 m/s
+round 8: change from last round 0.127 m; chosen car felt - asked +0.01 at 55 m (RMS 0.002); crest at 7.35, -1.95 m; design speed at the crest 7.34 m/s
+round 9: change from last round 0.067 m; chosen car felt - asked -0.00 at 74 m (RMS 0.001); crest at 7.37, -1.95 m; design speed at the crest 7.37 m/s
+round 10: change from last round 0.034 m; chosen car felt - asked +0.01 at 55 m (RMS 0.001); crest at 7.37, -1.95 m; design speed at the crest 7.36 m/s
+round 11: change from last round 0.018 m; chosen car felt - asked +0.00 at 53 m (RMS 0.001); crest at 7.37, -1.95 m; design speed at the crest 7.36 m/s
+
+## liftcrest-front-T-plain
+round 0: change from last round - m; chosen car felt - asked -0.38 at 59 m (RMS 0.116); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 79.966 m; chosen car felt - asked -0.40 at 67 m (RMS 0.195); crest at 4.10, -0.83 m; design speed at the crest 3.55 m/s; STALL
+
+## liftcrest-front-T-damped
+round 0: change from last round - m; chosen car felt - asked -0.38 at 59 m (RMS 0.116); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 79.966 m; chosen car felt - asked -0.40 at 67 m (RMS 0.195); crest at 4.10, -0.83 m; design speed at the crest 3.55 m/s; STALL
+
+## liftcrest-front-D-plain
+round 0: change from last round - m; chosen car felt - asked -0.38 at 59 m (RMS 0.116); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 5.285 m; chosen car felt - asked +0.27 at 60 m (RMS 0.073); crest at 4.09, -0.83 m; design speed at the crest 3.55 m/s
+round 2: change from last round 6.810 m; chosen car felt - asked +0.01 at 75 m (RMS 0.003); crest at 4.10, -0.83 m; design speed at the crest 3.56 m/s
+round 3: change from last round 0.102 m; chosen car felt - asked +0.01 at 53 m (RMS 0.001); crest at 4.10, -0.83 m; design speed at the crest 3.56 m/s
+round 4: change from last round 0.001 m; chosen car felt - asked +0.00 at 53 m (RMS 0.001); crest at 4.10, -0.83 m; design speed at the crest 3.56 m/s
+
+## liftcrest-rear-T-plain
+round 0: change from last round - m; chosen car felt - asked -2.18 at 2 m (RMS 0.408); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 24.949 m; chosen car felt - asked +0.30 at 9 m (RMS 0.176); crest at 63.18, -22.33 m; design speed at the crest 28.86 m/s
+round 2: change from last round 61.202 m; chosen car felt - asked +1.91 at 39 m (RMS 0.604); crest at 6.80, -1.59 m; design speed at the crest 5.99 m/s; STALL
+
+## liftcrest-rear-T-damped
+round 0: change from last round - m; chosen car felt - asked -2.18 at 2 m (RMS 0.408); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 24.949 m; chosen car felt - asked +0.30 at 9 m (RMS 0.176); crest at 63.18, -22.33 m; design speed at the crest 28.86 m/s
+round 2: change from last round 13.589 m; chosen car felt - asked +0.16 at 72 m (RMS 0.047); crest at 20.72, -6.21 m; design speed at the crest 14.77 m/s
+round 3: change from last round 1.835 m; chosen car felt - asked +0.15 at 69 m (RMS 0.037); crest at 17.74, -5.22 m; design speed at the crest 13.43 m/s
+round 4: change from last round 1.390 m; chosen car felt - asked +0.11 at 73 m (RMS 0.029); crest at 17.84, -5.30 m; design speed at the crest 13.63 m/s
+round 5: change from last round 0.936 m; chosen car felt - asked +0.07 at 75 m (RMS 0.021); crest at 17.92, -5.34 m; design speed at the crest 13.75 m/s
+round 6: change from last round 0.618 m; chosen car felt - asked +0.05 at 79 m (RMS 0.015); crest at 17.96, -5.37 m; design speed at the crest 13.81 m/s
+round 7: change from last round 0.395 m; chosen car felt - asked +0.03 at 80 m (RMS 0.010); crest at 17.98, -5.38 m; design speed at the crest 13.83 m/s
+round 8: change from last round 0.246 m; chosen car felt - asked +0.02 at 80 m (RMS 0.006); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+round 9: change from last round 0.150 m; chosen car felt - asked +0.01 at 80 m (RMS 0.004); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+round 10: change from last round 0.090 m; chosen car felt - asked +0.01 at 80 m (RMS 0.002); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+round 11: change from last round 0.053 m; chosen car felt - asked +0.01 at 68 m (RMS 0.002); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+round 12: change from last round 0.032 m; chosen car felt - asked +0.00 at 68 m (RMS 0.001); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+round 13: change from last round 0.018 m; chosen car felt - asked +0.00 at 65 m (RMS 0.001); crest at 17.99, -5.38 m; design speed at the crest 13.84 m/s
+
+## liftcrest-rear-D-plain
+round 0: change from last round - m; chosen car felt - asked -2.18 at 2 m (RMS 0.408); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 43.203 m; chosen car felt - asked -1.34 at 67 m (RMS 0.411); crest at 139.05, -2.90 m; design speed at the crest 28.20 m/s; STALL
+
+## liftcrest-rear-D-damped
+round 0: change from last round - m; chosen car felt - asked -2.18 at 2 m (RMS 0.408); crest at 4.77, -1.14 m; design speed at the crest 5.42 m/s
+round 1: change from last round 43.203 m; chosen car felt - asked -1.34 at 67 m (RMS 0.411); crest at 139.05, -2.90 m; design speed at the crest 28.20 m/s; STALL

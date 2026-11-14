@@ -1,0 +1,142 @@
+# X1: the design following a chosen car, by repetition
+
+Train: 9 cars 2.2 m apart (19.8 m; R7's "long" train). Car 1 is the front car, car 5 the centre, car 9 the rear. Every force here is from `fvdcore ride` on the written project (CSV points every 0.1 m).
+
+## Does it settle
+
+Status after the rounds (round 0 is the point design; "settled": the shape moved less than 2 cm between two rounds at the same rail length). Felt minus asked: the chosen car's largest difference over the element (g, and where: metres into the element), on the point design and on the last round. Speed at the crest: the point's on the point design / the speed used for the design at the crest on the last round.
+
+| shape | chosen car | reading | repetition | status | rounds | felt - asked, point design | felt - asked, last round | speed at the crest (m/s) |
+|---|---|---|---|---|---|---|---|---|
+| camelback | centre | T | plain | settled | 5 | -0.07 at 117 m | +0.01 at 148 m | 15.47 / 15.69 |
+| camelback | centre | D | plain | settled | 6 | -0.07 at 117 m | +0.02 at 148 m | 15.47 / 15.55 |
+| camelback | front | T | plain | settled | 5 | -0.60 at 151 m | +0.02 at 148 m | 15.47 / 15.54 |
+| camelback | front | D | plain | settled | 5 | -0.60 at 151 m | +0.01 at 148 m | 15.47 / 16.46 |
+| camelback | rear | T | plain | settled | 9 | -0.52 at 77 m | +0.01 at 146 m | 15.47 / 16.57 |
+| camelback | rear | D | plain | not settled | 20 | -0.52 at 77 m | +0.06 at 150 m | 15.47 / 14.38 |
+| camelback | rear | D | damped | settled | 12 | -0.52 at 77 m | +0.01 at 148 m | 15.47 / 14.46 |
+| loop | centre | T | plain | settled | 8 | +0.31 at 68 m | +0.01 at 80 m | 12.39 / 13.19 |
+| loop | centre | D | plain | settled | 8 | +0.31 at 68 m | +0.01 at 80 m | 12.39 / 13.36 |
+| loop | front | T | plain | stall | 2 | +1.58 at 58 m | -3.45 at 83 m | 12.39 / 1.98 |
+| loop | front | T | damped | stall | 2 | +1.58 at 58 m | -5.14 at 87 m | 12.39 / 11.14 |
+| loop | front | D | plain | stall | 1 | +1.58 at 58 m | -4.18 at 81 m | 12.39 / 21.51 |
+| loop | front | D | damped | stall | 1 | +1.58 at 58 m | -4.18 at 81 m | 12.39 / 21.51 |
+| loop | rear | T | plain | stall | 5 | +1.70 at 77 m | +5.45 at 75 m | 12.39 / 23.51 |
+| loop | rear | T | damped | settled | 13 | +1.70 at 77 m | +0.01 at 86 m | 12.39 / 17.34 |
+| loop | rear | D | plain | stall | 4 | +1.70 at 77 m | -2.06 at 55 m | 12.39 / 26.89 |
+| loop | rear | D | damped | settled | 12 | +1.70 at 77 m | +0.01 at 80 m | 12.39 / 18.17 |
+| liftcrest | centre | T | plain | settled | 19 | -0.46 at 2 m | +0.00 at 51 m | 5.42 / 7.40 |
+| liftcrest | centre | D | plain | settled | 11 | -0.46 at 2 m | +0.00 at 53 m | 5.42 / 7.36 |
+| liftcrest | front | T | plain | stall | 1 | -0.38 at 59 m | -0.40 at 67 m | 5.42 / 3.55 |
+| liftcrest | front | T | damped | stall | 1 | -0.38 at 59 m | -0.40 at 67 m | 5.42 / 3.55 |
+| liftcrest | front | D | plain | settled | 4 | -0.38 at 59 m | +0.00 at 53 m | 5.42 / 3.56 |
+| liftcrest | rear | T | plain | stall | 2 | -2.18 at 2 m | +1.91 at 39 m | 5.42 / 5.99 |
+| liftcrest | rear | T | damped | settled | 13 | -2.18 at 2 m | +0.00 at 65 m | 5.42 / 13.84 |
+| liftcrest | rear | D | plain | stall | 1 | -2.18 at 2 m | -1.34 at 67 m | 5.42 / 28.20 |
+| liftcrest | rear | D | damped | stall | 1 | -2.18 at 2 m | -1.34 at 67 m | 5.42 / 28.20 |
+
+## How far the shape moves (last round against the point design)
+
+Crest (camelback crest, loop top, lift crest: where the drop passes -30 deg) moved along / up (m); the largest distance from the new shape to the old (m, and where: metres into the element), before the final level run-out and over the whole element; exit pitch change (deg); exit height / horizontal change (m); element length change (m of rail). A "stall" row describes the last design, which the train cannot ride to its end; its numbers say how far the repetition went astray, not a usable shape.
+
+| shape | chosen car | reading | repetition | status | crest moved | largest gap before the run-out | largest gap | exit pitch | exit height / along | length |
+|---|---|---|---|---|---|---|---|---|---|---|
+| camelback | centre | T | plain | settled | +0.28 / +0.36 | 1.92 at 179 m | 3.25 at 216 m | +2.0 | +3.26 / -2.1 | -2.3 |
+| camelback | centre | D | plain | settled | +0.19 / +0.59 | 2.12 at 179 m | 4.29 at 218 m | +3.2 | +4.31 / -0.1 | +0.0 |
+| camelback | front | T | plain | settled | +4.84 / +2.13 | 9.25 at 173 m | 14.90 at 206 m | +10.1 | +14.95 / -11.8 | -12.0 |
+| camelback | front | D | plain | settled | +4.91 / +0.48 | 9.88 at 179 m | 23.15 at 219 m | +21.7 | +23.16 / -0.7 | +0.0 |
+| camelback | rear | T | plain | settled | -3.72 / -0.00 | 4.81 at 176 m | 9.20 at 211 m | +7.5 | +9.22 / -7.4 | -8.2 |
+| camelback | rear | D | plain | not settled | -6.61 / +3.72 | 5.83 at 105 m | 5.83 at 105 m | +1.4 | +3.36 / -5.3 | +0.0 |
+| camelback | rear | D | damped | settled | -6.55 / +3.74 | 5.83 at 105 m | 5.83 at 105 m | +1.3 | +3.58 / -5.1 | +0.0 |
+| loop | centre | T | plain | settled | -1.51 / +0.35 | 2.00 at 81 m | 2.58 at 123 m | +2.6 | +2.59 / -3.9 | -1.3 |
+| loop | centre | D | plain | settled | -1.51 / +0.11 | 2.05 at 103 m | 4.17 at 124 m | +5.7 | +4.21 / -2.1 | +0.0 |
+| loop | front | T | plain | stall | +1.67 / +9.38 | 9.09 at 85 m | 9.57 at 87 m | +10062.7 | +24.53 / -27.2 | -37.5 |
+| loop | front | T | damped | stall | -0.76 / +8.77 | 8.79 at 78 m | 11.63 at 107 m | +1041.8 | +10.77 / -17.1 | -16.2 |
+| loop | front | D | plain | stall | +35.29 / +13.46 | 12.59 at 102 m | 29.02 at 124 m | +19.0 | +28.72 / +5.1 | +0.0 |
+| loop | front | D | damped | stall | +35.29 / +13.46 | 12.59 at 102 m | 29.02 at 124 m | +19.0 | +28.72 / +5.1 | +0.0 |
+| loop | rear | T | plain | stall | +14.10 / +4.39 | 9.09 at 79 m | 19.64 at 117 m | +67.3 | +19.66 / -16.1 | -7.4 |
+| loop | rear | T | damped | settled | -4.16 / -5.16 | 32.62 at 120 m | 54.67 at 157 m | -39.4 | -54.30 / -14.4 | +33.0 |
+| loop | rear | D | plain | stall | -15.95 / +9.06 | 21.68 at 102 m | 27.58 at 124 m | -80.1 | -7.40 / -61.3 | +0.0 |
+| loop | rear | D | damped | settled | -1.32 / -6.18 | 26.58 at 103 m | 40.98 at 124 m | -59.4 | -40.03 / -37.0 | +0.0 |
+| liftcrest | centre | T | plain | settled | +3.05 / -0.85 | 4.30 at 88 m | 7.53 at 140 m | +3.5 | +7.55 / -3.7 | -5.7 |
+| liftcrest | centre | D | plain | settled | +2.60 / -0.81 | 4.63 at 89 m | 10.32 at 146 m | +5.7 | +10.27 / +1.7 | +0.0 |
+| liftcrest | front | T | plain | stall | -0.67 / +0.31 | 13.64 at 46 m | 75.64 at 100 m | +64.2 | +78.11 / -64.2 | -46.4 |
+| liftcrest | front | T | damped | stall | -0.67 / +0.31 | 13.64 at 46 m | 75.64 at 100 m | +64.2 | +78.11 / -64.2 | -46.4 |
+| liftcrest | front | D | plain | settled | -0.67 / +0.31 | 5.17 at 59 m | 5.65 at 146 m | -1.4 | -5.66 / -4.0 | +0.0 |
+| liftcrest | rear | T | plain | stall | +2.03 / -0.45 | 16.72 at 58 m | 62.18 at 107 m | +55.2 | +62.51 / -51.1 | -39.3 |
+| liftcrest | rear | T | damped | settled | +13.22 / -4.24 | 11.79 at 56 m | 13.96 at 153 m | +6.5 | +9.56 / +10.3 | +6.6 |
+| liftcrest | rear | D | plain | stall | +134.28 / -1.76 | 26.32 at 89 m | 43.12 at 146 m | +16.7 | +42.10 / +9.9 | +0.0 |
+| liftcrest | rear | D | damped | stall | +134.28 / -1.76 | 26.32 at 89 m | 43.12 at 146 m | +16.7 | +42.10 / +9.9 | +0.0 |
+
+## What each car feels (fvdcore ride)
+
+Lowest and highest vertical force (g), seconds below 0 g and below -0.5 g (ejector), and the car's largest felt-minus-asked over the element, where asked is what that design asks.
+
+| shape | design | car | lowest gz | highest gz | below 0 g (s) | ejector (s) | felt - asked |
+|---|---|---|---|---|---|---|---|
+| camelback | point design | centre | -0.27 | 3.47 | 3.19 | 0.00 | -0.07 at 117 m |
+| camelback | point design | front | -0.60 | 3.81 | 2.64 | 0.97 | -0.60 at 151 m |
+| camelback | point design | rear | -0.58 | 3.87 | 2.37 | 0.85 | -0.52 at 77 m |
+| camelback | for the centre, T | centre | -0.20 | 3.50 | 3.24 | 0.00 | +0.01 at 148 m |
+| camelback | for the centre, T | front | -0.56 | 3.85 | 2.41 | 0.75 | -0.57 at 151 m |
+| camelback | for the centre, T | rear | -0.54 | 3.91 | 2.18 | 0.60 | -0.50 at 77 m |
+| camelback | for the centre, D | centre | -0.20 | 3.50 | 3.25 | 0.00 | +0.02 at 148 m |
+| camelback | for the centre, D | front | -0.56 | 3.86 | 2.37 | 0.79 | -0.58 at 151 m |
+| camelback | for the centre, D | rear | -0.55 | 3.91 | 2.17 | 0.65 | -0.50 at 77 m |
+| camelback | for the front, T | centre | -0.54 | 4.42 | 1.76 | 0.50 | +0.93 at 150 m |
+| camelback | for the front, T | front | -0.20 | 3.50 | 3.24 | 0.00 | +0.02 at 148 m |
+| camelback | for the front, T | rear | -1.01 | 4.99 | 1.47 | 0.99 | +1.51 at 150 m |
+| camelback | for the front, D | centre | -0.50 | 4.26 | 1.91 | 0.00 | +0.77 at 151 m |
+| camelback | for the front, D | front | -0.20 | 3.50 | 3.16 | 0.00 | +0.01 at 148 m |
+| camelback | for the front, D | rear | -0.90 | 4.72 | 1.50 | 0.94 | +1.25 at 150 m |
+| camelback | for the rear, T | centre | -0.50 | 4.13 | 2.28 | 0.15 | +0.64 at 76 m |
+| camelback | for the rear, T | front | -0.93 | 4.59 | 1.79 | 1.18 | +1.12 at 76 m |
+| camelback | for the rear, T | rear | -0.20 | 3.50 | 3.24 | 0.00 | +0.01 at 146 m |
+| camelback | for the rear, D | centre | -0.60 | 4.23 | 2.13 | 0.85 | +0.76 at 78 m |
+| camelback | for the rear, D | front | -1.23 | 4.77 | 1.72 | 1.28 | +1.34 at 78 m |
+| camelback | for the rear, D | rear | -0.22 | 3.56 | 3.52 | 0.00 | +0.06 at 150 m |
+| camelback | for the rear, D, damped | centre | -0.60 | 4.23 | 2.01 | 0.84 | +0.76 at 78 m |
+| camelback | for the rear, D, damped | front | -1.22 | 4.77 | 1.71 | 1.27 | +1.34 at 78 m |
+| camelback | for the rear, D, damped | rear | -0.20 | 3.50 | 3.52 | 0.00 | +0.01 at 148 m |
+| loop | point design | centre | 0.76 | 4.11 | 0.00 | 0.00 | +0.31 at 68 m |
+| loop | point design | front | 0.99 | 4.84 | 0.00 | 0.00 | +1.58 at 58 m |
+| loop | point design | rear | 0.85 | 4.99 | 0.00 | 0.00 | +1.70 at 77 m |
+| loop | for the centre, T | centre | 0.50 | 4.20 | 0.00 | 0.00 | +0.01 at 80 m |
+| loop | for the centre, T | front | 0.72 | 4.96 | 0.00 | 0.00 | +1.40 at 56 m |
+| loop | for the centre, T | rear | 0.54 | 5.13 | 0.00 | 0.00 | +1.47 at 79 m |
+| loop | for the centre, D | centre | 0.50 | 4.20 | 0.00 | 0.00 | +0.01 at 80 m |
+| loop | for the centre, D | front | 0.76 | 4.99 | 0.00 | 0.00 | +1.42 at 56 m |
+| loop | for the centre, D | rear | 0.55 | 5.14 | 0.00 | 0.00 | +1.49 at 79 m |
+| loop | for the rear, T, damped | centre | 0.18 | 5.53 | 0.00 | 0.00 | +1.41 at 45 m |
+| loop | for the rear, T, damped | front | 0.05 | 6.73 | 0.00 | 0.00 | +2.86 at 48 m |
+| loop | for the rear, T, damped | rear | 0.50 | 4.20 | 0.00 | 0.00 | +0.01 at 86 m |
+| loop | for the rear, D, damped | centre | 0.19 | 5.50 | 0.00 | 0.00 | +1.31 at 46 m |
+| loop | for the rear, D, damped | front | 0.04 | 6.83 | 0.00 | 0.00 | +2.79 at 48 m |
+| loop | for the rear, D, damped | rear | 0.50 | 4.21 | 0.00 | 0.00 | +0.01 at 80 m |
+| liftcrest | point design | centre | 0.17 | 3.46 | 0.00 | 0.00 | -0.46 at 2 m |
+| liftcrest | point design | front | 0.61 | 3.23 | 0.00 | 0.00 | -0.38 at 59 m |
+| liftcrest | point design | rear | -1.55 | 3.64 | 0.41 | 0.26 | -2.18 at 2 m |
+| liftcrest | for the centre, T | centre | 0.60 | 3.50 | 0.00 | 0.00 | +0.00 at 51 m |
+| liftcrest | for the centre, T | front | 0.62 | 3.27 | 0.00 | 0.00 | -0.36 at 59 m |
+| liftcrest | for the centre, T | rear | -0.18 | 3.68 | 0.29 | 0.00 | -0.79 at 4 m |
+| liftcrest | for the centre, D | centre | 0.60 | 3.50 | 0.00 | 0.00 | +0.00 at 53 m |
+| liftcrest | for the centre, D | front | 0.62 | 3.28 | 0.00 | 0.00 | -0.35 at 58 m |
+| liftcrest | for the centre, D | rear | -0.24 | 3.67 | 0.32 | 0.00 | -0.84 at 3 m |
+| liftcrest | for the front, D | centre | -0.20 | 3.86 | 0.34 | 0.00 | -0.80 at 3 m |
+| liftcrest | for the front, D | front | 0.60 | 3.50 | 0.00 | 0.00 | +0.00 at 53 m |
+| liftcrest | for the front, D | rear | -2.64 | 4.08 | 0.52 | 0.40 | -3.25 at 3 m |
+| liftcrest | for the rear, T, damped | centre | 0.62 | 3.44 | 0.00 | 0.00 | +0.25 at 6 m |
+| liftcrest | for the rear, T, damped | front | 0.65 | 3.26 | 0.00 | 0.00 | -0.45 at 72 m |
+| liftcrest | for the rear, T, damped | rear | 0.60 | 3.50 | 0.00 | 0.00 | +0.00 at 65 m |
+
+## Other ways to compute
+
+| shape | method | chosen car | reading | result | felt - asked (chosen car) | gap to the repeated design | note |
+|---|---|---|---|---|---|---|---|
+| camelback | shape and train solved together, one pass | front | T | ridden | +0.02 at 148 m | 0.001 m at 147 m | lowest design speed 14.45 m/s; pitch turned 10 deg in all |
+| camelback | durations re-solved each round (R7 B) | centre | T | settled after 4 rounds | +0.01 at 149 m | - | durations 0.472 / 3.176 / 0.395 s; crest +0.41 m along, 30.00 m high; exit pitch +0.00 deg |
+| camelback | durations re-solved each round (R7 B) | front | T | settled after 5 rounds | +0.02 at 150 m | - | durations 0.399 / 3.201 / 0.329 s; crest +5.07 m along, 30.00 m high; exit pitch +0.00 deg |
+| camelback | durations re-solved each round (R7 B) | rear | T | settled after 6 rounds | +0.01 at 152 m | - | durations 0.490 / 3.376 / 0.443 s; crest -3.73 m along, 30.00 m high; exit pitch +0.00 deg |
+| loop | shape and train solved together, one pass | front | T | ridden | -4.87 at 83 m | - | lowest design speed 4.10 m/s; pitch turned 2874 deg in all |
+| liftcrest | shape and train solved together, one pass | front | T | stalled | +0.01 at 27 m | - | lowest design speed 3.50 m/s; pitch turned 52 deg in all |
+
