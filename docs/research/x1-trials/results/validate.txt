@@ -65,6 +65,16 @@ The program's point ridden on the design; "asked" is the force program at the pl
 | liftcrest | 0.1 m | +0.004 at 52.4 m, RMS 0.0011 | +0.004 at 53.5 m, RMS 0.0011 |
 | liftcrest | 0.25 m | +0.014 at 54.5 m, RMS 0.0032 | +0.004 at 53.5 m, RMS 0.0011 |
 
+## The one-pass train (x1lib.TrainAhead) against fvdcore ride
+
+On each point design (a fixed shape): the train's speed when the FRONT car is at each node of the element, computed by `TrainAhead` (the ride's rules in Python, as the one-pass "solve together" uses them) and by `fvdcore ride` (`--cars 9 --pitch 2.2`, by place). Largest difference over the element.
+
+| shape | largest speed difference (m/s) |
+|---|---|
+| camelback | 0.0002 |
+| loop | 0.0003 |
+| liftcrest | 0.0001 |
+
 ## The CSV section's search fault, on a plain straight
 
 `work/uneven-straight.csv` (made by this script): a level straight of 2,001 points from x = 0 to 200.02 m, spacing shrinking from 0.12 to 0.08 m. `fvdcore import csv work/uneven-straight.csv work/uneven-straight.fvd`, then `fvdcore nodes work/uneven-straight.fvd --every-m 20 --frame anchor`: the last node has dist_m 226.54 m at heart_x 200.02 m. The centre-line length of a straight is overstated by 13.3 %.

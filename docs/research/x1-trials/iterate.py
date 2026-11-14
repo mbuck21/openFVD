@@ -32,8 +32,11 @@ it repeats: design (round 0 with the program's point); write the design as a
 project; ride it with `fvdcore ride` and the train; take the train's speed
 when the chosen car is at each place; design again with it. It stops when
 the shape moves less than 2 cm between two rounds (at the same rail length),
-or after 20 rounds; if plain repetition does not settle, it is run again
-with each round's speed halfway between the old and the new (damped).
+or after 20 rounds. Every case is run twice: "plain" (each design uses the
+last ride's speed as it is) and "rule", the rule the note recommends for P2:
+the first redesign uses the point design's ride as it is, every later one the
+mean of the new speed and the speed used last (blended half-and-half), with
+the same stop at 2 cm or 20 rounds.
 
 Then, for the front car only: one pass that solves the shape and the
 train's energy together (x1lib.TrainAhead). And for the camelback: R7's
@@ -116,7 +119,9 @@ def iterate(case, base, weight, resolve=None):
         gap = X.same_L_gap(nodes, prev) if prev is not None else None
         top = X.crest(case.sd, nodes)
         case.rounds.append(dict(k=k, gap=gap, err=err, crest=(top['x'], top['y']),
-                                stalled=rd['stalled'], v_crest=top['v']))
+                                stalled=rd['stalled'], v_crest=top['v'],
+                                stall_at=rd['stall']['place_m'] if rd['stalled'] else None,
+                                highest=max(n['y'] for n in nodes)))
         if rd['stalled']:
             case.result = ('stall', k, nodes, rd, proj, steps)
             return
@@ -195,7 +200,7 @@ def main():
     if quick:
         shapes = shapes[:1]
     rows_main, rows_feel, rows_shape, rows_extra = [], [], [], []
-    rows_time = []
+    rows_time, rows_rule = [], []
     for sd in shapes:
         s0 = X.lift_length(sd)
         base = X.design(sd)
@@ -211,11 +216,12 @@ def main():
             for reading in ('T', 'D'):
                 case = Case(sd, choice, car, reading)
                 iterate(case, base, 1.0)
-                tried = [case]
-                if case.result[0] != 'settled':
-                    damped = Case(sd, choice, car, reading, mode='damped')
-                    iterate(damped, base, 0.5)
-                    tried.append(damped)
+                rule = Case(sd, choice, car, reading, mode='rule')
+                iterate(rule, base, 0.5)
+                tried = [case, rule]
+                rows_rule.append([sd.key, choice, reading,
+                                  '%s, %d' % case.result[:2], '%s, %d' % rule.result[:2]])
+                written = False
                 for c in tried:
                     status, k, nodes, rd, proj, _ = c.result
                     for r in c.rounds:
@@ -239,13 +245,14 @@ def main():
                     if status != 'stall':
                         for name, mn, mx, bz, ej, err in summary_cars(rd, nodes, s0):
                             rows_feel.append([sd.key, 'for the %s, %s%s' % (
-                                choice, reading, '' if c.mode == 'plain' else ', damped'),
+                                choice, reading, '' if c.mode == 'plain' else ', rule'),
                                 name, '%.2f' % mn, '%.2f' % mx, '%.2f' % bz, '%.2f' % ej,
                                 fmt_err(err)])
                     n_r = len(c.rounds)
                     rows_time.append([c.tag, str(n_r), '%.2f' % (c.times['design'] / max(n_r - 1, 1)),
                                       '%.2f' % (c.times['write'] / n_r), '%.2f' % (c.times['ride'] / n_r)])
-                    if reading == 'T' and status == 'settled':
+                    if reading == 'T' and status == 'settled' and not written:
+                        written = True
                         X.write_project(sd, nodes, X.PROJECTS / ('%s-%s.fvd' % (sd.key, choice)),
                                         name='%s designed for the %s car' % (sd.key, choice))
                         (X.PROJECTS / ('%s-%s.json' % (sd.key, choice))).unlink()
@@ -262,11 +269,19 @@ def main():
         'Felt minus asked: the chosen car\'s largest difference over the element '
         '(g, and where: metres into the element), on the point design and on the '
         'last round. Speed at the crest: the point\'s on the point design / the '
-        'speed used for the design at the crest on the last round.')
+        'speed used for the design at the crest on the last round. Repetition: '
+        '"plain" uses each ride\'s speed as it is; "rule" blends it half-and-half '
+        'with the speed used last, from the second redesign on.')
     rep('')
     rep.table(['shape', 'chosen car', 'reading', 'repetition', 'status', 'rounds',
                'felt - asked, point design', 'felt - asked, last round',
-               'speed at the crest (m/s)'], rows_main)
+               'speed at the crest (m/s): point on the point design / design speed, last round'],
+              rows_main)
+    rep('## Plain repetition against the rule')
+    rep('')
+    rep('Status and rounds (redesigns) of each case, plain and with the rule.')
+    rep('')
+    rep.table(['shape', 'chosen car', 'reading', 'plain', 'rule'], rows_rule)
     rep('## How far the shape moves (last round against the point design)')
     rep('')
     rep('Crest (camelback crest, loop top, lift crest: where the drop passes '
@@ -309,7 +324,9 @@ def rnd_row(rnd, c, r):
         'crest at %.2f, %.2f m; design speed at the crest %.2f m/s%s' % (
             r['k'], '-' if r['gap'] is None else '%.3f' % r['gap'], fmt_err(r['err']),
             r['err'][2], r['crest'][0], r['crest'][1], r['v_crest'],
-            '; STALL' if r['stalled'] else ''))
+            ('; STALL: the train stops %.1f m along the track; the highest '
+             'point of the design is %.1f m above its start' % (r['stall_at'], r['highest']))
+            if r['stalled'] else ''))
 
 
 _REPEATED = {}

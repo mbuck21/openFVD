@@ -10,10 +10,10 @@ The scripts behind `docs/research/x1-design-for-a-car.md`. Nothing in the progra
 | Script | What | Run time here |
 |---|---|---|
 | `validate.py` | step 0: the stand-in against the program's own design (the point design made both ways and ridden by the program with the point and the train), the measuring floor, and the CSV section's search fault on a plain straight | under a minute |
-| `iterate.py` | the trial: three shapes x three chosen cars x two readings, repeated until the shape settles (damped if plain repetition does not settle); for the front car the one-pass "solve together"; for the camelback R7's version B (durations re-solved each round). Writes `results/iterate.txt`, `results/iterate-rounds.txt` (every round), `results/iterate-times.txt` (wall times) and `projects/<shape>-<car>.fvd` | about 2 minutes |
+| `iterate.py` | the trial: three shapes x three chosen cars x two readings, each repeated until the shape settles, both plain and with the rule the note recommends (the new speed blended half-and-half with the last one used from the second redesign on); for the front car the one-pass "solve together"; for the camelback R7's version B (durations re-solved each round). Writes `results/iterate.txt`, `results/iterate-rounds.txt` (every round), `results/iterate-times.txt` (wall times) and `projects/<shape>-<car>.fvd` | about 2 to 3 minutes |
 | `timing.py` | what one round costs in the program: `fvdcore ride` with the 9-car train and a whole-track recompute, on a 14,000-node project and R7's camelback. Run it alone | under a minute |
 
-`iterate.py --quick` runs the camelback for the centre and front cars only (about 20 seconds; it writes `results/iterate-quick.txt`, `iterate-rounds-quick.txt` and `iterate-times-quick.txt`, which are not kept).
+`iterate.py --quick` runs the camelback for the centre and front cars only (about 20 seconds; it writes `results/iterate-quick.txt`, `iterate-rounds-quick.txt` and `iterate-times-quick.txt`, which are not kept (git ignores them). It also rewrites two committed projects, `projects/camelback-centre.fvd` and `camelback-front.fvd`; they come out byte for byte the same as the full run's.
 
 Running a script twice gives the same `results/<name>.txt`, except `iterate-times.txt` and `timing.txt`, which are wall times.
 

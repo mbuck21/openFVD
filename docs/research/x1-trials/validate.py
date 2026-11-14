@@ -71,6 +71,21 @@ def uneven_straight():
     return (float(last[head.index('dist_m')]), float(last[head.index('heart_x')]))
 
 
+def train_ahead_rows():
+    rows = []
+    for sd in X.shapes():
+        nodes = X.design(sd)
+        s0 = X.lift_length(sd)
+        ta = X.TrainAhead(s0, nodes[0]['y09'], sd.v0,
+                          chain=(s0, sd.lift[1]) if sd.lift else None)
+        mine = [ta.speed(s0 + n['L'], n['y09']) for n in nodes]
+        proj = X.write_project(sd, nodes, X.WORK / ('%s-point-trainahead.fvd' % sd.key))
+        ride = X.car_speed_fn(X.prepare(X.ride(proj)), 0, s0)
+        worst = max(abs(v - ride(n['L'])) for v, n in zip(mine, nodes))
+        rows.append([sd.key, '%.4f' % worst])
+    return rows
+
+
 def main():
     X.need_exe()
     X.WORK.mkdir(exist_ok=True)
@@ -136,6 +151,15 @@ def main():
         'element (m into the element) and its RMS, in g.')
     rep('')
     rep.table(['shape', 'CSV spacing', 'stand-in shape', 'program\'s own shape'], floor)
+    rep('## The one-pass train (x1lib.TrainAhead) against fvdcore ride')
+    rep('')
+    rep('On each point design (a fixed shape): the train\'s speed when the FRONT car '
+        'is at each node of the element, computed by `TrainAhead` (the ride\'s rules '
+        'in Python, as the one-pass "solve together" uses them) and by `fvdcore ride` '
+        '(`--cars %d --pitch %.1f`, by place). Largest difference over the element.'
+        % (X.CARS, X.PITCH))
+    rep('')
+    rep.table(['shape', 'largest speed difference (m/s)'], train_ahead_rows())
     length, x_end = uneven_straight()
     rep('## The CSV section\'s search fault, on a plain straight')
     rep('')
