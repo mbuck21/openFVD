@@ -357,6 +357,64 @@ QString readProject(std::iostream& file, projectFileClient* client)
     return QString();
 }
 
+projectFileAdditions readProjectFileAdditions(const QString& fileName)
+{
+    projectFileAdditions out;
+    fstream file(fileName.toLocal8Bit().data(), ios::in | ios::binary);
+    if(!file) {
+        out.problem = QString("the file %1 could not be opened").arg(fileName);
+        return out;
+    }
+    if(readString(&file, 3) != "FVD") {
+        out.problem = QString("the file is not an FVD project");
+        return out;
+    }
+    std::string version = readString(&file, 5);
+    if(version == "v0.30") return out;   // the old version has no appendix (none is ever written to it)
+    if(version != "v0.77") {
+        out.problem = QString("the project's version is not known");
+        return out;
+    }
+    int namelength = readInt(&file);
+    readString(&file, namelength);
+    // the tracks, read but not computed, only to find where the project ends
+    while(file) {
+        std::string tag = readString(&file, 3);
+        if(tag == "TRC") {
+            out.trackStarts.append((qint64)file.tellg());
+            track scratch(glm::vec3(0.f, 5.f, 0.f), 0, 1.1);   // as a reader's client makes one
+            scratch.loadTrackHeader(file);
+            QString error = scratch.loadTrackSections(file, false);
+            if(!error.isEmpty() || readString(&file, 3) != "EOT") {
+                out.problem = QString("track %1 of the project could not be read").arg(out.trackStarts.size());
+                break;
+            }
+        } else if(tag == "EOP") {
+            out.projectEnd = (qint64)file.tellg() - 3;
+            break;
+        } else {
+            out.problem = QString("the project is damaged");
+            break;
+        }
+    }
+    if(out.projectEnd < 0 && out.problem.isEmpty()) out.problem = QString("the project has no end mark EOP");
+    if(out.problem.isEmpty()) {
+        appendixResult appendix = readAppendix(file, out.trackStarts.size());
+        if(appendix.state == APPENDIX_READ) {
+            out.tracks = appendix.tracks;
+            out.project = appendix.project;
+        } else if(appendix.state != APPENDIX_NONE) {
+            // damaged, or a "needs" this program does not understand: the
+            // tracks come without additions
+            out.problem = appendix.reason;
+            if(out.problem.startsWith("Error: ")) out.problem.remove(0, 7);
+        }
+    }
+    while(out.tracks.size() < out.trackStarts.size()) out.tracks.append(QJsonObject());
+    file.close();
+    return out;
+}
+
 // Was saver::doSave().
 QString saveProjectFile(const QString& fileName, const QString& texPath, const QList<track*>& tracks, projectFileClient* client)
 {

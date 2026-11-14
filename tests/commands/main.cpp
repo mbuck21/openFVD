@@ -173,14 +173,17 @@ static QByteArray readFile(const QString& fileName)
     return file.readAll();
 }
 
-// What track::saveTrack() writes, through a plain std::iostream.
+// What track::saveTrack() writes, through a plain std::iostream, followed by
+// the track's additions as the appendix holds them (additionsBytes(); nothing
+// for a track without additions), so a command that changes only the
+// additions (the train commands) is compared with its appendix included.
 static QByteArray savedBytes(track* t)
 {
     std::stringbuf buf(ios::in | ios::out | ios::binary);
     std::iostream io(&buf);
     t->saveTrack(io);
     std::string s = buf.str();
-    return QByteArray(s.data(), (int)s.size());
+    return QByteArray(s.data(), (int)s.size()) + additionsBytes(t->additions);
 }
 
 // The three exports with the export dialog's defaults (ui/batchrunner.cpp).
@@ -242,7 +245,7 @@ static void checkSpecs()
     const QList<commandSpec>& all = commandRegistry::all();
     check(!all.isEmpty(), QString("the registry lists %1 commands").arg(all.size()));
 
-    QRegExp namePattern("^(anchor|track|section|straight|curve|transition|smoothing)\\.[a-z][A-Za-z]*$");
+    QRegExp namePattern("^(anchor|track|section|straight|curve|transition|smoothing|train)\\.[a-z][A-Za-z]*$");
     QStringList seen;
     QString text = commandRegistry::describe();
     QJsonArray json = commandRegistry::describeJson();
@@ -2107,6 +2110,11 @@ static void timeOn(const QString& what, track* t)
                commandMs(h, "curve.setRadius", commandTarget::forSection(0, firstCurve), commandArgs{{"radius", 23.0}}));
     }
     printf("\n");
+    // a train command changes no node and computes nothing (core/commands_train.cpp)
+    printf("time: %s: train.setCars %.3f ms, train.setType %.3f ms (they change no node and compute nothing)\n",
+           what.toUtf8().constData(),
+           commandMs(h, "train.setCars", commandTarget::forTrack(0), commandArgs{{"cars", 7}}),
+           commandMs(h, "train.setType", commandTarget::forTrack(0), commandArgs{{"type", QString("nl2-hyper-coaster")}}));
 }
 
 // The time of a typed value on a late and on an early section and of adding a

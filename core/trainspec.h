@@ -95,6 +95,9 @@ struct trainSpec
     // stand-in distance apart (see "Stand-in values" in trainspec.cpp)
     void setRows(int count);
     void setSeats(int count);
+    // the same with a given distance apart, metres
+    void setRows(int count, float spacing);
+    void setSeats(int count, float spacing);
     static float standInCarPitch();         // m, what fromType() takes when the catalogue has no car length
     float trainLength() const;              // iCars x fCarPitch (front of the first car to the back of the last)
     double carOffset(int car) const;        // metres the car's centre is ahead (+) or behind (-) the reference

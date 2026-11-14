@@ -38,6 +38,18 @@ struct sourcedValue
     QString sConfidence; // "verified", "likely", "estimate" or "unverified"
 };
 
+// A list of numbers together with where it came from (schema 2): the same as
+// sourcedValue, for row and seat offsets.
+struct sourcedList
+{
+    sourcedList() : bPresent(false) {}
+
+    bool bPresent;      // false when the file has null (or, schema 1, nothing) for this list
+    QList<float> lValues;
+    QString sSource;
+    QString sConfidence;
+};
+
 class trainType
 {
 public:
@@ -53,7 +65,14 @@ public:
     int iRowsPerCar;        // -1 when not known
     int iCarsPerTrain;      // -1 when not known
     sourcedValue carLength; // metres
-    QString sRestraint;     // "lapbar", "otsr", "vest", "other" or empty
+    // Schema 2 (all null until Stage 4; a schema 1 file has none of them):
+    sourcedValue carPitch;  // metres from one car's centre to the next, along the track (before carLength)
+    sourcedList rowOffsets; // metres along the car from its centre, + toward the front, front row first
+    sourcedList seatOffsets;// metres across from the car's centre line, + toward the rider's right, left seat first
+    sourcedValue friction;  // the share of the weight lost to rolling friction (the meaning of track::fFriction)
+    sourcedValue drag;      // 1/m, the air resistance (the meaning of track::fResistance)
+    QString sRestraint;     // "lapbar", "otsr", "vest", "prone", "other" or empty (the words of
+                            // trainSpec::sRestraint; the catalogue uses none of "prone" yet)
     sourcedValue minRadiusVertical;   // metres
     sourcedValue minRadiusHorizontal; // metres
     QString sNotes;

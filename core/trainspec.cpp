@@ -139,15 +139,25 @@ float trainSpec::standInCarPitch()
 // front row first (+ toward the front), the rows centred on the car's centre
 void trainSpec::setRows(int count)
 {
+    setRows(count, kStandInRowSpacing);
+}
+
+void trainSpec::setRows(int count, float spacing)
+{
     lRowOffsets.clear();
-    for(int r = 0; r < count; ++r) lRowOffsets << (0.5f*(count - 1) - r)*kStandInRowSpacing;
+    for(int r = 0; r < count; ++r) lRowOffsets << (0.5f*(count - 1) - r)*spacing;
 }
 
 // left to right (+ toward vLat, the rider's right), centred on the track
 void trainSpec::setSeats(int count)
 {
+    setSeats(count, kStandInSeatSpacing);
+}
+
+void trainSpec::setSeats(int count, float spacing)
+{
     lSeatOffsets.clear();
-    for(int s = 0; s < count; ++s) lSeatOffsets << (s - 0.5f*(count - 1))*kStandInSeatSpacing;
+    for(int s = 0; s < count; ++s) lSeatOffsets << (s - 0.5f*(count - 1))*spacing;
 }
 
 trainSpec trainSpec::fromType(const trainType& type, QStringList* assumed)
@@ -158,17 +168,36 @@ trainSpec trainSpec::fromType(const trainType& type, QStringList* assumed)
     t.sRestraint = type.sRestraint;
     if(type.iCarsPerTrain > 0) t.iCars = type.iCarsPerTrain;
     else { t.iCars = kStandInCars; a << "iCars"; }
-    if(type.carLength.bPresent && type.carLength.fValue > 0.f) t.fCarPitch = type.carLength.fValue;
+    // the car pitch (schema 2) first, else the car length, else the stand-in
+    if(type.carPitch.bPresent && type.carPitch.fValue > 0.f) t.fCarPitch = type.carPitch.fValue;
+    else if(type.carLength.bPresent && type.carLength.fValue > 0.f) t.fCarPitch = type.carLength.fValue;
     else { t.fCarPitch = kStandInCarPitch; a << "fCarPitch"; }
-    // rows and seats: the counts may be known, their places never are
-    int rows = type.iRowsPerCar > 0 ? type.iRowsPerCar : kStandInRows;
-    if(type.iRowsPerCar <= 0) a << "rowCount";
-    int seats = type.iSeatsAcross > 0 ? type.iSeatsAcross : kStandInSeats;
-    if(type.iSeatsAcross <= 0) a << "seatCount";
-    t.setRows(rows);
-    a << "lRowOffsets";
-    t.setSeats(seats);
-    a << "lSeatOffsets";
+    // rows and seats: their places from the catalogue (schema 2) when it has
+    // them, else the counts if known, placed the stand-in distance apart
+    if(type.rowOffsets.bPresent && !type.rowOffsets.lValues.isEmpty()) {
+        t.lRowOffsets = type.rowOffsets.lValues;
+    } else {
+        int rows = type.iRowsPerCar > 0 ? type.iRowsPerCar : kStandInRows;
+        if(type.iRowsPerCar <= 0) a << "rowCount";
+        t.setRows(rows);
+        a << "lRowOffsets";
+    }
+    if(type.seatOffsets.bPresent && !type.seatOffsets.lValues.isEmpty()) {
+        t.lSeatOffsets = type.seatOffsets.lValues;
+    } else {
+        int seats = type.iSeatsAcross > 0 ? type.iSeatsAcross : kStandInSeats;
+        if(type.iSeatsAcross <= 0) a << "seatCount";
+        t.setSeats(seats);
+        a << "lSeatOffsets";
+    }
+    // friction and drag (schema 2): only both together replace the project's
+    // own two numbers, so that the ride never mixes a type's friction with a
+    // project's drag
+    if(type.friction.bPresent && type.drag.bPresent) {
+        t.resistance.bFromProject = false;
+        t.resistance.fRolling = type.friction.fValue;
+        t.resistance.fDrag = type.drag.fValue;
+    }
     t.fCarMass = kStandInCarMass;
     t.fRiderMass = kStandInRiderMass;
     t.fLoad = kStandInLoad;

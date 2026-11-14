@@ -526,7 +526,7 @@ QJsonObject commandSpec::describeJson() const
 const QList<commandSpec>& commandRegistry::all()
 {
     static const QList<commandSpec> list = anchorCommands() + sectionCommands() + transitionCommands()
-            + trackCommands() + smoothingCommands();
+            + trackCommands() + smoothingCommands() + trainCommands();
     return list;
 }
 
