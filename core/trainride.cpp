@@ -22,6 +22,7 @@
 #include "section.h"
 #include "mnode.h"
 #include "measure.h"
+#include "heartline.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,27 +32,16 @@
 // measureRegistry::collect(), whose pointers are only read here.
 
 // The standard gravity the program uses (F_G in lenassert.h), as a double.
-static const double kG = 9.80665;
+static const double kG = HEARTLINE_G;
 
-// The turning of the frame at an entry of the path is the change of the unit
-// direction vectors over +-2 entries (about 2 ms either side at the program's
-// 1 kHz node step), divided by the centre-line length between them (see
-// "Distances" in ridePathFromTrack()). A first difference of unit vectors is quiet (their float
-// rounding is 1e-7 against a change of about 1e-3 per node); a wider span was
-// tried and blurs tight shapes where the turning changes fast (four-sections'
-// tight loop: 0.15 g off over +-10 entries). The rate of change of that
-// turning (for a seat's alpha x r term) is taken over +-10 entries of it.
-// Near the ends of the track the span is one-sided. The span is not clamped at
-// section joins: the shape is continuous there, and a jump in force at a join
-// is spread over the span, which is why the comparison with the design leaves
-// out the nodes near joins (tests/trainride).
-static const int kTurnHalfSpan = 2;
-static const int kRateHalfSpan = 10;
-
-static bool finite3(const glm::vec3& v)
-{
-    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
-}
+// The turning of the frame, rh and their rates of change come from
+// heartlineFrameOf() (core/heartline.cpp, which says over which spans and
+// why), the rule the measure forceAlong shares. The span is not clamped at
+// section joins, which is why the comparison with the design leaves out the
+// nodes near joins (tests/trainride). The rate of change of the turning (for a
+// seat's alpha x r term) is taken over +-HEARTLINE_RATE_HALFSPAN entries; rh's
+// by heartlineStretchRate().
+static const int kRateHalfSpan = HEARTLINE_RATE_HALFSPAN;
 
 static const char* typeName(int type)
 {
@@ -84,53 +74,13 @@ void ridePath::deriveRates()
     for(int i = 0; i < n; ++i) {
         int lo = qMax(0, i - kRateHalfSpan);
         int hi = qMin(n - 1, i + kRateHalfSpan);
-        double ds = (hi > lo) ? s.at(hi) - s.at(lo) : 0.0;
-        if(ds > 1e-9) drh[i] = (rh.at(hi) - rh.at(lo))/ds;
+        drh[i] = heartlineStretchRate(sh, rh, s, i);
         double d = (hi > lo) ? sh.at(hi) - sh.at(lo) : 0.0;
         if(!(d > 1e-9)) continue;
         dwD[i] = (wD.at(hi) - wD.at(lo))/d;
         dwL[i] = (wL.at(hi) - wL.at(lo))/d;
         dwN[i] = (wN.at(hi) - wN.at(lo))/d;
     }
-}
-
-// The centre-line length of the step from node prev to node m.
-//
-// Distances. The ride measures the track by its centre line, summed in
-// double. It does not use the nodes' fTotalLength: that is a 32-bit float
-// summed node by node, which 3 km along can only move in steps of 0.00024 m,
-// a few percent of a 1 ms step, and a step length that is a percent off goes
-// straight into the turning and the slope. Nor are the nodes' float positions
-// good enough for one step (the same rounding). The sections themselves say
-// how far each step is: a force, geometric or curved section moves the
-// centre line by the previous node's speed for 1/F_HZ s, a straight moves its
-// heartline so (and its centre line winds round the heartline at fHeart while
-// it rolls). That is used where the positions agree with it to 2 %; anywhere
-// else (Bezier and NoLimits CSV sections, the last part-step of a straight or
-// a curve) the distance between the two centre-line points, in double.
-// The design itself uses fTotalLength only in its friction term (energy
-// minus g (height + fTotalLength fFriction) in every section's update): the
-// ride's friction runs on its own distance, and tests/trainride shows the
-// point still gives the design's speed.
-static double railStep(const mnode* prev, const mnode* m, const section* sec, double fHeart)
-{
-    glm::dvec3 a = glm::dvec3(prev->vPos) + fHeart*glm::dvec3(prev->vNorm);
-    glm::dvec3 b = glm::dvec3(m->vPos) + fHeart*glm::dvec3(m->vNorm);
-    double posStep = glm::length(b - a);
-    if(!sec || !(prev->fVel > 0.f)) return posStep;
-    double step = -1.0;
-    if(sec->type == forced || sec->type == geometric || sec->type == curved) {
-        step = (double)prev->fVel/F_HZ;
-    } else if(sec->type == straight) {
-        double heart = (double)prev->fVel/F_HZ;
-        double heartPos = glm::length(glm::dvec3(m->vPos) - glm::dvec3(prev->vPos));
-        if(std::fabs(heartPos - heart) > 0.02*heart) return posStep;
-        // the roll per metre of heartline: the node's roll rate over the step's speed
-        double w = (double)m->fRollSpeed*M_PI/180.0/(double)prev->fVel*fHeart;
-        step = heart*std::sqrt(1.0 + w*w);
-    }
-    if(step > 0.0 && std::fabs(posStep - step) <= 0.02*step) return step;
-    return posStep;
 }
 
 ridePath ridePathFromTrack(const track* t)
@@ -159,79 +109,37 @@ ridePath ridePathFromTrack(const track* t)
         if(std::isfinite(off)) p.startEnergyOffset = off;
     }
 
-    // The frame vectors of the entries, for the turning; dropped afterwards.
-    QVector<glm::dvec3> D, L, N;
-    QVector<bool> heldStraight;
-    double lastPlace = 0.0, lastNodePlace = 0.0;
-    bool stop = false;
-    for(int i = 0; i < count; ++i) {
-        const mnode* m = n.nodes.at(i);
-        p.nodeSection[i] = n.sectionOf.at(i) + 1;
-        bool ok = !stop && std::isfinite(m->fVel) && std::isfinite(m->fRollSpeed) && finite3(m->vPos)
-                && finite3(m->vDir) && finite3(m->vLat) && finite3(m->vNorm);
-        if(!ok) {
-            // the design stalls here (or earlier): nothing after it is ridden
-            if(!stop && i > 0) p.truncated = true;
-            stop = true;
-            p.nodePlace[i] = lastPlace;
-            continue;
-        }
-        double place = i == 0 ? 0.0 : lastNodePlace + railStep(n.nodes.at(i - 1), m, n.sectionAt(i), t->fHeart);
-        if(!std::isfinite(place) || place < lastNodePlace) place = lastNodePlace;
-        lastNodePlace = place;
-        p.nodePlace[i] = place;
-        if(i > 0 && !(place > lastPlace + 1e-9)) continue;     // a repeated place: not a new entry
-        lastPlace = place;
-        const section* sec = n.sectionAt(i);
-        p.s.append(place);
-        p.heartY.append(m->vPos.y);
-        p.dirY.append(m->vDir.y);
-        p.latY.append(m->vLat.y);
-        p.normY.append(m->vNorm.y);
-        p.held.append(measureSpeedIsHeld(sec) ? (double)sec->fVel : -1.0);
-        heldStraight.append(measureSpeedIsHeld(sec) && sec->type == straight);
-        p.node.append(i);
-        p.section.append(n.sectionOf.at(i) + 1);
-        D.append(glm::dvec3(m->vDir));
-        L.append(glm::dvec3(m->vLat));
-        N.append(glm::dvec3(m->vNorm));
-    }
-    if(stop && p.s.size() < 2) {
-        p.truncated = true;
-    }
-
-    // The turning of the frame per metre of centre line (W), over
-    // +-kTurnHalfSpan entries. The heartline sits fHeart from the centre line
-    // toward the rider's head; moving with the frame, the centre line runs
-    // (1 + fHeart wL, -fHeart wD) per metre of heartline (w per metre of
-    // heartline), so the heartline's length per metre of centre line is
-    //     rh = sqrt(1 - (fHeart WD)^2) - fHeart WL,
-    // and w = W / rh. Taken from the frame, not from float distances.
-    int e = p.s.size();
-    p.wD.fill(0.0, e);
-    p.wL.fill(0.0, e);
-    p.wN.fill(0.0, e);
-    p.rh.fill(1.0, e);
-    p.sh.fill(0.0, e);
+    // The frame along the centre line: the places, the entries, the turning
+    // and rh (core/heartline.cpp, the rule the measure forceAlong shares).
+    heartlineFrame f = heartlineFrameOf(n);
+    p.nodePlace = f.nodePlace;
+    p.truncated = f.truncated;
+    for(int i = 0; i < count; ++i) p.nodeSection[i] = n.sectionOf.at(i) + 1;
+    int e = f.size();
+    p.s = f.s;
+    p.node = f.node;
+    p.wD = f.wD;
+    p.wL = f.wL;
+    p.wN = f.wN;
+    p.rh = f.rh;
+    p.sh = f.sh;
+    QVector<bool> heldStraight(e);
+    p.heartY.resize(e);
+    p.dirY.resize(e);
+    p.latY.resize(e);
+    p.normY.resize(e);
+    p.held.resize(e);
+    p.section.resize(e);
     for(int i = 0; i < e; ++i) {
-        int lo = qMax(0, i - kTurnHalfSpan);
-        int hi = qMin(e - 1, i + kTurnHalfSpan);
-        double ds = (hi > lo) ? p.s.at(hi) - p.s.at(lo) : 0.0;
-        if(ds > 1e-9) {
-            glm::dvec3 dD = D.at(hi) - D.at(lo);
-            glm::dvec3 dL = L.at(hi) - L.at(lo);
-            double WD = glm::dot(dL, N.at(i))/ds, WL = -glm::dot(dD, N.at(i))/ds, WN = glm::dot(dD, L.at(i))/ds;
-            double h = p.fHeart;
-            double rh = std::sqrt(qMax(0.0, 1.0 - h*h*WD*WD)) - h*WL;
-            // a loop tighter than its heartline height turns the heartline back
-            // on itself; keep a small positive length there
-            rh = qMax(rh, 0.02);
-            p.rh[i] = rh;
-            p.wD[i] = WD/rh;
-            p.wL[i] = WL/rh;
-            p.wN[i] = WN/rh;
-        }
-        if(i > 0) p.sh[i] = p.sh.at(i - 1) + 0.5*(p.rh.at(i) + p.rh.at(i - 1))*(p.s.at(i) - p.s.at(i - 1));
+        const mnode* m = n.nodes.at(f.node.at(i));
+        const section* sec = n.sectionAt(f.node.at(i));
+        p.heartY[i] = m->vPos.y;
+        p.dirY[i] = m->vDir.y;
+        p.latY[i] = m->vLat.y;
+        p.normY[i] = m->vNorm.y;
+        p.held[i] = measureSpeedIsHeld(sec) ? (double)sec->fVel : -1.0;
+        heldStraight[i] = measureSpeedIsHeld(sec) && sec->type == straight;
+        p.section[i] = n.sectionOf.at(f.node.at(i)) + 1;
     }
     // A straight section moves its heartline at its speed (secstraight.cpp);
     // every other kind moves the centre line at it. So a held straight holds
@@ -398,15 +306,16 @@ private:
 // the normal part gives the program's own vh^2 wL there. The sideways part
 // keeps the program's vh v wN (secforced::updateSection()), so one car at the
 // program's point reproduces the design's lateral force.
-// The along part is neither R7's a (the centre line's) nor the Stage 2
-// measure forceAlong's a / rh; trainRide::accel_mps2 keeps a for both.
+// The along part is not R7's a (the centre line's); it is the rule of
+// core/heartline.h, which the measure forceAlong uses too (issue 96).
+// trainRide::accel_mps2 keeps a.
 void feltAt(const pathPoint& q, double v, double a, double y, double u, double out[3])
 {
     double vh = v*q.rh;
-    double ah = a*q.rh + v*v*q.drh;
+    double ah = heartlineAccel(v, a, q.rh, q.drh);
     double gz = -q.normY + q.wL*vh*vh/kG;
     double gy = -q.latY - q.wN*vh*v/kG;
-    double gx = q.dirY + ah/kG;
+    double gx = heartlineAlongG(q.dirY, ah);
     if(y != 0.0 || u != 0.0) {
         // in the right-handed frame (vDir, vLat, vNorm); r = (0, y, -u)
         double wx = vh*q.wD, wy = vh*q.wL, wz = vh*q.wN;

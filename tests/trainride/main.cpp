@@ -22,7 +22,8 @@
 // docs/stage-3-plan.md:
 //   (1) trainSpec::point() reproduces the design's speed and forces on every
 //       baseline project (and the two import samples, whose Bezier and
-//       NoLimits CSV sections are named and left out);
+//       NoLimits CSV sections are named and left out), and its along-track
+//       force is the measure forceAlong's (issue 96);
 //   (2) R7's tables (docs/research/r7-prototype/results.txt) with R7's three
 //       trains on R7's projects;
 //   (3) the closed form of R7 section 6;
@@ -238,22 +239,6 @@ static double dirYAt(const ridePath& p, double x)
     return p.dirY.last();
 }
 
-// One value per global node of the train's acceleration (car at the reference
-// place), by place, as the library's helpers do it.
-static QVector<double> accelByNode(const trainRide& r)
-{
-    QVector<double> out(r.nodePlace.size(), 0.0);
-    int k = 0, last = r.samples() - 1;
-    for(int i = 0; i < r.nodePlace.size(); ++i) {
-        double x = r.nodePlace.at(i);
-        while(k < last - 1 && r.position_m.at(k + 1) < x) ++k;
-        double pa = r.position_m.at(k), pb = r.position_m.at(qMin(k + 1, last));
-        double f = pb > pa ? qBound(0.0, (x - pa)/(pb - pa), 1.0) : 0.0;
-        out[i] = r.accel_mps2.at(k) + f*(r.accel_mps2.at(qMin(k + 1, last)) - r.accel_mps2.at(k));
-    }
-    return out;
-}
-
 // The share of the straight piece a..b (in time) with lo < g <= hi.
 static double share(double a, double b, double lo, double hi)
 {
@@ -370,18 +355,22 @@ static void checkSpec(const QString& repo)
 static const int kJoinMargin = 20;
 static const double kSpeedTol = 0.002;      // m/s, the plan's number
 static const double kForceTol = 0.02;       // g, gz and gy away from joins
-static const double kAlongTol = 0.02;       // g, gx away from joins
+static const double kAlongTol = 0.02;       // g, gx against the measure forceAlong away from joins
+// g, the same on held-speed track, where the measure keeps vDir.y and has no
+// pitching term: the ride's v^2 drh/ds / g there, measured up to 0.057 g in the
+// lead-ins of gen-curves-speed's held curves (issue 96; a bound, not a match)
+static const double kHeldAlongTol = 0.1;
 
 struct pointStats
 {
-    double dv, dz, dy, dx, dvSmoothed, dvSmoothedDesign, dvRaw, measureOffWorst, measureOffSum;
-    int nodes, speedNodes, forceNodes;
+    double dv, dz, dy, dx, dvSmoothed, dvSmoothedDesign, dvRaw, heldOffWorst, measureOffSum;
+    int nodes, speedNodes, forceNodes, alongNodes, heldNodes;
     QStringList excluded;
 };
 
 static pointStats comparePoint(track* t, const QString& label)
 {
-    pointStats st = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, QStringList() };
+    pointStats st = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, QStringList() };
     measureNodes n = measureRegistry::collect(t);
     QVector<QVector<float> > m = measureRegistry::values(n, QStringList() << "speed" << "forceNormal" << "forceLateral" << "forceAlong");
     rideOptions o;
@@ -397,7 +386,6 @@ static pointStats comparePoint(track* t, const QString& label)
     QVector<double> gz = trainRideCarByNode(r, 0, rideGz);
     QVector<double> gy = trainRideCarByNode(r, 0, rideGy);
     QVector<double> gx = trainRideCarByNode(r, 0, rideGx);
-    QVector<double> accel = accelByNode(r);
     // the first Bezier or NoLimits CSV section: it and everything after it are left out
     int firstImported = -1;
     for(int s = 0; s < t->lSections.size(); ++s) {
@@ -507,24 +495,21 @@ static pointStats comparePoint(track* t, const QString& label)
         if(std::fabs(m[1][i]) > 10.f || std::fabs(m[2][i]) > 10.f) { ++beyondTen; continue; }
         st.dz = qMax(st.dz, std::fabs(gz.at(i) - m[1][i]));
         st.dy = qMax(st.dy, std::fabs(gy.at(i) - m[2][i]));
-        // The along-track force: the measure forceAlong is vDir.y plus the
-        // centre-line speed's change over the heartline's distance, a / rh (rh
-        // over its +-10 nodes, within the section). The ride's own gx is the
-        // heartline's acceleration (rh a + v^2 drh/ds); its acceleration a is
-        // checked here in the measure's terms, and how far the measure is from
-        // the heartline's value is kept for issue 96.
-        int lo = qMax(i - MEASURE_ALONG_HALFSPAN, n.sectionFirst.at(s) + 1), hi = qMin(i + MEASURE_ALONG_HALFSPAN, n.sectionLast.at(s));
-        double rhNode = 1.0;
-        if(hi > lo) {
-            double dsr = (double)n.nodes.at(hi)->fTotalLength - n.nodes.at(lo)->fTotalLength;
-            if(dsr > 1e-6) rhNode = (n.heartDist.at(hi) - n.heartDist.at(lo))/dsr;
-        }
-        double dirY = n.nodes.at(i)->vDir.y;
-        double gxMeasure = held ? dirY : dirY + accel.at(i)/(kG*rhNode);
-        st.dx = qMax(st.dx, std::fabs(gxMeasure - m[3][i]));
+        // The along-track force: since issue 96 the measure forceAlong is the
+        // force at the heartline by the ride's own rule (core/heartline.h),
+        // from the design's speed; compared directly. On held-speed track the
+        // measure keeps vDir.y exactly (no pitching term), and the ride's gx
+        // differs there by v^2 drh/ds / g where the held section pitches: that
+        // gap is counted apart.
         double off = std::fabs(gx.at(i) - m[3][i]);
-        st.measureOffWorst = qMax(st.measureOffWorst, off);
-        st.measureOffSum += off;
+        if(held) {
+            st.heldOffWorst = qMax(st.heldOffWorst, off);
+            ++st.heldNodes;
+        } else {
+            st.dx = qMax(st.dx, off);
+            st.measureOffSum += off;
+            ++st.alongNodes;
+        }
         ++st.forceNodes;
     }
     if(heldJoins) st.excluded << QString("%1 node(s) at joins into or out of held-speed sections (speed only)").arg(heldJoins);
@@ -555,7 +540,7 @@ static void checkPointOnBaseline(const QString& repo)
         if(!names[i].contains(".2016.")) files << baseline.filePath(names[i]);
     }
     files << QDir(repo).filePath("samples/import/nl1.ref.resaved.fvd") << QDir(repo).filePath("samples/import/nl2.ref.resaved.fvd");
-    double worstV = 0.0, worstZ = 0.0, worstY = 0.0, worstX = 0.0, offWorst = 0.0, offSum = 0.0;
+    double worstV = 0.0, worstZ = 0.0, worstY = 0.0, worstX = 0.0, heldWorst = 0.0, offSum = 0.0;
     int tracks = 0, offNodes = 0;
     for(int f = 0; f < files.size(); ++f) {
         coreProject p;
@@ -574,28 +559,27 @@ static void checkPointOnBaseline(const QString& repo)
             worstZ = qMax(worstZ, st.dz);
             worstY = qMax(worstY, st.dy);
             worstX = qMax(worstX, st.dx);
-            offWorst = qMax(offWorst, st.measureOffWorst);
+            heldWorst = qMax(heldWorst, st.heldOffWorst);
             offSum += st.measureOffSum;
-            offNodes += st.forceNodes;
-            if(st.forceNodes > 0) {
-                printf("    issue 96, %s: the measure forceAlong is off the heartline's along-track force by %.4f g at worst, "
-                       "%.5f g on average\n", qPrintable(label), st.measureOffWorst, st.measureOffSum/st.forceNodes);
-            }
+            offNodes += st.alongNodes;
             bool ok = st.dv <= kSpeedTol && st.dvSmoothed <= kSpeedTol && st.dz <= kForceTol && st.dy <= kForceTol && st.dx <= kAlongTol
-                    && !st.excluded.contains("NOT FINITE");
+                    && st.heldOffWorst <= kHeldAlongTol && !st.excluded.contains("NOT FINITE");
             report(ok, QString("(1) %1: the point reproduces the design's speed within %2 m/s at %3 of %4 nodes (worst %5), "
-                               "gz %6, gy %7, gx %8 g at %9 nodes away from joins%10")
+                               "gz %6, gy %7 g at %8 nodes away from joins, gx against the measure forceAlong %9 g at worst, "
+                               "%10 g on average (%11 nodes; held-speed track %12 g at %13 nodes)%14")
                    .arg(label).arg(kSpeedTol).arg(st.speedNodes).arg(st.nodes).arg(st.dv, 0, 'g', 3)
-                   .arg(st.dz, 0, 'f', 4).arg(st.dy, 0, 'f', 4).arg(st.dx, 0, 'f', 4).arg(st.forceNodes)
+                   .arg(st.dz, 0, 'f', 4).arg(st.dy, 0, 'f', 4).arg(st.forceNodes).arg(st.dx, 0, 'f', 4)
+                   .arg(st.alongNodes ? st.measureOffSum/st.alongNodes : 0.0, 0, 'f', 5).arg(st.alongNodes)
+                   .arg(st.heldOffWorst, 0, 'f', 4).arg(st.heldNodes)
                    .arg(st.excluded.isEmpty() ? QString() : "; left out: " + st.excluded.join(", ")));
         }
     }
-    report(tracks >= 10, QString("(1) worst over %1 tracks: speed %2 m/s (limit %3), gz %4 g, gy %5 g, gx %6 g (limit %7 g "
-                                 "and %8 g, nodes within %9 of a section join left out)")
-           .arg(tracks).arg(worstV, 0, 'g', 3).arg(kSpeedTol).arg(worstZ, 0, 'f', 4).arg(worstY, 0, 'f', 4)
-           .arg(worstX, 0, 'f', 4).arg(kForceTol).arg(kAlongTol).arg(kJoinMargin));
-    printf("    issue 96, all tracks: the measure forceAlong is off the heartline's along-track force by %.4f g at worst, "
-           "%.5f g on average over %d nodes\n", offWorst, offNodes ? offSum/offNodes : 0.0, offNodes);
+    report(tracks >= 10, QString("(1) worst over %1 tracks: speed %2 m/s (limit %3), gz %4 g, gy %5 g (limit %6 g), gx against "
+                                 "the measure forceAlong %7 g, %8 g on average over %9 nodes (limit %10 g; on held-speed "
+                                 "track %11 g, limit %12 g); nodes within %13 of a section join left out")
+           .arg(tracks).arg(worstV, 0, 'g', 3).arg(kSpeedTol).arg(worstZ, 0, 'f', 4).arg(worstY, 0, 'f', 4).arg(kForceTol)
+           .arg(worstX, 0, 'f', 4).arg(offNodes ? offSum/offNodes : 0.0, 0, 'f', 5).arg(offNodes).arg(kAlongTol)
+           .arg(heldWorst, 0, 'f', 4).arg(kHeldAlongTol).arg(kJoinMargin));
 }
 
 // ---------------------------------------------------------------------------
@@ -960,7 +944,7 @@ static void checkAlongClosedForm()
             at90[0] = gx;
             at90[1] = r.car(k, 0, rideGx);
             at90[2] = std::sin(th) + a/kG;          // R7's form, the centre line's acceleration
-            at90[3] = std::sin(th) + a/(rh*kG);     // the Stage 2 measure's form, a / rh
+            at90[3] = std::sin(th) + a/(rh*kG);     // the Stage 2 measure's form before issue 96, a / rh
         }
         ++used;
     }
@@ -968,7 +952,8 @@ static void checkAlongClosedForm()
            QString("the along-track force at the heartline on a vertical circle (rail radius %1 m, heartline %2 m, "
                    "frictionless): worst %3 g against the closed form (limit 0.001 g; gz %4 g, speed %5 m/s); with the "
                    "track vertical the closed form gives %6 g, the ride %7 g, the centre line's acceleration (R7's form) "
-                   "would give %8 g and the measure forceAlong's form %9 g")
+                   "would give %8 g and the measure forceAlong's form before issue 96 %9 g (tests/measures checks the "
+                   "measure itself on such a circle)")
            .arg(R).arg(h).arg(err, 0, 'g', 2).arg(errZ, 0, 'g', 2).arg(errV, 0, 'g', 2).arg(at90[0], 0, 'f', 4)
            .arg(at90[1], 0, 'f', 4).arg(at90[2], 0, 'f', 4).arg(at90[3], 0, 'f', 4));
 }
