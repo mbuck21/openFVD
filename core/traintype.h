@@ -71,7 +71,8 @@ public:
     sourcedList seatOffsets;// metres across from the car's centre line, + toward the rider's right, left seat first
     sourcedValue friction;  // the share of the weight lost to rolling friction (the meaning of track::fFriction)
     sourcedValue drag;      // 1/m, the air resistance (the meaning of track::fResistance)
-    QString sRestraint;     // "lapbar", "otsr", "vest", "other" or empty
+    QString sRestraint;     // "lapbar", "otsr", "vest", "prone", "other" or empty (the words of
+                            // trainSpec::sRestraint; the catalogue uses none of "prone" yet)
     sourcedValue minRadiusVertical;   // metres
     sourcedValue minRadiusHorizontal; // metres
     QString sNotes;

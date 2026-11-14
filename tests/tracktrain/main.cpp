@@ -30,7 +30,8 @@
 //   save gives the same bytes;
 // - train.clear, and switching on then off, give back the file without an
 //   appendix;
-// - unknown fields inside "train" survive a load, an edit and a save;
+// - unknown fields inside "train" survive a load, an edit and a save, and
+//   so do stored values of known fields this version cannot use;
 // - the text form carries the train exactly;
 // - the other project's additions are found for "Import Track from Project";
 // - the time of a train command against a full recompute, on
@@ -478,6 +479,85 @@ static void checkUnknownFields()
           "train.clear takes the whole key away and leaves the track's other additions");
 }
 
+// ---- 4b. stored values this version cannot use are kept --------------------
+
+// The three stored values as they were saved: "restraint":"harness",
+// "referenceCar":99, "load":3, each byte for byte in the saved document.
+static bool holdsKept(track* t, bool restraintToo)
+{
+    QByteArray doc = compact(t->additions.value("train").toObject());
+    return doc.contains("\"referenceCar\":99") && doc.contains("\"load\":3,")
+            && (!restraintToo || doc.contains("\"restraint\":\"harness\""));
+}
+
+static void checkKeptValues()
+{
+    testProject p;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/four-sections.fvd"), &p);
+    p.tracks[0]->additions["train"] = QJsonDocument::fromJson(
+                "{\"simulate\":true,\"cars\":2,\"carPitch\":2.5,\"restraint\":\"harness\",\"referenceCar\":99,\"load\":3}").object();
+    QString file = QDir(tmpPath).filePath("kept.fvd");
+    saveProjectFile(file, p.texPath, p.tracks, &p);
+
+    testProject q;
+    loadProjectFile(file, &q);
+    track* t = q.tracks[0];
+    QStringList problems = trainProblemsOfTrack(t);
+    QString all = problems.join(" | ");
+    check(problems.size() == 3 && all.contains("\"restraint\"") && all.contains("\"referenceCar\"") && all.contains("\"load\""),
+          "kept: the problems name the restraint, the reference car and the load: " + all);
+    trackTrain tr = trainOfTrack(t);
+    check(tr.spec.sRestraint.isEmpty() && tr.spec.iReferenceCar == -1 && tr.spec.fLoad == 1.f && tr.spec.iCars == 2
+          && tr.kept.size() == 3, "kept: the train in memory uses the defaults of those three and reads the rest");
+    trainSpec ridden;
+    QStringList rideProblems;
+    check(simulatedTrainOfTrack(t, &ridden, nullptr, &rideProblems) && rideProblems == problems,
+          "kept: the ride gets the train and its problems");
+    check(holdsKept(t, true), "kept: loaded, the three stored values are there");
+
+    trackHistory h(t);
+    QString e;
+    bool ok = commandRegistry::run(&h, "train.setSimulate", commandTarget::forTrack(0), commandArgs{{"on", false}}, &e);
+    check(ok && holdsKept(t, true) && trackHasTrain(t), "kept: train.setSimulate (off) writes the three back unchanged, and the "
+          "train is not taken for the default while they are kept");
+    ok = commandRegistry::run(&h, "train.setCars", commandTarget::forTrack(0), commandArgs{{"cars", 4}}, &e);
+    QByteArray afterCars = compact(t->additions);
+    check(ok && holdsKept(t, true) && trainOfTrack(t).spec.iCars == 4,
+          "kept: train.setCars 4 keeps them, the reference car 99 still beyond the train");
+    h.undo();
+    bool undoOk = holdsKept(t, true) && trainOfTrack(t).spec.iCars == 2;
+    h.redo();
+    check(undoOk && compact(t->additions) == afterCars, "kept: undo and redo give them back exactly");
+    saveProjectFile(file, q.texPath, q.tracks, &q);
+    testProject r;
+    loadProjectFile(file, &r);
+    check(r.tracks.size() == 1 && compact(r.tracks[0]->additions) == afterCars && holdsKept(r.tracks[0], true),
+          "kept: saved and reopened, the train's document is byte for byte the same");
+
+    track* u = r.tracks[0];
+    trackHistory h2(u);
+    ok = commandRegistry::run(&h2, "train.setRestraint", commandTarget::forTrack(0), commandArgs{{"restraint", QString("otsr")}}, &e);
+    QByteArray doc = compact(u->additions.value("train").toObject());
+    check(ok && doc.contains("\"restraint\":\"otsr\"") && holdsKept(u, false) && trainProblemsOfTrack(u).size() == 2,
+          "kept: train.setRestraint replaces the restraint and leaves the other two kept: " + QString(doc));
+    ok = commandRegistry::run(&h2, "train.setCars", commandTarget::forTrack(0), commandArgs{{"cars", 100}}, &e);
+    trackTrain v = trainOfTrack(u);
+    check(ok && v.spec.iReferenceCar == 98 && !v.kept.contains("referenceCar")
+          && compact(u->additions.value("train").toObject()).contains("\"referenceCar\":99"),
+          "kept: train.setCars 100 takes the kept reference car 99 into use, now that it is within the train");
+    ok = commandRegistry::run(&h2, "train.clear", commandTarget::forTrack(0), commandArgs(), &e);
+    check(ok && !trackHasTrain(u) && u->additions.isEmpty(), "kept: train.clear removes everything");
+
+    // a train of default values but one kept value is not "no train"
+    testProject s;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/four-sections.fvd"), &s);
+    s.tracks[0]->additions["train"] = QJsonDocument::fromJson("{\"simulate\":true,\"restraint\":\"harness\"}").object();
+    trackHistory h3(s.tracks[0]);
+    commandRegistry::run(&h3, "train.setSimulate", commandTarget::forTrack(0), commandArgs{{"on", false}}, &e);
+    check(compact(s.tracks[0]->additions) == "{\"train\":{\"restraint\":\"harness\",\"simulate\":false}}",
+          "kept: switched off with only a kept value left, the key stays with that value: " + QString(compact(s.tracks[0]->additions)));
+}
+
 // ---- 5. the text form ------------------------------------------------------
 
 static void checkText()
@@ -607,6 +687,7 @@ int main(int argc, char* argv[])
     checkCommandsOnBaseline();
     checkRefused();
     checkUnknownFields();
+    checkKeptValues();
     checkText();
     checkImportReader();
     checkTime();

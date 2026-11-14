@@ -20,10 +20,11 @@
 // fvdcore ride: a train ridden over a project's finished track
 // (core/trainride.h). Per car the lowest and highest of each force and the
 // airtime, as text, as JSON (--json) or, with --table, the samples as
-// tab-separated text. The train is the one --type or the counts describe;
-// without them, each track's own train when it has one switched on
-// (core/tracktrain.h), else the program's own point. Nothing is saved in the
-// project. Metric units only.
+// tab-separated text. --type describes a train (the catalogue's); without
+// it each track rides its own train when it has one switched on
+// (core/tracktrain.h), else the program's own point. --cars, --pitch, --rows,
+// --seats and --reference adjust that train for this ride (adjustTrain()).
+// Nothing is saved in the project. Metric units only.
 
 #include "commands.h"
 #include "project.h"
@@ -101,6 +102,68 @@ static bool wholeNumber(const QMap<QString, QString>& values, const QString& key
         return false;
     }
     *out = v;
+    return true;
+}
+
+// Whether any option adjusts a train (all train options but --type and --catalogue).
+static bool adjustsTrain(const QMap<QString, QString>& values)
+{
+    return values.contains("--cars") || values.contains("--pitch") || values.contains("--rows")
+            || values.contains("--seats") || values.contains("--reference");
+}
+
+// The options that adjust a train, applied to spec (the --type train, the
+// track's own train, or the program's own point). isTrain false: spec is the
+// program's own point, which has no reference car of its own, so --reference
+// is refused unless --cars makes it a train. False with a sentence in error.
+static bool adjustTrain(trainSpec& spec, QStringList& assumed, const QMap<QString, QString>& values, bool isTrain,
+                        QString& error)
+{
+    int cars = spec.iCars, rows = spec.rows(), seats = spec.seatsPerRow();
+    if(!wholeNumber(values, "--cars", 1, &cars, error) || !wholeNumber(values, "--rows", 1, &rows, error)
+            || !wholeNumber(values, "--seats", 1, &seats, error)) {
+        return false;
+    }
+    if(cars != spec.iCars) {
+        spec.iCars = cars;
+        assumed.removeAll("iCars");
+        if(spec.iReferenceCar >= cars) spec.iReferenceCar = cars - 1;
+        if(!spec.lCarMassFactor.isEmpty() && spec.lCarMassFactor.size() != cars) spec.lCarMassFactor.clear();
+    }
+    if(values.contains("--pitch")) {
+        bool ok;
+        double pitch = values["--pitch"].toDouble(&ok);
+        if(!ok || !(pitch > 0.0)) { error = "--pitch needs a number of metres above 0"; return false; }
+        spec.fCarPitch = (float)pitch;
+        assumed.removeAll("fCarPitch");
+    } else if(spec.iCars > 1 && !(spec.fCarPitch > 0.f)) {
+        spec.fCarPitch = trainSpec::standInCarPitch();
+        if(!assumed.contains("fCarPitch")) assumed << "fCarPitch";
+    }
+    if(rows != spec.rows()) {
+        spec.setRows(rows);
+        if(!assumed.contains("lRowOffsets")) assumed << "lRowOffsets";
+    }
+    if(seats != spec.seatsPerRow()) {
+        spec.setSeats(seats);
+        if(!assumed.contains("lSeatOffsets")) assumed << "lSeatOffsets";
+    }
+    if(values.contains("--reference")) {
+        if(!isTrain && !values.contains("--cars")) {
+            error = "--reference needs a train: the track has no train switched on, and the program's own single point has "
+                    "no reference car (give --type or --cars, or switch the track's train on)";
+            return false;
+        }
+        QString ref = values["--reference"];
+        bool ok;
+        int car = ref.toInt(&ok);
+        if(ref == "centre" || ref == "center") spec.iReferenceCar = -1;
+        else if(ref == "front") spec.iReferenceCar = 0;
+        else if(ref == "rear") spec.iReferenceCar = spec.iCars - 1;
+        else if(ok && car >= 1 && car <= spec.iCars) spec.iReferenceCar = car - 1;
+        else { error = QString("--reference is centre, front, rear or a car number from 1 to %1").arg(spec.iCars); return false; }
+    }
+    if(!spec.isValid(&error)) { error = "the train is not valid: " + error; return false; }
     return true;
 }
 
@@ -295,12 +358,15 @@ static int runRide(const QStringList& args)
         if(!ok || trackNumber < 1) { fprintf(stderr, "--track needs a whole number of 1 or more\n"); return 1; }
     }
 
-    // the train: as the options say, or (none given) each track's own
-    const bool trainGiven = values.contains("--type") || values.contains("--cars") || values.contains("--pitch")
-            || values.contains("--rows") || values.contains("--seats") || values.contains("--reference");
-    trainSpec spec = trainSpec::point();
-    QStringList assumed;
-    if(values.contains("--type")) {
+    // The train. --type describes one (the catalogue's); the other train
+    // options adjust a train: the --type train when given, else the track's
+    // own train when it has one switched on, else the program's own point.
+    // Worked out per track below (adjustTrain()); checked here once on the
+    // point so that a bad value is refused before the project is read.
+    const bool typeGiven = values.contains("--type");
+    trainSpec typeSpec;
+    QStringList typeAssumed;
+    if(typeGiven) {
         QList<trainType> types = loadCatalogue(values.value("--catalogue"), error);
         if(types.isEmpty()) { fprintf(stderr, "%s\n", qPrintable(error)); return 1; }
         const trainType* type = trainCatalogue::findById(types, values["--type"]);
@@ -308,48 +374,16 @@ static int runRide(const QStringList& args)
             fprintf(stderr, "no train type %s in the catalogue\n", qPrintable(values["--type"]));
             return 1;
         }
-        spec = trainSpec::fromType(*type, &assumed);
+        typeSpec = trainSpec::fromType(*type, &typeAssumed);
     }
-    int cars = spec.iCars, rows = spec.rows(), seats = spec.seatsPerRow();
-    if(!wholeNumber(values, "--cars", 1, &cars, error) || !wholeNumber(values, "--rows", 1, &rows, error)
-            || !wholeNumber(values, "--seats", 1, &seats, error)) {
-        fprintf(stderr, "%s\n", qPrintable(error));
-        return 1;
+    {
+        trainSpec probe = typeGiven ? typeSpec : trainSpec::point();
+        QStringList probeAssumed;
+        // the reference is checked per track (the number of cars may come from the track's train)
+        QMap<QString, QString> noReference = values;
+        noReference.remove("--reference");
+        if(!adjustTrain(probe, probeAssumed, noReference, typeGiven, error)) { fprintf(stderr, "%s\n", qPrintable(error)); return 1; }
     }
-    if(cars != spec.iCars) {
-        spec.iCars = cars;
-        assumed.removeAll("iCars");
-        spec.lCarMassFactor.clear();
-    }
-    if(values.contains("--pitch")) {
-        bool ok;
-        double pitch = values["--pitch"].toDouble(&ok);
-        if(!ok || !(pitch > 0.0)) { fprintf(stderr, "--pitch needs a number of metres above 0\n"); return 1; }
-        spec.fCarPitch = (float)pitch;
-        assumed.removeAll("fCarPitch");
-    } else if(spec.iCars > 1 && !(spec.fCarPitch > 0.f)) {
-        spec.fCarPitch = trainSpec::standInCarPitch();
-        if(!assumed.contains("fCarPitch")) assumed << "fCarPitch";
-    }
-    if(rows != spec.rows()) {
-        spec.setRows(rows);
-        if(!assumed.contains("lRowOffsets")) assumed << "lRowOffsets";
-    }
-    if(seats != spec.seatsPerRow()) {
-        spec.setSeats(seats);
-        if(!assumed.contains("lSeatOffsets")) assumed << "lSeatOffsets";
-    }
-    if(values.contains("--reference")) {
-        QString ref = values["--reference"];
-        bool ok;
-        int car = ref.toInt(&ok);
-        if(ref == "centre" || ref == "center") spec.iReferenceCar = -1;
-        else if(ref == "front") spec.iReferenceCar = 0;
-        else if(ref == "rear") spec.iReferenceCar = spec.iCars - 1;
-        else if(ok && car >= 1 && car <= spec.iCars) spec.iReferenceCar = car - 1;
-        else { fprintf(stderr, "--reference is centre, front, rear or a car number from 1 to %d\n", spec.iCars); return 1; }
-    }
-    if(!spec.isValid(&error)) { fprintf(stderr, "the train is not valid: %s\n", qPrintable(error)); return 1; }
     int every = 1;
     if(values.contains("--every-s")) {
         bool ok;
@@ -375,33 +409,56 @@ static int runRide(const QStringList& args)
     QJsonArray tracks;
     for(int i = 0; i < numbers.size(); ++i) {
         track* t = project.tracks.at(numbers.at(i) - 1);
-        // Without train options, each track rides its own train when it has
-        // one switched on (core/tracktrain.h), else the program's own point.
-        trainSpec use = spec;
-        QStringList useAssumed = assumed;
-        QString source = QString("given on the command line");
-        if(!trainGiven) {
+        // the train this track rides: see adjustTrain()
+        trainSpec use = trainSpec::point();
+        QStringList useAssumed, problems;
+        QString source;
+        bool own = false;
+        if(typeGiven) {
+            use = typeSpec;
+            useAssumed = typeAssumed;
+            source = QString("given with --type");
+        } else {
             QString why;
-            if(simulatedTrainOfTrack(t, &use, &why)) {
-                source = QString("the track's own train");
+            if(simulatedTrainOfTrack(t, &use, &why, &problems)) {
+                own = true;
                 useAssumed = trainOfTrack(t).lAssumed;
+                source = QString("the track's own train");
             } else {
                 use = trainSpec::point();
-                useAssumed.clear();
                 source = trackHasTrain(t) ? QString("the track's train is not used: %1").arg(why)
                                           : QString("the track has no train");
+                if(!trackHasTrain(t)) problems.clear();
             }
+        }
+        if(adjustsTrain(values)) {
+            if(!adjustTrain(use, useAssumed, values, typeGiven || own, error)) {
+                fprintf(stderr, "track %d (%s): %s\n", numbers.at(i), qPrintable(source), qPrintable(error));
+                return 1;
+            }
+            source += QString("; adjusted by the options for this ride, nothing saved");
         }
         trainRide r = rideTrain(t, use);
         if(json) {
-            tracks.append(rideJson(r, numbers.at(i), t->name, useAssumed, source, table, every));
+            QJsonObject o = rideJson(r, numbers.at(i), t->name, useAssumed, source, table, every);
+            o["train_problems"] = QJsonArray::fromStringList(problems);
+            tracks.append(o);
         } else if(table) {
             if(numbers.size() > 1) text += QString("# track %1: %2\n").arg(numbers.at(i)).arg(t->name);
             // the table's first line stays its header unless the track's own train is ridden
-            if(!trainGiven && source == "the track's own train") text += QString("# train: %1\n").arg(source);
+            if(own) text += QString("# train: %1\n").arg(source);
+            for(int k = 0; k < problems.size(); ++k) text += QString("# note: %1\n").arg(problems.at(k));
             text += r.valid ? rideTable(r, every) : QString("# no ride: %1\n").arg(r.error);
         } else {
-            text += rideText(r, numbers.at(i), t->name, useAssumed, source);
+            QString one = rideText(r, numbers.at(i), t->name, useAssumed, source);
+            // what of the stored train could not be used, after the train's line
+            if(!problems.isEmpty()) {
+                QString notes;
+                for(int k = 0; k < problems.size(); ++k) notes += "  Note (the track's train): " + problems.at(k) + "\n";
+                int after = one.indexOf('\n', one.indexOf("  Train: ")) + 1;
+                one.insert(after > 0 ? after : one.size(), notes);
+            }
+            text += one;
             if(i + 1 < numbers.size()) text += "\n";
         }
     }
@@ -432,8 +489,8 @@ const command cmdRide = {
     "ride",
     "fvdcore ride <project.fvd> [--track N] [--type ID] [--catalogue FILE] [--cars N] [--pitch M] [--rows N] [--seats N] "
     "[--reference centre|front|rear|N] [--table [--every-s X]] [--json] [--out FILE]",
-    "ride a train over the finished track (the train the options give; without them each track's own train when it "
-    "has one switched on, else the program's own point): per car the lowest and highest force and the airtime; "
-    "--table the samples every 0.01 s; nothing is saved",
+    "ride a train over the finished track (the --type train, else each track's own train when it has one switched on, "
+    "else the program's own point; --cars, --pitch, --rows, --seats and --reference adjust that train for this ride): "
+    "per car the lowest and highest force and the airtime; --table the samples every 0.01 s; nothing is saved",
     runRide
 };

@@ -213,8 +213,8 @@ bool readTrain(const QJsonObject& obj, trainType& t, QString* error)
     {
     }
     else if (t.sRestraint != "" && t.sRestraint != "lapbar" && t.sRestraint != "otsr"
-          && t.sRestraint != "vest" && t.sRestraint != "other")
-        problem = "\"restraint\" must be lapbar, otsr, vest, other or empty";
+          && t.sRestraint != "vest" && t.sRestraint != "prone" && t.sRestraint != "other")
+        problem = "\"restraint\" must be lapbar, otsr, vest, prone, other or empty";
     else
     {
         const QJsonValue mr = obj.value("minRadius");

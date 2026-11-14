@@ -51,6 +51,19 @@
 // the shortest decimal that reads back as the same float, and -0 as the
 // string "-0"), so every float comes back exactly. Any other key inside "train"
 // (written by a later version) is kept and written back as it was.
+//
+// Values that cannot be read. A known key whose stored value this version
+// cannot use (a restraint word it does not know, a load above 1, a number of
+// the wrong kind, or a value valid only with others it does not fit, such as
+// a reference car beyond the number of cars, or mass factors that are not one
+// per car) is never lost: the train in memory uses that field's default, the
+// stored value is kept as it was (trackTrain::kept) and written back by every
+// train command and every save, and the reason is given
+// (trainProblemsOfTrack(); fvdcore ride prints it). Only a command that sets
+// that very field replaces it (train.setType sets every field of the
+// description; train.clear removes the whole train). train.setCars also
+// takes a kept reference car or kept mass factors into use once the new
+// number of cars makes them valid, and otherwise leaves them kept.
 
 #include "trainspec.h"
 
@@ -70,7 +83,18 @@ struct trackTrain
     trainSpec spec;         // trainSpec(): the program's own point, the reference at the train's centre
     QStringList lAssumed;   // the fields of spec that hold stand-ins, as trainSpec::fromType() names them
 
+    // Stored values this version could not use, kept as they were (see
+    // "Values that cannot be read" above): the train's own key ("restraint",
+    // "resistance.rolling" for a key inside "resistance") to its original JSON
+    // value. The field in spec holds its default meanwhile. trainToJson()
+    // writes these back unchanged; a command that sets the field drops it here.
+    QJsonObject kept;
+    // Why each kept value (and anything else odd, such as a train that is not
+    // valid as a whole) could not be used, in plain words. Not part of ==.
+    QStringList lProblems;
+
     trackTrain();
+    // Every field but lProblems.
     bool operator==(const trackTrain& o) const;
     bool operator!=(const trackTrain& o) const { return !(*this == o); }
 
@@ -86,34 +110,43 @@ QString trainAdditionsKey();
 // The restraint words a train may hold ("" is none).
 QStringList trainRestraintWords();
 
-// A "train" object read into a trackTrain. A field of the wrong kind or out of
-// range takes its default and is named in *problems (when given); the rest is
-// read. Unknown keys are ignored here (writeTrainJson() keeps them).
+// A "train" object read into a trackTrain. A field whose value cannot be used
+// takes its default in spec, its stored value goes to kept, and the reason to
+// lProblems (and to *problems, when given); the rest is read. Unknown keys are
+// ignored here (trainToJson() keeps them).
 trackTrain trainFromJson(const QJsonObject& json, QStringList* problems = nullptr);
 
 // The "train" object for train: keep's keys that are not the train's own
 // fields first, as they were, then the fields of train as the shape above
-// says. Deterministic: the same train and keep give the same object.
+// says, then train.kept's values over them. Deterministic: the same train and
+// keep give the same object.
 QJsonObject trainToJson(const trackTrain& train, const QJsonObject& keep = QJsonObject());
 
 // Whether the track has a "train" key at all (a train was chosen).
 bool trackHasTrain(const track* t);
 
-// The track's train: trackTrain() when it has none.
+// The track's train: trackTrain() when it has none. Its lProblems (also
+// appended to *problems) say what of the stored train could not be used.
 trackTrain trainOfTrack(const track* t, QStringList* problems = nullptr);
 
+// What of the track's stored train this version cannot use, in plain words,
+// one sentence each; empty when all of it is read (or there is no train).
+// For the windows (piece V1) and fvdcore ride to show.
+QStringList trainProblemsOfTrack(const track* t);
+
 // Writes train into the track's additions, keeping unknown keys inside
-// "train". When train is trackTrain() and nothing unknown is kept, the key
-// "train" is removed, so a project goes back to having no appendix. Changes
-// no node and computes nothing.
+// "train" and train.kept's values. When train is trackTrain() and nothing
+// unknown or kept remains, the key "train" is removed, so a project goes back
+// to having no appendix. Changes no node and computes nothing.
 void setTrainOfTrack(track* t, const trackTrain& train);
 
-// Takes the key "train" away (unknown keys inside it too).
+// Takes the key "train" away (unknown and kept values inside it too).
 void clearTrainOfTrack(track* t);
 
 // The train a ride should use for this track: true and *out filled when the
 // track has a train with simulate on (and its spec is valid; else *why says
-// what is wrong and the result is false).
-bool simulatedTrainOfTrack(const track* t, trainSpec* out, QString* why = nullptr);
+// what is wrong and the result is false). *problems gets the track's train's
+// problems (trainProblemsOfTrack()) whatever the result.
+bool simulatedTrainOfTrack(const track* t, trainSpec* out, QString* why = nullptr, QStringList* problems = nullptr);
 
 #endif // TRACKTRAIN_H

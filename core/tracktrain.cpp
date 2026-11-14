@@ -22,6 +22,7 @@
 #include "projecttext.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonValue>
 #include <cmath>
 #include <cstring>
@@ -32,7 +33,8 @@ trackTrain::trackTrain() : bSimulate(false), bExtendedAirtime(false)
 
 bool trackTrain::operator==(const trackTrain& o) const
 {
-    return bSimulate == o.bSimulate && bExtendedAirtime == o.bExtendedAirtime && spec == o.spec && lAssumed == o.lAssumed;
+    return bSimulate == o.bSimulate && bExtendedAirtime == o.bExtendedAirtime && spec == o.spec && lAssumed == o.lAssumed
+            && kept == o.kept;
 }
 
 QString trainAdditionsKey()
@@ -93,63 +95,92 @@ QJsonArray floatListJson(const QList<float>& list)
     return a;
 }
 
-// Readers: true and *out set when json[key] is there and of the right kind;
-// a key that is not there leaves *out and returns true; a key of the wrong
-// kind leaves *out, names it in problems and returns false.
-bool readBool(const QJsonObject& json, const char* key, bool* out, QStringList* problems)
+// A list of finite floats (positive ones when positive), not empty.
+bool floatListFrom(const QJsonValue& v, bool positive, QList<float>* out)
 {
-    QJsonValue v = json.value(key);
-    if(v.isUndefined()) return true;
-    if(!v.isBool()) { if(problems) *problems << QString("\"%1\" is not true or false").arg(key); return false; }
-    *out = v.toBool();
-    return true;
-}
-
-bool readFloat(const QJsonObject& json, const char* key, float low, float high, float* out, QStringList* problems)
-{
-    QJsonValue v = json.value(key);
-    if(v.isUndefined()) return true;
-    float f;
-    if(!floatFrom(v, &f) || f < low || f > high) {
-        if(problems) *problems << QString("\"%1\" is not a number from %2 to %3").arg(key).arg(low).arg(high);
-        return false;
-    }
-    *out = f;
-    return true;
-}
-
-bool readWhole(const QJsonObject& json, const char* key, int low, int high, int* out, QStringList* problems)
-{
-    QJsonValue v = json.value(key);
-    if(v.isUndefined()) return true;
-    double d = v.toDouble();
-    if(!v.isDouble() || !std::isfinite(d) || std::floor(d) != d || d < low || d > high) {
-        if(problems) *problems << QString("\"%1\" is not a whole number from %2 to %3").arg(key).arg(low).arg(high);
-        return false;
-    }
-    *out = (int)d;
-    return true;
-}
-
-bool readFloatList(const QJsonObject& json, const char* key, bool positive, QList<float>* out, QStringList* problems)
-{
-    QJsonValue v = json.value(key);
-    if(v.isUndefined()) return true;
+    if(!v.isArray() || v.toArray().isEmpty()) return false;
     QList<float> list;
-    bool ok = v.isArray() && !v.toArray().isEmpty();
     QJsonArray a = v.toArray();
-    for(int i = 0; ok && i < a.size(); ++i) {
+    for(int i = 0; i < a.size(); ++i) {
         float f = 0.f;
-        ok = floatFrom(a.at(i), &f) && std::fabs(f) <= 1000.f && (!positive || f > 0.f);
+        if(!floatFrom(a.at(i), &f) || std::fabs(f) > 1000.f || (positive && !(f > 0.f))) return false;
         list << f;
-    }
-    if(!ok) {
-        if(problems) *problems << QString("\"%1\" is not a list of %2numbers").arg(key).arg(positive ? "positive " : "");
-        return false;
     }
     *out = list;
     return true;
 }
+
+// What a reader needs: the "train" object (or its "resistance"), the train
+// being filled, and the prefix of the keys it reads ("" or "resistance.").
+struct reader
+{
+    const QJsonObject& json;
+    trackTrain& train;
+    QString prefix;
+
+    // A stored value this version cannot use: kept as it was, the reason given.
+    void keep(const char* key, const QString& why)
+    {
+        QString name = prefix + key;
+        train.kept[name] = json.value(key);
+        // the stored value as JSON text, for the sentence
+        QByteArray shown = QJsonDocument(QJsonArray() << json.value(key)).toJson(QJsonDocument::Compact);
+        shown = shown.mid(1, shown.size() - 2);
+        if(shown.size() > 60) shown = shown.left(57) + "...";
+        train.lProblems << QString("\"%1\" is %2, which %3: this version uses its default and keeps the stored value")
+                           .arg(name, QString::fromUtf8(shown), why);
+    }
+
+    // true and *out set when json[key] is there and usable; a key that is not
+    // there leaves *out and returns true; anything else is kept (keep()).
+    bool readBool(const char* key, bool* out)
+    {
+        QJsonValue v = json.value(key);
+        if(v.isUndefined()) return true;
+        if(!v.isBool()) { keep(key, "is not true or false"); return false; }
+        *out = v.toBool();
+        return true;
+    }
+
+    bool readFloat(const char* key, float low, float high, float* out)
+    {
+        QJsonValue v = json.value(key);
+        if(v.isUndefined()) return true;
+        float f;
+        if(!floatFrom(v, &f) || f < low || f > high) {
+            keep(key, QString("is not a number from %1 to %2").arg(low).arg(high));
+            return false;
+        }
+        *out = f;
+        return true;
+    }
+
+    bool readWhole(const char* key, int low, int high, int* out)
+    {
+        QJsonValue v = json.value(key);
+        if(v.isUndefined()) return true;
+        double d = v.toDouble();
+        if(!v.isDouble() || !std::isfinite(d) || std::floor(d) != d || d < low || d > high) {
+            keep(key, QString("is not a whole number from %1 to %2").arg(low).arg(high));
+            return false;
+        }
+        *out = (int)d;
+        return true;
+    }
+
+    bool readFloatList(const char* key, bool positive, QList<float>* out)
+    {
+        QJsonValue v = json.value(key);
+        if(v.isUndefined()) return true;
+        QList<float> list;
+        if(!floatListFrom(v, positive, &list)) {
+            keep(key, QString("is not a list of %1numbers").arg(positive ? "positive " : ""));
+            return false;
+        }
+        *out = list;
+        return true;
+    }
+};
 
 } // namespace
 
@@ -157,50 +188,62 @@ trackTrain trainFromJson(const QJsonObject& json, QStringList* problems)
 {
     trackTrain t;
     trainSpec& s = t.spec;
-    readBool(json, "simulate", &t.bSimulate, problems);
-    readBool(json, "extendedAirtime", &t.bExtendedAirtime, problems);
+    reader r{json, t, QString()};
+    r.readBool("simulate", &t.bSimulate);
+    r.readBool("extendedAirtime", &t.bExtendedAirtime);
     QJsonValue type = json.value("type");
     if(type.isString()) s.sTypeId = type.toString();
-    else if(!type.isUndefined() && problems) *problems << "\"type\" is not a text";
-    readWhole(json, "cars", 1, 1000, &s.iCars, problems);
-    readFloat(json, "carPitch", 0.f, 1000.f, &s.fCarPitch, problems);
-    readFloatList(json, "rows", false, &s.lRowOffsets, problems);
-    readFloatList(json, "seats", false, &s.lSeatOffsets, problems);
-    readFloat(json, "seatUp", -1000.f, 1000.f, &s.fSeatUp, problems);
-    readFloat(json, "carMass", 0.f, 1e9f, &s.fCarMass, problems);
-    readFloat(json, "riderMass", 0.f, 1e9f, &s.fRiderMass, problems);
-    readFloat(json, "load", 0.f, 1.f, &s.fLoad, problems);
-    readFloatList(json, "carMassFactors", true, &s.lCarMassFactor, problems);
-    readBool(json, "massAtDesignPoint", &s.bMassAtDesignPoint, problems);
-    readFloat(json, "massAboveRail", -1000.f, 1000.f, &s.fMassAboveRail, problems);
+    else if(!type.isUndefined()) r.keep("type", "is not a text");
+    r.readWhole("cars", 1, 1000, &s.iCars);
+    r.readFloat("carPitch", 0.f, 1000.f, &s.fCarPitch);
+    r.readFloatList("rows", false, &s.lRowOffsets);
+    r.readFloatList("seats", false, &s.lSeatOffsets);
+    r.readFloat("seatUp", -1000.f, 1000.f, &s.fSeatUp);
+    r.readFloat("carMass", 0.f, 1e9f, &s.fCarMass);
+    r.readFloat("riderMass", 0.f, 1e9f, &s.fRiderMass);
+    r.readFloat("load", 0.f, 1.f, &s.fLoad);
+    QList<float> factors;
+    if(r.readFloatList("carMassFactors", true, &factors)) {
+        // valid only with one factor per car
+        if(factors.isEmpty() || factors.size() == s.iCars) s.lCarMassFactor = factors;
+        else r.keep("carMassFactors", QString("has %1 factors for %2 cars").arg(factors.size()).arg(s.iCars));
+    }
+    r.readBool("massAtDesignPoint", &s.bMassAtDesignPoint);
+    r.readFloat("massAboveRail", -1000.f, 1000.f, &s.fMassAboveRail);
     QJsonValue res = json.value("resistance");
     if(res.isObject()) {
-        QJsonObject r = res.toObject();
-        readBool(r, "fromProject", &s.resistance.bFromProject, problems);
-        readFloat(r, "rolling", 0.f, 1000.f, &s.resistance.fRolling, problems);
-        readFloat(r, "rollingLoad", 0.f, 1000.f, &s.resistance.fRollingLoad, problems);
-        readFloat(r, "linear", 0.f, 1000.f, &s.resistance.fLinear, problems);
-        readFloat(r, "drag", 0.f, 1000.f, &s.resistance.fDrag, problems);
-    } else if(!res.isUndefined() && problems) {
-        *problems << "\"resistance\" is not an object";
+        QJsonObject ro = res.toObject();
+        reader rr{ro, t, QString("resistance.")};
+        rr.readBool("fromProject", &s.resistance.bFromProject);
+        rr.readFloat("rolling", 0.f, 1000.f, &s.resistance.fRolling);
+        rr.readFloat("rollingLoad", 0.f, 1000.f, &s.resistance.fRollingLoad);
+        rr.readFloat("linear", 0.f, 1000.f, &s.resistance.fLinear);
+        rr.readFloat("drag", 0.f, 1000.f, &s.resistance.fDrag);
+    } else if(!res.isUndefined()) {
+        r.keep("resistance", "is not an object");
     }
     int reference = 0;   // 1-based in the file, 0 = the train's centre
-    if(readWhole(json, "referenceCar", 1, s.iCars, &reference, problems)) s.iReferenceCar = reference - 1;
+    if(r.readWhole("referenceCar", 1, 1000, &reference) && reference > 0) {
+        // valid only within the train
+        if(reference <= s.iCars) s.iReferenceCar = reference - 1;
+        else r.keep("referenceCar", QString("is car %1 of a train of %2 car%3").arg(reference).arg(s.iCars).arg(s.iCars == 1 ? "" : "s"));
+    }
     QJsonValue restraint = json.value("restraint");
     if(restraint.isString() && trainRestraintWords().contains(restraint.toString())) s.sRestraint = restraint.toString();
-    else if(!restraint.isUndefined() && problems) *problems << "\"restraint\" is not one of lapbar, otsr, vest, prone, other";
+    else if(!restraint.isUndefined()) r.keep("restraint", "is not one of lapbar, otsr, vest, prone, other");
     QJsonValue assumed = json.value("assumed");
-    if(assumed.isArray()) {
-        QJsonArray a = assumed.toArray();
-        for(int i = 0; i < a.size(); ++i) {
-            if(a.at(i).isString()) t.lAssumed << a.at(i).toString();
-            else if(problems) *problems << "\"assumed\" holds something that is not a name";
-        }
-    } else if(!assumed.isUndefined() && problems) {
-        *problems << "\"assumed\" is not a list";
+    bool assumedOk = assumed.isUndefined() || assumed.isArray();
+    QStringList names;
+    QJsonArray a = assumed.toArray();
+    for(int i = 0; assumedOk && i < a.size(); ++i) {
+        if(a.at(i).isString()) names << a.at(i).toString();
+        else assumedOk = false;
     }
+    if(assumedOk) t.lAssumed = names;
+    else r.keep("assumed", "is not a list of names");
     QString why;
-    if(!s.isValid(&why) && problems) *problems << why;
+    if(!s.isValid(&why)) t.lProblems << "the train as read is not valid: " + why;
+    if(problems) *problems << t.lProblems;
     return t;
 }
 
@@ -224,19 +267,26 @@ QJsonObject trainToJson(const trackTrain& train, const QJsonObject& keep)
     if(s.bMassAtDesignPoint != d.bMassAtDesignPoint) o["massAtDesignPoint"] = s.bMassAtDesignPoint;
     if(!sameFloat(s.fMassAboveRail, d.fMassAboveRail)) o["massAboveRail"] = floatJson(s.fMassAboveRail);
 
-    // the resistance, with any unknown key inside it kept
+    // the resistance, with any unknown key inside it kept, and its kept values
     const rideResistance& r = s.resistance;
     const rideResistance& rd = d.resistance;
     QJsonObject ro = keep.value("resistance").toObject();
     for(size_t i = 0; i < sizeof(ownResistanceKeys)/sizeof(ownResistanceKeys[0]); ++i) ro.remove(ownResistanceKeys[i]);
     bool resistanceDefault = r.bFromProject == rd.bFromProject && sameFloat(r.fRolling, rd.fRolling)
             && sameFloat(r.fRollingLoad, rd.fRollingLoad) && sameFloat(r.fLinear, rd.fLinear) && sameFloat(r.fDrag, rd.fDrag);
-    if(!resistanceDefault || !ro.isEmpty()) {
+    bool resistanceKept = false;
+    for(QJsonObject::const_iterator it = train.kept.constBegin(); it != train.kept.constEnd(); ++it) {
+        if(it.key().startsWith("resistance.")) resistanceKept = true;
+    }
+    if(!resistanceDefault || !ro.isEmpty() || resistanceKept) {
         ro["fromProject"] = r.bFromProject;
         if(!sameFloat(r.fRolling, rd.fRolling)) ro["rolling"] = floatJson(r.fRolling);
         if(!sameFloat(r.fRollingLoad, rd.fRollingLoad)) ro["rollingLoad"] = floatJson(r.fRollingLoad);
         if(!sameFloat(r.fLinear, rd.fLinear)) ro["linear"] = floatJson(r.fLinear);
         if(!sameFloat(r.fDrag, rd.fDrag)) ro["drag"] = floatJson(r.fDrag);
+        for(QJsonObject::const_iterator it = train.kept.constBegin(); it != train.kept.constEnd(); ++it) {
+            if(it.key().startsWith("resistance.")) ro[it.key().mid(11)] = it.value();
+        }
         o["resistance"] = ro;
     }
 
@@ -244,6 +294,11 @@ QJsonObject trainToJson(const trackTrain& train, const QJsonObject& keep)
     if(!s.sRestraint.isEmpty()) o["restraint"] = s.sRestraint;
     if(train.bExtendedAirtime) o["extendedAirtime"] = true;
     if(!train.lAssumed.isEmpty()) o["assumed"] = QJsonArray::fromStringList(train.lAssumed);
+
+    // the stored values this version could not use, as they were
+    for(QJsonObject::const_iterator it = train.kept.constBegin(); it != train.kept.constEnd(); ++it) {
+        if(!it.key().startsWith("resistance.")) o[it.key()] = it.value();
+    }
     return o;
 }
 
@@ -257,10 +312,19 @@ trackTrain trainOfTrack(const track* t, QStringList* problems)
     if(!trackHasTrain(t)) return trackTrain();
     QJsonValue v = t->additions.value(trainAdditionsKey());
     if(!v.isObject()) {
-        if(problems) *problems << "the track's \"train\" is not an object";
-        return trackTrain();
+        // not an object at all: nothing of it can be used; setTrainOfTrack()
+        // writes over it only when a command sets the train
+        trackTrain none;
+        none.lProblems << "the track's \"train\" is not an object: this version uses no train";
+        if(problems) *problems << none.lProblems;
+        return none;
     }
     return trainFromJson(v.toObject(), problems);
+}
+
+QStringList trainProblemsOfTrack(const track* t)
+{
+    return trainOfTrack(t).lProblems;
 }
 
 void setTrainOfTrack(track* t, const trackTrain& train)
@@ -284,14 +348,13 @@ void clearTrainOfTrack(track* t)
     t->additions.remove(trainAdditionsKey());
 }
 
-bool simulatedTrainOfTrack(const track* t, trainSpec* out, QString* why)
+bool simulatedTrainOfTrack(const track* t, trainSpec* out, QString* why, QStringList* problems)
 {
     if(!trackHasTrain(t)) {
         if(why) *why = "the track has no train";
         return false;
     }
-    QStringList problems;
-    trackTrain train = trainOfTrack(t, &problems);
+    trackTrain train = trainOfTrack(t, problems);
     if(!train.bSimulate) {
         if(why) *why = "the track's train is not switched on";
         return false;

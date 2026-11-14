@@ -32,6 +32,10 @@
 #include "track.h"
 #include "tracktrain.h"
 #include "traintype.h"
+#include "projecttext.h"
+
+#include <QJsonArray>
+#include <cmath>
 
 #include <functional>
 
@@ -61,16 +65,31 @@ void unassume(trackTrain& train, const QStringList& fields)
     for(int i = 0; i < fields.size(); ++i) train.lAssumed.removeAll(fields.at(i));
 }
 
+// The command sets these keys: a stored value of them this version could not
+// use (trackTrain::kept) is replaced by the new one. "resistance" covers the
+// keys inside it too.
+void sets(trackTrain& train, const QStringList& keys)
+{
+    QStringList all = train.kept.keys();
+    for(int i = 0; i < all.size(); ++i) {
+        for(int k = 0; k < keys.size(); ++k) {
+            if(all.at(i) == keys.at(k) || all.at(i).startsWith(keys.at(k) + ".")) train.kept.remove(all.at(i));
+        }
+    }
+}
+
 bool changeSimulate(trackTrain& train, const commandArgs& args, QString*)
 {
     train.bSimulate = args.value("on").toBool();
+    sets(train, QStringList() << "simulate");
     return true;
 }
 
 // The catalogue entry (trainSpec::fromType()), with its stand-ins named.
 // What is not part of the description stays: whether the train is simulated
 // and whether the extended airtime line is allowed. The reference goes back
-// to the train's centre.
+// to the train's centre. Every field of the description is set, so any of
+// them kept as stored (unreadable here) is replaced.
 bool changeType(trackTrain& train, const commandArgs& args, QString* error)
 {
     QString id = args.value("type").toString();
@@ -87,20 +106,64 @@ bool changeType(trackTrain& train, const commandArgs& args, QString* error)
     QStringList assumed;
     train.spec = trainSpec::fromType(*type, &assumed);
     train.lAssumed = assumed;
+    sets(train, QStringList() << "type" << "cars" << "carPitch" << "rows" << "seats" << "seatUp" << "carMass"
+         << "riderMass" << "load" << "carMassFactors" << "massAtDesignPoint" << "massAboveRail" << "resistance"
+         << "referenceCar" << "restraint" << "assumed");
     return true;
 }
 
-// The count of cars. A reference car that is no longer in the train becomes
-// the rear car; per-car mass factors that no longer fit are dropped; a train
-// of more than one car without a car pitch takes the stand-in pitch.
+// A whole number from 1 to cars, as a stored JSON value; 0 when it is not one.
+int carNumberIn(const QJsonValue& v, int cars)
+{
+    double d = v.toDouble(0.0);
+    if(!v.isDouble() || !std::isfinite(d) || std::floor(d) != d || d < 1.0 || d > cars) return 0;
+    return (int)d;
+}
+
+// The count of cars.
+// - The reference: one in use that is no longer in the train becomes the rear
+//   car. One kept as stored (beyond the cars it was saved with) is taken into
+//   use when it is within the new train, else it stays kept as it was.
+// - Mass factors: ones in use that no longer fit (not one per car) are kept
+//   as stored, not dropped (the ride then uses none); ones kept as stored are
+//   taken into use when there is one per car now.
+// - A train of more than one car without a car pitch takes the stand-in pitch.
+//   The pitch is kept when the train goes down to one car, where it is not used.
 bool changeCars(trackTrain& train, const commandArgs& args, QString*)
 {
     trainSpec& s = train.spec;
     s.iCars = args.value("cars").toInt();
+    sets(train, QStringList() << "cars");
     if(s.iReferenceCar >= s.iCars) s.iReferenceCar = s.iCars - 1;
-    if(!s.lCarMassFactor.isEmpty() && s.lCarMassFactor.size() != s.iCars) s.lCarMassFactor.clear();
+    if(train.kept.contains("referenceCar")) {
+        int car = carNumberIn(train.kept.value("referenceCar"), s.iCars);
+        if(car > 0) {
+            s.iReferenceCar = car - 1;
+            train.kept.remove("referenceCar");
+        }
+    }
+    if(!s.lCarMassFactor.isEmpty() && s.lCarMassFactor.size() != s.iCars) {
+        QJsonArray stored;
+        for(int i = 0; i < s.lCarMassFactor.size(); ++i) stored.append(projectText::floatToJson(s.lCarMassFactor.at(i)));
+        train.kept["carMassFactors"] = stored;
+        s.lCarMassFactor.clear();
+    } else if(train.kept.contains("carMassFactors")) {
+        QJsonArray stored = train.kept.value("carMassFactors").toArray();
+        QList<float> factors;
+        bool ok = stored.size() == s.iCars;
+        for(int i = 0; ok && i < stored.size(); ++i) {
+            float f = 0.f;
+            ok = projectText::floatFromJson(stored.at(i), &f) && std::isfinite(f) && f > 0.f && f <= 1000.f;
+            factors << f;
+        }
+        if(ok) {
+            s.lCarMassFactor = factors;
+            train.kept.remove("carMassFactors");
+        }
+    }
     if(s.iCars > 1 && !(s.fCarPitch > 0.f)) {
         s.fCarPitch = trainSpec::standInCarPitch();
+        sets(train, QStringList() << "carPitch");
         if(!train.lAssumed.contains("fCarPitch")) train.lAssumed << "fCarPitch";
     }
     unassume(train, QStringList() << "iCars");
@@ -110,6 +173,7 @@ bool changeCars(trackTrain& train, const commandArgs& args, QString*)
 bool changeCarPitch(trackTrain& train, const commandArgs& args, QString*)
 {
     train.spec.fCarPitch = (float)args.value("pitch").toDouble();
+    sets(train, QStringList() << "carPitch");
     unassume(train, QStringList() << "fCarPitch");
     return true;
 }
@@ -117,6 +181,7 @@ bool changeCarPitch(trackTrain& train, const commandArgs& args, QString*)
 bool changeRows(trackTrain& train, const commandArgs& args, QString*)
 {
     train.spec.setRows(args.value("count").toInt(), (float)args.value("spacing").toDouble());
+    sets(train, QStringList() << "rows");
     unassume(train, QStringList() << "rowCount" << "lRowOffsets");
     return true;
 }
@@ -124,6 +189,7 @@ bool changeRows(trackTrain& train, const commandArgs& args, QString*)
 bool changeSeats(trackTrain& train, const commandArgs& args, QString*)
 {
     train.spec.setSeats(args.value("count").toInt(), (float)args.value("spacing").toDouble());
+    sets(train, QStringList() << "seats");
     unassume(train, QStringList() << "seatCount" << "lSeatOffsets");
     return true;
 }
@@ -131,6 +197,7 @@ bool changeSeats(trackTrain& train, const commandArgs& args, QString*)
 bool changeSeatHeight(trackTrain& train, const commandArgs& args, QString*)
 {
     train.spec.fSeatUp = (float)args.value("height").toDouble();
+    sets(train, QStringList() << "seatUp");
     return true;
 }
 
@@ -143,6 +210,7 @@ bool changeReference(trackTrain& train, const commandArgs& args, QString* error)
         return false;
     }
     train.spec.iReferenceCar = car - 1;
+    sets(train, QStringList() << "referenceCar");
     return true;
 }
 
@@ -150,12 +218,14 @@ bool changeRestraint(trackTrain& train, const commandArgs& args, QString*)
 {
     QString word = args.value("restraint").toString();
     train.spec.sRestraint = word == "none" ? QString() : word;
+    sets(train, QStringList() << "restraint");
     return true;
 }
 
 bool changeExtendedAirtime(trackTrain& train, const commandArgs& args, QString*)
 {
     train.bExtendedAirtime = args.value("allowed").toBool();
+    sets(train, QStringList() << "extendedAirtime");
     return true;
 }
 
@@ -167,6 +237,7 @@ bool changeResistance(trackTrain& train, const commandArgs& args, QString*)
     r.fRollingLoad = (float)args.value("rollingLoad").toDouble();
     r.fLinear = (float)args.value("linear").toDouble();
     r.fDrag = (float)args.value("drag").toDouble();
+    sets(train, QStringList() << "resistance");
     return true;
 }
 
@@ -226,7 +297,7 @@ QList<commandSpec> trainCommands()
 
     {
         commandSpec s = trainSpecOf("train.setCars",
-                                    "Sets the number of cars of the track's train. A reference car beyond the new last car becomes the last car; a train of more than one car without a car pitch takes the stand-in pitch of 2.5 m (marked assumed).",
+                                    "Sets the number of cars of the track's train. A reference car beyond the new last car becomes the last car; a train of more than one car without a car pitch takes the stand-in pitch of 2.5 m (marked assumed); going down to one car keeps the pitch, unused. A reference car or mass factors stored but not usable with the old number of cars are taken into use once they fit, and kept as stored otherwise.",
                                     "Change number of cars");
         s.params << commandParam::intParam("cars", "none", "The number of cars, 1 or more.", 1, 100);
         s.merges = true;
@@ -237,7 +308,7 @@ QList<commandSpec> trainCommands()
 
     {
         commandSpec s = trainSpecOf("train.setCarPitch",
-                                    "Sets the car pitch of the track's train: the distance from one car's centre to the next, along the track's centre line.",
+                                    "Sets the car pitch of the track's train: the distance from one car's centre to the next, along the track's centre line. A train of one car does not use it; its pitch is kept (not set back to 0) so that a later change to more cars keeps the length chosen.",
                                     "Change car pitch");
         s.params << commandParam::floatParam("pitch", "m", "The car pitch, centre to centre.", 0.5, 50.0);
         s.merges = true;
