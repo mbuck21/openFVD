@@ -103,12 +103,17 @@ public:
 // the node with itself and get 0 (or a float rounding residue).
 #define MEASURE_RATE_SPAN 20
 
-// The along-track force's differencing half-span in nodes (see measure.cpp).
+// The half-span in nodes over which the along-track force takes the design's
+// acceleration from its speeds (see measure.cpp).
 #define MEASURE_ALONG_HALFSPAN 10
 
 // The along-track force with a chosen half-span; the measure uses
-// MEASURE_ALONG_HALFSPAN. For tests that measure the float noise.
-void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan);
+// MEASURE_ALONG_HALFSPAN. For tests: accel, when given, receives per node the
+// design's acceleration of the centre line that went into it (m/s^2; 0 on
+// held-speed track and where the nodes do not move), and place the
+// centre-line distance of each node from node 0 (m).
+void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan,
+                       QVector<double>* accel = NULL, QVector<double>* place = NULL);
 
 // Whether a section holds its speed (bSpeed off on a straight, curved, force
 // or geometric section): the along-track force there is just vDir.y.

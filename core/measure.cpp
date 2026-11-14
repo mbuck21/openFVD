@@ -21,7 +21,9 @@
 #include "track.h"
 #include "section.h"
 #include "mnode.h"
+#include "heartline.h"
 #include <cmath>
+#include <limits>
 
 // Nothing in this file writes to a node or a track. Nodes are reached through
 // const access only (a non-const QVector::operator[] could detach the
@@ -110,11 +112,25 @@ static void fillForceLateral(const measureNodes& n, QVector<float>& out)
 }
 
 // The along-track force, in g, positive when the rider is pressed back into
-// the seat: forceAlong = vDir.y + a_t / F_G, the along-track part of the same
-// "up minus acceleration" the program uses for the normal and lateral force.
-// a_t is the acceleration along the direction of travel, a_t = v dv/ds, taken
-// as (v_hi^2 - v_lo^2) / (2 (s_hi - s_lo)) with v the node speed (fVel) and s
-// the heartline distance (summed in double from vPos, see collect()).
+// the seat: what a rider at the heartline feels along the track, by the rule
+// the ride uses (core/heartline.h; issue 96):
+//     forceAlong = vDir.y + (rh a + v^2 drh/ds) / g
+// with v the node's speed (fVel, the speed of the centre line), a the
+// design's own acceleration of the centre line, rh the heartline's metres per
+// metre of centre line and drh/ds its change per metre, rh and drh/ds taken
+// from the frame exactly as the ride takes them (heartlineFrameOf()). The
+// first term is the train speeding up or slowing; the second is the car
+// pitching, which throws a rider at the heartline forward or back even at a
+// steady speed (it is largest where a loop's curvature changes fast). The
+// measure describes the design: the design's own speed and acceleration at
+// each node, not a ride of a train; where the ride of trainSpec::point()
+// reproduces the design the two agree (tests/trainride, proof (1)). Until
+// issue 96 the measure was vDir.y + a / rh / g, the speed's change over the
+// heartline's distance, which has no pitching term and the wrong share of a.
+//
+// a = v dv/ds, taken as (v_hi^2 - v_lo^2) / (2 (s_hi - s_lo)) with s the
+// centre-line distance of the nodes, summed in double as the ride sums it
+// (heartlineRailStep()).
 //
 // Why a distance form: force, geometric, straight and curved sections step
 // 1/F_HZ per node (the last node of a straight or curve is a fractional step),
@@ -122,46 +138,62 @@ static void fillForceLateral(const measureNodes& n, QVector<float>& out)
 // are evenly spaced, so node index is not time everywhere; v dv/ds is right
 // for any spacing.
 //
-// Why a span of +-10 nodes (20 ms at 1 kHz): the speed is a 32-bit float made
-// from an energy of a few hundred J/kg, so a difference over one node is
-// noisy; measured on the baseline projects (tests/measures prints it) the
-// noise is about 2e-5 to 4e-5 g over one node and 2e-6 to 5e-6 g over this
-// span on ordinary track (3e-5 g over all of them, the broken test loops
-// included), while 20 ms is far shorter than any change in ride forces (the
-// plot's own rates use the same 20-node span). The window is
-// clamped to the node's own section, so a jump in speed at a joint (a section
-// that sets its speed) never leaks into its neighbours; near a section's ends
-// the difference is one-sided. The section's node 0 is left out of the window:
-// it is a copy of the previous section's last node (or of the anchor), whose
+// Why a span of +-10 nodes (20 ms at 1 kHz) for a: the speed is a 32-bit float
+// made from an energy of a few hundred J/kg, so a difference over one node is
+// noisy (tests/measures prints the noise of the whole value over one node and
+// over this span), while 20 ms is far shorter than any change in ride forces
+// (the plot's own rates use the same 20-node span). The window is clamped to
+// the node's own section, so a jump in speed at a joint (a section that sets
+// its speed) never leaks into its neighbours; near a section's ends the
+// difference is one-sided. The section's node 0 is left out of the window: it
+// is a copy of the previous section's last node (or of the anchor), whose
 // stored energy can disagree with the section's own energy by about a
 // centimetre of height, which shows as a one-step speed jump worth several
 // hundredths of a g; the section's own nodes are consistent with each other.
+// rh and drh/ds are not clamped to the section (the shape is continuous at a
+// join), as in the ride.
 //
-// Held speed (measureSpeedIsHeld): a_t = 0 and forceAlong = vDir.y exactly.
+// Held speed (measureSpeedIsHeld): a = 0, the rail's speed does not change;
+// the pitching term stays, since the car still pitches where the curvature
+// changes (a crest or a valley on a lift or a brake run), so forceAlong =
+// vDir.y + v^2 drh/ds / g, as the ride gives it. Where a held section does not
+// turn in the vertical plane drh is 0 and the value is vDir.y.
 // Zero or tiny spacing (a section of one node, or the train standing): the
-// distance gives no acceleration and forceAlong = vDir.y.
-void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan)
+// distance gives no acceleration, a = 0.
+// Not a number: from the node where the design stalls (a speed, roll rate,
+// position or frame that is not a number; heartlineFrame::nodeEntry is -1)
+// the value is not a number.
+void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan, QVector<double>* accel,
+                       QVector<double>* place)
 {
     if(halfSpan < 1) halfSpan = 1;
+    heartlineFrame f = heartlineFrameOf(n);
+    if(accel) accel->fill(0.0, n.size());
+    if(place) *place = f.nodePlace;
     for(int i = 0; i < n.size(); ++i) {
         const mnode* node = n.nodes.at(i);
         int s = n.sectionOf.at(i);
         const section* sec = n.trk->lSections.at(s);
-        double along = node->vDir.y;
-        if(!measureSpeedIsHeld(sec)) {
-            int lo = qMax(i - halfSpan, n.sectionFirst.at(s) + 1);
-            int hi = qMin(i + halfSpan, n.sectionLast.at(s));
-            // lo can be past hi (a section of one node): test before reading.
-            // A non-finite speed or distance passes through as non-finite.
-            double ds = (hi > lo) ? n.heartDist.at(hi) - n.heartDist.at(lo) : 0.0;
-            if(hi > lo && !(ds <= 1e-6)) {
-                double vlo = n.nodes.at(lo)->fVel;
-                double vhi = n.nodes.at(hi)->fVel;
-                double at = (vhi*vhi - vlo*vlo) / (2.0*ds);
-                along += at / F_G;
-            }
+        int e = f.nodeEntry.at(i);
+        if(e < 0) {
+            out[i] = std::numeric_limits<float>::quiet_NaN();
+            if(accel) (*accel)[i] = std::numeric_limits<double>::quiet_NaN();
+            continue;
         }
-        out[i] = (float)along;
+        double a = 0.0;
+        int lo = qMax(i - halfSpan, n.sectionFirst.at(s) + 1);
+        int hi = qMin(i + halfSpan, n.sectionLast.at(s));
+        // lo can be past hi (a section of one node): test before reading.
+        // A non-finite speed passes through as non-finite.
+        double ds = (hi > lo) ? f.nodePlace.at(hi) - f.nodePlace.at(lo) : 0.0;
+        if(!measureSpeedIsHeld(sec) && hi > lo && ds > 1e-6) {
+            double vlo = n.nodes.at(lo)->fVel;
+            double vhi = n.nodes.at(hi)->fVel;
+            a = (vhi*vhi - vlo*vlo) / (2.0*ds);
+        }
+        if(accel) (*accel)[i] = a;
+        double v = node->fVel;
+        out[i] = (float)heartlineAlongG(node->vDir.y, heartlineAccel(v, a, f.rh.at(e), f.drh.at(e)));
     }
 }
 
@@ -288,7 +320,7 @@ static QVector<measureDef> buildTable()
         << def("forceLateral", "Lateral force", "g",
                "Sideways force on the rider, with roll smoothing included.", -1.5f, 1.5f, fillForceLateral)
         << def("forceAlong", "Along-track force", "g",
-               "Force along the track, positive when the rider is pressed back into the seat (a launch, or a climb at held speed), negative when thrown forward (braking).", -1.5f, 1.5f, fillForceAlong)
+               "Force along the track on a rider at the heartline, by the rule the train ride uses: positive when pressed back into the seat (a launch, a climb at held speed), negative when thrown forward (braking); where a curve up or down tightens or opens, the car's pitching adds a push either way.", -1.5f, 1.5f, fillForceAlong)
         << def("jerkNormal", "Vertical force change", "g/s",
                "How fast the vertical force changes, over 20 ms as the plot shows it.", -20.f, 20.f, fillJerkNormal)
         << def("jerkLateral", "Lateral force change", "g/s",
@@ -335,12 +367,15 @@ QVector<QVector<float> > measureRegistry::values(const track* t, const QStringLi
 QVector<QVector<float> > measureRegistry::values(const measureNodes& n, const QStringList& ids)
 {
     QVector<QVector<float> > result;
+    int along = -1;     // where forceAlong is in result, for jerkAlong (the frame is read once)
     for(int k = 0; k < ids.size(); ++k) {
         const measureDef* d = find(ids.at(k));
         QVector<float> v;
         if(d && n.size() > 0) {
             v.resize(n.size());
-            d->fill(n, v);
+            if(d->fill == fillJerkAlong && along >= 0) rateOf(result.at(along), v);
+            else d->fill(n, v);
+            if(d->fill == fillForceAlong) along = k;
         }
         result.append(v);
     }

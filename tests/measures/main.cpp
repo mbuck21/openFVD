@@ -24,10 +24,12 @@
 // first argument; prints one line per check and PASS or FAIL.
 
 #include "../../core/track.h"
+#include "../../core/section.h"
 #include "../../core/projectfile.h"
 #include "../../core/elementfile.h"
 #include "../../core/measure.h"
 #include "../../core/finding.h"
+#include "../../core/heartline.h"
 #include "../../lenassert.h"
 
 #include <QCoreApplication>
@@ -40,6 +42,7 @@
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QtDebug>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -342,56 +345,115 @@ static void checkStall(const QString& repo)
                                    "every measure runs and basic reports a speed finding covering it").arg(speed).arg(firstBad).arg(lastBad).arg(last));
 }
 
-// A track built here: a quarter loop up (curved section, direction 90) at a
-// held 10 m/s, then the same with the speed from the physics.
-static void checkSyntheticClimb()
+// A curved section turning up (a quarter loop, the default curve with its
+// lead-in and lead-out), first at a held 10 m/s, then with the speed from the
+// physics entered at 25 m/s. The direction that makes the curve go up is
+// searched once.
+static bool sameFloat(float a, float b);
+static void oldForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan);
+
+static float upwardDirection()
 {
     track t(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
     t.newSection(curved);
     section* s = t.lSections[0];
     s->bSpeed = false;
     s->fVel = 10.f;
-    // the direction that makes the curve go up
     float directions[] = { 0.f, 90.f, 180.f, 270.f };
     for(unsigned d = 0; d < 4; ++d) {
         s->fDirection = directions[d];
         t.updateTrack(0, 0);
-        if(t.getPoint(t.getNumPoints())->vDir.y > 0.9f) break;
+        if(t.getPoint(t.getNumPoints())->vDir.y > 0.9f) return directions[d];
     }
+    return 0.f;
+}
 
-    QVector<float> along = measureRegistry::values(&t, "forceAlong");
-    float maxUp = -1.f;
-    bool equal = along.size() == t.getNumPoints()+1;
-    bool positive = true;
-    for(int i = 0; i < along.size(); ++i) {
-        mnode* n = t.getPoint(i);
-        maxUp = qMax(maxUp, n->vDir.y);
-        if(along[i] != n->vDir.y) equal = false;
-        if(n->vDir.y > 0.01f && !(along[i] > 0.f)) positive = false;
-    }
-    report(maxUp > 0.9f && equal && positive,
-           QString("held-speed climb (curve direction %1): along-track force = vDir.y exactly and positive (track rises to vDir.y %2)")
-           .arg(s->fDirection).arg(maxUp, 0, 'f', 3));
-
-    // the same climb with the physics, entered at 25 m/s
-    t.anchorNode->fVel = 25.f;
-    t.anchorNode->fEnergy = 0.5f*25.f*25.f + F_G*t.anchorNode->fPosHearty(0.9f*t.fHeart);
-    s->bSpeed = true;
-    t.updateTrack(0, 0);
-    along = measureRegistry::values(&t, "forceAlong");
-    float worst = 0.f, maxDirY = 0.f;
-    for(int i = 15; i < along.size()-15; ++i) {
-        if(t.getPoint(i)->vDir.y > 0.3f) {
-            maxDirY = qMax(maxDirY, t.getPoint(i)->vDir.y);
-            if(fabs(along[i]) > fabs(worst)) worst = along[i];
+static void checkSyntheticClimb()
+{
+    const float direction = upwardDirection();
+    {
+        // Held speed: a = 0, and the value is vDir.y plus the pitching term
+        // v^2 drh/ds / g, which is there in the lead-in and lead-out (the
+        // curvature changes: thrown forward going in, pressed back coming
+        // out) and float noise on the constant radius between.
+        track t(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+        t.newSection(curved);
+        section* s = t.lSections[0];
+        s->bSpeed = false;
+        s->fVel = 10.f;
+        s->fDirection = direction;
+        t.updateTrack(0, 0);
+        measureNodes n = measureRegistry::collect(&t);
+        heartlineFrame hf = heartlineFrameOf(n);
+        QVector<float> along = measureRegistry::values(&t, "forceAlong");
+        float maxUp = -1.f;
+        bool rule = along.size() == n.size();
+        bool positive = true;
+        double pitchWorst = 0.0, middleWorst = 0.0;
+        for(int i = 0; i < along.size(); ++i) {
+            const mnode* m = n.nodes[i];
+            int e = hf.nodeEntry[i];
+            float expect = e < 0 ? NAN : (float)heartlineAlongG(m->vDir.y, heartlineAccel(m->fVel, 0.0, hf.rh[e], hf.drh[e]));
+            if(!sameFloat(along[i], expect)) rule = false;
+            maxUp = qMax(maxUp, m->vDir.y);
+            double pitch = std::fabs((double)along[i] - m->vDir.y);
+            pitchWorst = qMax(pitchWorst, pitch);
+            // the constant radius, away from the lead-in and lead-out (10 degrees each of 90)
+            if(m->vDir.y > std::sin(15.f*F_PI/180.f) && m->vDir.y < std::sin(75.f*F_PI/180.f)) {
+                middleWorst = qMax(middleWorst, pitch);
+                if(!(along[i] > 0.f)) positive = false;
+            }
         }
+        report(maxUp > 0.9f && rule && positive && middleWorst < 1e-3,
+               QString("held-speed climb (curve direction %1): the along-track force is vDir.y + v^2 drh/ds / g by the shared "
+                       "rule at every node, to the bit; the pitching term reaches %2 g in the lead-in and lead-out and stays "
+                       "under %3 g on the constant radius, where the force is positive (track rises to vDir.y %4)")
+               .arg(direction).arg(pitchWorst, 0, 'f', 4).arg(middleWorst, 0, 'g', 2).arg(maxUp, 0, 'f', 3));
     }
-    // Not exactly 0: friction (-0.03 g), air (-0.01 g) and the energy model's
-    // 0.9-heartline height, which in a 15 m vertical curve with a 1.1 m
-    // heartline is about -0.9*1.1/14 = -0.07 g (see physicsCompare()).
-    report(maxDirY > 0.5f && worst < 0.f && worst > -0.15f,
-           QString("physics climb: the train slows as gravity says, along-track force stays small and negative (largest %1 g) while vDir.y reaches %2")
-           .arg(worst, 0, 'f', 4).arg(maxDirY, 0, 'f', 3));
+    {
+        // The same climb with the physics, entered at 25 m/s: the anchor's
+        // speed and energy are set before the section is made, since the
+        // section's first node copies the anchor.
+        track t(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
+        t.anchorNode->fVel = 25.f;
+        t.anchorNode->fEnergy = 0.5f*25.f*25.f + F_G*t.anchorNode->fPosHearty(0.9f*t.fHeart);
+        t.newSection(curved);
+        section* s = t.lSections[0];
+        s->bSpeed = true;
+        s->fDirection = direction;
+        t.updateTrack(0, 0);
+        measureNodes n = measureRegistry::collect(&t);
+        QVector<float> along = measureRegistry::values(&t, "forceAlong");
+        QVector<float> old(n.size());
+        oldForceAlong(n, old, MEASURE_ALONG_HALFSPAN);
+        float worst = 0.f, worstOld = 0.f, maxDirY = 0.f, pitchIn = 0.f;
+        for(int i = 15; i < along.size()-15; ++i) {
+            float y = n.nodes[i]->vDir.y;
+            maxDirY = qMax(maxDirY, y);
+            if(y > std::sin(15.f*F_PI/180.f) && y < std::sin(75.f*F_PI/180.f)) {
+                if(fabs(along[i]) > fabs(worst)) worst = along[i];
+                if(fabs(old[i]) > fabs(worstOld)) worstOld = old[i];
+            } else if(fabs(along[i]) > fabs(pitchIn)) {
+                pitchIn = along[i];
+            }
+        }
+        float entry = n.nodes[1]->fVel;
+        // On the constant radius, not exactly 0: friction (-0.03 g), air
+        // (about -0.05 g at 25 m/s), and, at the heartline on the inside of a
+        // curve up of radius R, the heartline slowing less than the rail: a
+        // rider there is pressed back by about vDir.y (1.1 h / R) (issue 96; the
+        // closed form is checkVerticalCircle()). Small either way. In the
+        // lead-in and lead-out the car pitches and the pitching term, v^2
+        // drh/ds / g, is large at this speed: printed, not limited.
+        report(entry > 24.f && maxDirY > 0.9f && std::fabs(worst) < 0.15f,
+               QString("physics climb entered at %1 m/s: the train slows as gravity says; on the constant radius the "
+                       "along-track force stays small (largest %2 g; the form before issue 96 %3 g) while vDir.y reaches "
+                       "%4; in the lead-in and lead-out the car's pitching gives up to %5 g")
+               .arg(entry, 0, 'f', 2).arg(worst, 0, 'f', 4).arg(worstOld, 0, 'f', 4).arg(maxDirY, 0, 'f', 3)
+               .arg(pitchIn, 0, 'f', 3));
+    }
+
+    QVector<float> along;
 
     // a horizontal straight with the physics: friction and air slow the train
     track h(glm::vec3(0.f, 0.f, 0.f), 0.f, 1.1f);
@@ -410,6 +472,91 @@ static void checkSyntheticClimb()
            .arg(mean, 0, 'f', 5).arg(expect, 0, 'f', 5));
 }
 
+// (a) The closed form (issue 96): a vertical circle built as a track, a curved
+// section of rail radius R = 10 m turning up from level, heartline h = 1.1 m,
+// no friction and no air, entered at 20 m/s. The design's energy point (0.1 h
+// above the rail) runs on a circle of radius R - 0.1 h, so at the angle theta
+// turned
+//     v^2 = v0^2 - 2 g (R - 0.1 h)(1 - cos theta),  a = -g (R - 0.1 h) sin theta / R
+// (a = v dv/ds of the centre line), the heartline runs rh = (R - h)/R metres
+// per metre of rail, constant (drh = 0), and a rider at the heartline feels
+//     gx = sin theta + rh a / g,
+// 0.1198 g with the track vertical. The same circle as tests/trainride's
+// "along-track force at the heartline on a vertical circle", built here as a
+// real track so that the measure itself is checked.
+static void oldForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan);
+static double circleNoise[2] = { 0.0, 0.0 };       // the measure, the form before issue 96 (g)
+
+static void checkVerticalCircle()
+{
+    const float R = 10.f, h = 1.1f, v0 = 20.f;
+    track t(glm::vec3(0.f, 0.f, 0.f), 0.f, h);
+    t.fFriction = 0.f;
+    t.fResistance = 0.f;
+    // the anchor's speed before the section is made (its first node copies the anchor)
+    t.anchorNode->fVel = v0;
+    t.anchorNode->fEnergy = 0.5f*v0*v0 + F_G*t.anchorNode->fPosHearty(0.9f*h);
+    t.newSection(curved);
+    section* s = t.lSections[0];
+    s->bSpeed = true;
+    s->fRadius = R;
+    s->fLeadIn = 0.f;
+    s->fLeadOut = 0.f;
+    s->rollFunc->changeLength(126.f, 0);    // 2.2 rad of turning (a curve's roll function runs over its angle)
+    // the direction that makes the curve go up
+    float directions[] = { 0.f, 90.f, 180.f, 270.f };
+    for(unsigned d = 0; d < 4; ++d) {
+        s->fDirection = directions[d];
+        t.updateTrack(0, 0);
+        if(t.getNumPoints() > 100 && t.getPoint(100)->vDir.y > 0.1f) break;
+    }
+    measureNodes n = measureRegistry::collect(&t);
+    QVector<float> along = measureRegistry::values(&t, "forceAlong");
+    const double rh = ((double)R - h)/R, g = 9.80665, r09 = (double)R - 0.1*h;
+    double worst = 0.0, at90 = 0.0, form90 = 0.0, old90 = 0.0, best90 = 1e9, thLast = 0.0;
+    int used = 0;
+    const int margin = 2*MEASURE_ALONG_HALFSPAN + 5;
+    for(int i = margin; i + margin < n.size(); ++i) {
+        const mnode* m = n.nodes[i];
+        // the angle turned, from the frame: vDir.y = sin theta, vNorm.y = -cos theta
+        // (vNorm points from the heartline to the rail)
+        double th = std::atan2((double)m->vDir.y, -(double)m->vNorm.y);
+        double a = -g*r09*std::sin(th)/R;
+        double gx = std::sin(th) + rh*a/g;
+        worst = qMax(worst, std::fabs(along[i] - gx));
+        if(std::fabs(th - M_PI/2) < best90) {
+            best90 = std::fabs(th - M_PI/2);
+            at90 = along[i];
+            form90 = gx;
+            old90 = std::sin(th) + a/(rh*g);
+        }
+        thLast = th;
+        ++used;
+    }
+    // (d) the float noise on this smooth shape, where nothing changes fast:
+    // RMS of the second difference / sqrt(6), the measure and the form before
+    // issue 96 over the same nodes
+    QVector<float> old(n.size());
+    oldForceAlong(n, old, MEASURE_ALONG_HALFSPAN);
+    double sumNew = 0.0, sumOld = 0.0;
+    int k = 0;
+    for(int i = margin; i + margin < n.size(); ++i) {
+        double dn = (double)along[i+1] - 2.0*along[i] + along[i-1], dold = (double)old[i+1] - 2.0*old[i] + old[i-1];
+        sumNew += dn*dn/6.0;
+        sumOld += dold*dold/6.0;
+        ++k;
+    }
+    circleNoise[0] = k ? std::sqrt(sumNew/k) : 0.0;
+    circleNoise[1] = k ? std::sqrt(sumOld/k) : 0.0;
+    report(used > 500 && thLast > 2.0 && best90 < 0.01 && worst < 1e-3 && std::fabs(at90 - 0.1198) < 5e-4,
+           QString("(a) the along-track force on a vertical circle built as a track (rail radius %1 m, heartline %2 m, "
+                   "frictionless, %3 nodes up to %4 rad): worst %5 g from the closed form at every node more than %6 from "
+                   "the ends (limit 0.001 g); with the track vertical the measure gives %7 g, the closed form %8 g "
+                   "(the form before issue 96 gave %9 g)")
+           .arg(R).arg(h).arg(used).arg(thLast, 0, 'f', 2).arg(worst, 0, 'g', 2).arg(margin).arg(at90, 0, 'f', 4)
+           .arg(form90, 0, 'f', 4).arg(old90, 0, 'f', 4));
+}
+
 struct physicsStats
 {
     int nodes, skipped;
@@ -420,14 +567,17 @@ struct physicsStats
     physicsStats() : nodes(0), skipped(0), maxEnergyDiff(0), sumModel(0), sumModel2(0), sumRes(0), sumRes2(0), sumAlong(0) {}
 };
 
-// Compares forceAlong on physics sections (not Bezier, whose speed comes from
-// its points) with the program's energy model:
+// Compares the design's acceleration a in forceAlong (as vDir.y + a / g, a =
+// v dv/ds over the centre-line distance s the measure uses) on physics
+// sections (not Bezier, whose speed comes from its points) with the program's
+// energy model:
 //   fEnergy -= v^3/F_HZ * k;  v = sqrt(2 (fEnergy - g (y09 + s mu)))
 // so between two nodes  d(v^2/2) = dE - g dy09 - g mu ds_c,  and with
 // y09 = y_heart + 0.9 h vNorm.y:
-//   forceAlong = (vDir.y - dy_h/ds) + dE/(g ds) - mu ds_c/ds - 0.9 h dvNorm.y/ds
-// where dE/(g ds) is about -k v^2/g ds_c/ds. The first bracket is a curvature
-// error of the differencing and is tiny; the last term is the program's 0.9
+//   vDir.y + a/g = (vDir.y - dy_h/ds) + dE/(g ds) - mu ds_c/ds - 0.9 h dvNorm.y/ds
+// where dE/(g ds) is about -k v^2/g ds_c/ds. The first bracket is vDir.y (1 -
+// rh) where the heartline runs rh metres per metre of rail, plus a curvature
+// error of the differencing, and is taken out by its own value; the last term is the program's 0.9
 // factor: the energy uses the height of a point 0.1 h above the rail, not the
 // rider's, so the speed changes a little as the track rolls or pitches.
 //
@@ -459,17 +609,26 @@ static bool plainWindow(const measureNodes& n, int i, int halfSpan, int* loOut, 
     return true;
 }
 
-static void physicsCompare(const measureNodes& n, const QVector<float>& along, physicsStats& st)
+// Since issue 96 the measure is the force at the heartline, vDir.y + (rh a +
+// v^2 drh/ds) / g; what is compared with the energy model here is its part
+// that comes from the design's speed, the centre line's acceleration a, as
+// vDir.y + a / g over the centre-line distance s the measure uses.
+static void physicsCompare(const measureNodes& n, physicsStats& st)
 {
     const track* t = n.trk;
     float h = t->fHeart;
+    QVector<float> unused(n.size());
+    QVector<double> accel, place;
+    measureForceAlong(n, unused, MEASURE_ALONG_HALFSPAN, &accel, &place);
+    QVector<double> along(n.size());
+    for(int i = 0; i < n.size(); ++i) along[i] = n.nodes[i]->vDir.y + accel[i]/F_G;
     for(int i = 0; i < n.size(); ++i) {
         int lo, hi;
         if(!plainWindow(n, i, MEASURE_ALONG_HALFSPAN, &lo, &hi)) {
             ++st.skipped;
             continue;
         }
-        double ds = n.heartDist[hi] - n.heartDist[lo];
+        double ds = place[hi] - place[lo];
         mnode* a = n.nodes[lo];
         mnode* b = n.nodes[hi];
         mnode* c = n.nodes[i];
@@ -483,39 +642,101 @@ static void physicsCompare(const measureNodes& n, const QVector<float>& along, p
         double v = c->fVel;
         double model = -(t->fFriction + t->fResistance*v*v/F_G)*dsc/ds;
         double term09 = -0.9*h*((double)b->vNorm.y - a->vNorm.y)/ds;
+        // vDir.y against the heartline's rise per metre of centre line: not 0
+        // where the heartline runs a different length from the rail (rh)
+        double geo = c->vDir.y - ((double)b->vPos.y - a->vPos.y)/ds;
         double d1 = along[i] - model;
-        double d2 = d1 - term09;        st.sumModel += d1; st.sumModel2 += d1*d1;
+        double d2 = d1 - term09 - geo;  st.sumModel += d1; st.sumModel2 += d1*d1;
         st.sumRes += d2; st.sumRes2 += d2*d2;
         st.sumAlong += along[i];
         ++st.nodes;
     }
 }
 
-// Noise of forceAlong: RMS of the second difference over plain nodes whose
-// two neighbours also have full, plain windows, divided by sqrt(6) (white
-// noise); the real signal changes far too slowly to count at 1 ms.
-static double noiseOf(const measureNodes& n, int halfSpan, int* count)
+// The measure as it was before issue 96, kept here only to compare its noise
+// with the new one: vDir.y + v dv/ds_heart / g, the speed's change over the
+// heartline distance between the float positions, same window.
+static void oldForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan)
+{
+    for(int i = 0; i < n.size(); ++i) {
+        const mnode* node = n.nodes.at(i);
+        int s = n.sectionOf.at(i);
+        double along = node->vDir.y;
+        if(!measureSpeedIsHeld(n.sectionAt(i))) {
+            int lo = qMax(i - halfSpan, n.sectionFirst.at(s) + 1);
+            int hi = qMin(i + halfSpan, n.sectionLast.at(s));
+            double ds = (hi > lo) ? n.heartDist.at(hi) - n.heartDist.at(lo) : 0.0;
+            if(hi > lo && !(ds <= 1e-6)) {
+                double vlo = n.nodes.at(lo)->fVel, vhi = n.nodes.at(hi)->fVel;
+                along += (vhi*vhi - vlo*vlo) / (2.0*ds) / F_G;
+            }
+        }
+        out[i] = (float)along;
+    }
+}
+
+// Nodes near the test projects' broken loops: within reach of a step where
+// the heartline runs less than half as far as the rail (a loop tighter than
+// twice its heartline height) or of a design force beyond 10 g. tests/trainride
+// (proof (1)) leaves the same places out; there neither the ride nor the
+// measure has a meaning. The reach is the measure's: rh's rate over
+// HEARTLINE_STRETCH_HALFSPAN entries of rh, each over HEARTLINE_TURN_HALFSPAN,
+// and a node more.
+static QVector<bool> nearBrokenLoop(const measureNodes& n)
+{
+    const int reach = HEARTLINE_STRETCH_HALFSPAN + HEARTLINE_TURN_HALFSPAN + 1;
+    QVector<bool> near(n.size(), false);
+    for(int i = 1; i < n.size(); ++i) {
+        const mnode* q = n.nodes.at(i);
+        bool bad = (q->fDistFromLast > 0.f && q->fHeartDistFromLast < 0.5f*q->fDistFromLast)
+                || std::fabs(q->forceNormal + q->smoothNormal) > 10.f || std::fabs(q->forceLateral + q->smoothLateral) > 10.f;
+        if(!bad) continue;
+        for(int j = qMax(0, i - reach); j < qMin(n.size(), i + reach + 1); ++j) near[j] = true;
+    }
+    return near;
+}
+
+// Noise of the along-track force: RMS of the second difference over plain
+// nodes whose two neighbours also have full, plain windows, divided by
+// sqrt(6) (white noise); the real signal changes far too slowly to count at
+// 1 ms. kind: 0 the measure with the given half-span, 1 the form before issue
+// 96. Summed in sum[0]/count[0] over every such node and in sum[1]/count[1]
+// over those away from the broken loops (ordinary track), whose second
+// differences / sqrt(6) are also kept in ordinary (for the median).
+static void noiseOf(const measureNodes& n, int halfSpan, int kind, double sum[2], int count[2], QVector<double>& ordinary)
 {
     QVector<float> v(n.size());
-    measureForceAlong(n, v, halfSpan);
-    double sum = 0.0;
-    int k = 0;
+    if(kind == 0) measureForceAlong(n, v, halfSpan);
+    else oldForceAlong(n, v, halfSpan);
+    QVector<bool> broken = nearBrokenLoop(n);
     for(int i = 1; i+1 < n.size(); ++i) {
         int lo, hi, lo2, hi2;
         if(!plainWindow(n, i-1, halfSpan, &lo, &hi) || hi - lo != 2*halfSpan) continue;
         if(!plainWindow(n, i+1, halfSpan, &lo2, &hi2) || hi2 - lo2 != 2*halfSpan) continue;
         double d = (double)v[i+1] - 2.0*v[i] + v[i-1];
-        sum += d*d;
-        ++k;
+        sum[0] += d*d/6.0;
+        ++count[0];
+        if(!broken.at(i)) {
+            sum[1] += d*d/6.0;
+            ++count[1];
+            ordinary.append(std::fabs(d)/std::sqrt(6.0));
+        }
     }
-    *count = k;
-    return k ? sqrt(sum/k/6.0) : 0.0;
 }
 
 static bool sameFloat(float a, float b) { return memcmp(&a, &b, sizeof(float)) == 0; }
 
+static QVector<double> noiseOrdinary[3];        // per node, as noiseOf() keeps them
+
+static double median(QVector<double> v)
+{
+    if(v.isEmpty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    return v.at(v.size()/2);
+}
+
 static void checkProject(const QString& file, const QString& tmpDir, int& largestNodes, QString& largestName,
-                         physicsStats& total, double noise[2], int noiseCount[2])
+                         physicsStats& total, double noise[3][2], int noiseCount[3][2])
 {
     QString name = QFileInfo(file).fileName();
     coreProject p;
@@ -531,7 +752,8 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
 
     QStringList ids = allIds();
     bool sizesOk = true, finiteOk = true, fieldsOk = true, plotOk = true, heldOk = true;
-    int heldNodes = 0;
+    int heldFlat = 0, heldTurning = 0;
+    double heldPitchWorst = 0.0;
     for(int ti = 0; ti < p.tracks.size(); ++ti) {
         track* t = p.tracks[ti];
         if(t->lSections.isEmpty()) continue;
@@ -562,14 +784,27 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
         const QVector<float>& ja = v[ids.indexOf("jerkAlong")];
         const QVector<float>& ra = v[ids.indexOf("rollAccel")];
         const QVector<float>& rr = v[ids.indexOf("rollRate")];
+        // (c) held-speed track: a = 0; where the frame does not turn in the
+        // vertical plane (rh's change exactly 0) the value is vDir.y to the
+        // bit, elsewhere vDir.y + v^2 drh/ds / g by the shared rule, to the bit
+        heartlineFrame hf = heartlineFrameOf(n);
         for(int i = 0; i < n.size(); ++i) {
             mnode* m = t->getPoint(i);
             if(!sameFloat(speed[i], m->fVel) || !sameFloat(fn[i], m->forceNormal + m->smoothNormal)
                     || !sameFloat(fl[i], m->forceLateral + m->smoothLateral)
                     || !sameFloat(rr[i], m->fRollSpeed + m->fSmoothSpeed)) fieldsOk = false;
-            if(measureSpeedIsHeld(n.sectionAt(i))) {
-                ++heldNodes;
-                if(!sameFloat(along[i], m->vDir.y)) heldOk = false;
+            int e = hf.nodeEntry.at(i);
+            if(measureSpeedIsHeld(n.sectionAt(i)) && e >= 0) {
+                double drh = hf.drh.at(e);
+                if(drh == 0.0) {
+                    ++heldFlat;
+                    if(!sameFloat(along[i], m->vDir.y)) heldOk = false;
+                } else {
+                    ++heldTurning;
+                    heldPitchWorst = qMax(heldPitchWorst, std::fabs((double)along[i] - m->vDir.y));
+                    float expect = (float)heartlineAlongG(m->vDir.y, heartlineAccel(m->fVel, 0.0, hf.rh.at(e), drh));
+                    if(!sameFloat(along[i], expect)) heldOk = false;
+                }
             }
         }
 
@@ -593,12 +828,11 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
             }
         }
 
-        physicsCompare(n, along, total);
-        for(int k = 0; k < 2; ++k) {
-            int c = 0;
-            double z = noiseOf(n, k == 0 ? 1 : MEASURE_ALONG_HALFSPAN, &c);
-            noise[k] += z*z*c;
-            noiseCount[k] += c;        }
+        physicsCompare(n, total);
+        // [0] the measure over one node, [1] with its span, [2] the form before issue 96 with the same span
+        noiseOf(n, 1, 0, noise[0], noiseCount[0], noiseOrdinary[0]);
+        noiseOf(n, MEASURE_ALONG_HALFSPAN, 0, noise[1], noiseCount[1], noiseOrdinary[1]);
+        noiseOf(n, MEASURE_ALONG_HALFSPAN, 1, noise[2], noiseCount[2], noiseOrdinary[2]);
         if(n.size() > largestNodes) { largestNodes = n.size(); largestName = name + QString(" track %1").arg(ti+1); }
 
         QList<finding> f = checkRegistry::runAll(t);
@@ -627,7 +861,9 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
     report(sizesOk, name + ": every measure gives one value per node (getNumPoints()+1, same nodes as getPoint)");
     report(finiteOk, name + ": every value is a finite number");
     report(fieldsOk, name + ": speed, vertical and lateral force and roll rate equal the node fields (with smoothing)");
-    report(heldOk, name + QString(": along-track force = vDir.y on held-speed sections (%1 nodes)").arg(heldNodes));
+    report(heldOk, name + QString(": (c) on held-speed track the along-track force is vDir.y where the frame does not "
+                                  "pitch (%1 nodes) and vDir.y + v^2 drh/ds / g where it does (%2 nodes, the pitching term "
+                                  "up to %3 g), to the bit").arg(heldFlat).arg(heldTurning).arg(heldPitchWorst, 0, 'f', 4));
     report(plotOk, name + ": force changes and roll acceleration equal the plot's formulas at hand-picked nodes");
 
     QByteArray nodesAfter = nodeBytes(p);
@@ -636,6 +872,55 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
     for(int i = 0; same && i < before.size(); ++i) if(before[i] != after[i]) same = false;
     report(nodesBefore == nodesAfter && same,
            name + QString(": nothing written (%1 node bytes; re-saved project and %2 export files identical)").arg(nodesBefore.size()).arg(before.size()-1));
+}
+
+// The time of every measure in one pass (the fastest of five runs, in ms).
+static double timeAllMeasures(const track* t)
+{
+    QStringList ids = allIds();
+    qint64 best = -1;
+    for(int k = 0; k < 5; ++k) {
+        QElapsedTimer timer;
+        timer.start();
+        QVector<QVector<float> > v = measureRegistry::values(t, ids);
+        qint64 ns = timer.nsecsElapsed();
+        if(v.size() != ids.size()) return -1.0;
+        if(best < 0 || ns < best) best = ns;
+    }
+    return best/1e6;
+}
+
+// A long track built as tests/commands builds one (timeCommands()): force
+// sections and straights at a held 20 m/s appended to gen-normal-shapes until
+// it has 150,000 nodes, saved and loaded. Every measure must stay well inside
+// an edit's budget of 150 ms.
+static void timeLongTrack(const QString& repo, const QString& tmpDir)
+{
+    coreProject p;
+    loadProjectFile(QDir(repo).filePath("samples/baseline/gen-normal-shapes.fvd"), &p);
+    if(p.tracks.isEmpty()) {
+        report(false, "gen-normal-shapes.fvd loads for the long track");
+        return;
+    }
+    track* t = p.tracks[0];
+    for(int k = 0; t->getNumPoints() < 150000 && k < 1000; ++k) {
+        section* added = t->appendSectionFromFile(k % 2 ? straight : forced);
+        added->bSpeed = 0;
+        added->fVel = 20.f;
+        t->updateTrack(added, 0);
+    }
+    QString file = QDir(tmpDir).filePath("long.fvd");
+    saveProjectFile(file, p.texPath, p.tracks, &p);
+    coreProject longP;
+    loadProjectFile(file, &longP);
+    if(longP.tracks.isEmpty()) {
+        report(false, "the long track loads");
+        return;
+    }
+    double ms = timeAllMeasures(longP.tracks[0]);
+    report(ms >= 0.0 && ms < 50.0, QString("all %1 measures on a long track (%2 nodes): %3 ms (fastest of 5; limit 50 ms, a third "
+                                           "of an edit's 150 ms)").arg(allIds().size()).arg(longP.tracks[0]->getNumPoints() + 1)
+           .arg(ms, 0, 'f', 2));
 }
 
 int main(int argc, char *argv[])
@@ -658,6 +943,7 @@ int main(int argc, char *argv[])
     checkNonFinite();
     checkTinyTracks();
     checkSyntheticClimb();
+    checkVerticalCircle();
     checkStall(repo);
 
     QDir baseline(QDir(repo).filePath("samples/baseline"));
@@ -666,8 +952,8 @@ int main(int argc, char *argv[])
     int largestNodes = 0;
     QString largestName;
     physicsStats st;
-    double noise[2] = { 0, 0 };
-    int noiseCount[2] = { 0, 0 };
+    double noise[3][2] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+    int noiseCount[3][2] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
     for(int i = 0; i < files.size(); ++i) {
         if(files[i].contains(".2016.")) continue;
         ++projects;
@@ -681,10 +967,10 @@ int main(int argc, char *argv[])
         double meanRes = st.sumRes/st.nodes, rmsRes = sqrt(st.sumRes2/st.nodes);
         double meanAlong = st.sumAlong/st.nodes;
         report(st.maxEnergyDiff < 2e-3,
-               QString("along-track force matches the speed change the stored energy implies, within %1 g over %2 plain physics nodes (%3 others left out)")
+               QString("the design's acceleration in the along-track force matches the speed change the stored energy implies, within %1 g over %2 plain physics nodes (%3 others left out)")
                .arg(st.maxEnergyDiff, 0, 'g', 3).arg(st.nodes).arg(st.skipped));
         report(meanAlong < 0.0 && meanAlong > -0.2,
-               QString("along-track force on physics sections is small and negative on average (%1 g)").arg(meanAlong, 0, 'f', 5));
+               QString("vDir.y + a / g on physics sections is small and negative on average (%1 g)").arg(meanAlong, 0, 'f', 5));
         printf("  against friction and resistance alone, -(mu + k v^2/g): mean difference %.5f g, RMS %.5f g\n", meanModel, rmsModel);
         printf("  after the 0.9-heartline term of the energy model: mean %.6f g, RMS %.6f g\n", meanRes, rmsRes);
         report(rmsRes < 2e-3 && fabs(meanRes) < 5e-4,
@@ -692,25 +978,35 @@ int main(int argc, char *argv[])
     } else {
         report(false, "no physics nodes found in the baseline projects");
     }
-    for(int k = 0; k < 2; ++k) {
-        double z = noiseCount[k] ? sqrt(noise[k]/noiseCount[k]) : 0.0;
-        printf("  float noise of the along-track force, half-span %d node(s): %.2e g (over %d nodes)\n",
-               k == 0 ? 1 : MEASURE_ALONG_HALFSPAN, z, noiseCount[k]);
-        if(k == 1) report(z < 2e-4, QString("along-track force noise with the chosen span is below 2e-4 g (%1 g)").arg(z, 0, 'e', 2));
+    // (d) the noise
+    double z[3][2];
+    const char* what[3] = { "the measure over one node", "the measure (its span)", "the form before issue 96 (same span)" };
+    for(int k = 0; k < 3; ++k) {
+        for(int c = 0; c < 2; ++c) z[k][c] = noiseCount[k][c] ? sqrt(noise[k][c]/noiseCount[k][c]) : 0.0;
+        printf("  float noise of the along-track force, %s: RMS %.2e g (median %.2e g) on ordinary track (%d nodes), RMS %.2e g "
+               "with the broken test loops (%d nodes)\n", what[k], z[k][1], median(noiseOrdinary[k]), noiseCount[k][1],
+               z[k][0], noiseCount[k][0]);
     }
+    // On the baseline projects a second difference also counts real changes
+    // of the pitching term (a force transition's corner makes a step in it),
+    // which the form before issue 96 did not have; the vertical circle, where
+    // nothing changes fast, shows the float noise alone.
+    report(circleNoise[0] > 0.0 && circleNoise[0] <= circleNoise[1] && z[1][1] < 2e-4,
+           QString("(d) along-track force noise: on the vertical circle %1 g (before issue 96 %2 g); on the baseline projects' "
+                   "ordinary track RMS %3 g, median %4 g (before %5 g and %6 g; limit for the RMS 2e-4 g)")
+           .arg(circleNoise[0], 0, 'e', 2).arg(circleNoise[1], 0, 'e', 2).arg(z[1][1], 0, 'e', 2)
+           .arg(median(noiseOrdinary[1]), 0, 'e', 2).arg(z[2][1], 0, 'e', 2).arg(median(noiseOrdinary[2]), 0, 'e', 2));
 
-    // time of the full set on the largest project
+    // time of the full set on the largest project and on a long track
     if(largestNodes) {
         coreProject p;
         QString file = largestName.section(' ', 0, 0);
         loadProjectFile(baseline.filePath(file), &p);
         int ti = largestName.section(' ', 2, 2).toInt() - 1;
-        QElapsedTimer timer;
-        timer.start();
-        QVector<QVector<float> > v = measureRegistry::values(p.tracks[ti], allIds());
-        qint64 ns = timer.nsecsElapsed();
-        printf("  all %d measures on %s (%d nodes): %.2f ms\n", v.size(), qPrintable(largestName), largestNodes, ns/1e6);
+        double ms = timeAllMeasures(p.tracks[ti]);
+        printf("  all %d measures on %s (%d nodes): %.2f ms (fastest of 5)\n", allIds().size(), qPrintable(largestName), largestNodes, ms);
     }
+    timeLongTrack(repo, tmp.path());
 
     printf("%s\n", allOk ? "PASS" : "FAIL");
     return allOk ? 0 : 1;

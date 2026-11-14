@@ -21,6 +21,7 @@ SOURCES += \
     $$PWD/finding.cpp \
     $$PWD/forcelimits.cpp \
     $$PWD/function.cpp \
+    $$PWD/heartline.cpp \
     $$PWD/fvdmath.cpp \
     $$PWD/measure.cpp \
     $$PWD/mnode.cpp \
@@ -52,6 +53,7 @@ HEADERS += \
     $$PWD/forcelimits.h \
     $$PWD/function.h \
     $$PWD/fvdmath.h \
+    $$PWD/heartline.h \
     $$PWD/measure.h \
     $$PWD/mnode.h \
     $$PWD/nolimitsimporter.h \
