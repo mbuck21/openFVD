@@ -34,7 +34,12 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QImage>
 #include <QStringList>
 #include <QTemporaryDir>
@@ -42,6 +47,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 
 static bool allOk = true;
 
@@ -378,6 +384,190 @@ static void checkEmptyAndStalled(const QString& repo)
 // Every baseline project
 // ---------------------------------------------------------------------------
 
+// The check "forceLimits" (core/designforcelimits.*) on arrays made by hand: the
+// resampling to a uniform trace, the mapping of the engine's findings back to
+// nodes, and a track that stalls.
+static void checkDesignLimitsArrays()
+{
+    // nodes 1 ms apart for 3 s, then 2 ms apart for 1 s: a linear ramp comes out as a ramp
+    QVector<double> times;
+    QVector<float> ramp;
+    double now = 0.0;
+    for(int i = 0; i < 4000; ++i) { times.append(now); ramp.append((float)now); now += (i < 3000) ? 0.001 : 0.002; }
+    QVector<float> zero(times.size(), 0.f);
+    forceTrace tr = designPointTrace(times, ramp, zero, ramp, times.size() - 1);
+    bool ok = tr.dt == 1.0/F_HZ && tr.size() > 3000 && tr.gx.size() == tr.gz.size();
+    double worst = 0.0;
+    for(int s = 0; ok && s < tr.size(); ++s) worst = qMax(worst, std::fabs(tr.gx[s] - s*tr.dt));
+    report(ok && worst < 1e-5 && tr.size() == (int)std::floor(times.last()/tr.dt + 1e-6) + 1,
+           QString("designPointTrace: a ramp over unevenly spaced nodes is resampled exactly (%1 samples, largest error %2 g)").arg(tr.size()).arg(worst));
+
+    // 6 s at 1 g with 0.6 s at 9 g (above the +Gz limit for that long): findings on those nodes
+    times.clear();
+    QVector<float> normal;
+    for(int i = 0; i < 6000; ++i) { times.append(i*0.001); normal.append((i >= 2000 && i < 2600) ? 9.f : 1.f); }
+    QVector<float> zeros(times.size(), 0.f);
+    designLimitsInfo info;
+    QList<finding> f = designPointForceLimits(times, zeros, zeros, normal, &info);
+    ok = info.bRan && !f.isEmpty() && info.iFindings == f.size();
+    bool inside = true;
+    for(int i = 0; i < f.size(); ++i) {
+        const finding& x = f.at(i);
+        if(x.checkId != "forceLimits" || x.fromNode < 1900 || x.toNode > 2800 || x.worstNode < x.fromNode || x.worstNode > x.toNode
+                || x.severity != findingWarning || x.text.isEmpty()) inside = false;
+    }
+    report(ok && inside, QString("forceLimits: 0.6 s at 9 g gives %1 finding(s), all on nodes 1900 to 2800").arg(f.size()));
+    report(info.value() == QString("%1 findings").arg(f.size()) && info.label().contains("public numbers"),
+           "the ride sheet's words: " + info.label() + ": " + info.value());
+
+    QVector<float> calm(times.size(), 1.f);
+    f = designPointForceLimits(times, zeros, zeros, calm, &info);
+    report(f.isEmpty() && info.bRan && info.value() == "within", "forceLimits: a steady 1 g is within the limits");
+
+    // a force that is not a number: judged up to the node before it
+    QVector<float> stall = normal;
+    for(int i = 4000; i < stall.size(); ++i) stall[i] = std::numeric_limits<float>::quiet_NaN();
+    f = designPointForceLimits(times, zeros, zeros, stall, &info);
+    bool before = true;
+    for(int i = 0; i < f.size(); ++i) if(f.at(i).toNode >= 4000) before = false;
+    report(info.bRan && info.iJudgedNodes == 4000 && before && !f.isEmpty(),
+           QString("forceLimits: a stalled train is judged up to the first force that is not a number (%1 nodes judged)").arg(info.iJudgedNodes));
+
+    designLimitsInfo none;
+    f = designPointForceLimits(QVector<double>(), QVector<float>(), QVector<float>(), QVector<float>(), &none);
+    report(f.isEmpty() && !none.bRan, "forceLimits: no nodes, no finding");
+
+    // what the check costs on 150,000 nodes (150 s at 1 ms) of a rolling force, without the measures
+    QVector<double> longTimes;
+    QVector<float> longG, longZ;
+    for(int i = 0; i < 150000; ++i) {
+        longTimes.append(i*0.001);
+        longG.append((float)(0.3*std::sin(i*0.002)));
+        longZ.append((float)(1.0 + 1.5*std::sin(i*0.003)));
+    }
+    QElapsedTimer clock;
+    clock.start();
+    f = designPointForceLimits(longTimes, longG, longG, longZ, &info);
+    printf("  time: the check forceLimits on %d nodes (measures not included): %lld ms, %d finding(s)\n",
+           (int)longTimes.size(), (long long)clock.elapsed(), (int)f.size());
+    report(info.bRan, "forceLimits: runs on 150,000 nodes");
+}
+
+// A copy of the embedded limit file in which the numbers of one curve (curveId), or every number
+// (curveId "*"), or none (empty) carry the owner's "checked" note.
+static void markChecked(QJsonValue& v, bool all)
+{
+    if(v.isObject()) {
+        QJsonObject o = v.toObject();
+        for(QJsonObject::iterator it = o.begin(); it != o.end(); ++it) {
+            QJsonValue child = it.value();
+            markChecked(child, all);
+            it.value() = child;
+        }
+        if(o.contains("checked") && all) o["checked"] = QString("test, edition X, 2026-11-14");
+        v = o;
+    } else if(v.isArray()) {
+        QJsonArray a = v.toArray();
+        for(int i = 0; i < a.size(); ++i) {
+            QJsonValue child = a.at(i);
+            markChecked(child, all);
+            a[i] = child;
+        }
+        v = a;
+    }
+}
+
+static bool makeLimitFile(const QString& path, const QString& curveId)
+{
+    QFile in(forceLimits::defaultPath());
+    if(!in.open(QIODevice::ReadOnly)) return false;
+    QJsonObject root = QJsonDocument::fromJson(in.readAll()).object();
+    if(curveId == "*") {
+        QJsonValue v = root;
+        markChecked(v, true);
+        root = v.toObject();
+    } else if(!curveId.isEmpty()) {
+        QJsonObject curves = root["curves"].toObject();
+        QJsonObject curve = curves[curveId].toObject();
+        QJsonArray points = curve["points"].toArray();
+        for(int i = 0; i < points.size(); ++i) {
+            QJsonObject p = points.at(i).toObject();
+            p["checked"] = QString("test, edition X, 2026-11-14");
+            points[i] = p;
+        }
+        curve["points"] = points;
+        curves[curveId] = curve;
+        root["curves"] = curves;
+    }
+    QFile out(path);
+    if(!out.open(QIODevice::WriteOnly)) return false;
+    out.write(QJsonDocument(root).toJson());
+    return true;
+}
+
+// What the label and the note say follows the whole limit file, not the numbers the findings used.
+static void checkDesignLimitsChecked()
+{
+    QTemporaryDir dir;
+    QVector<double> times;
+    QVector<float> normal;
+    for(int i = 0; i < 6000; ++i) { times.append(i*0.001); normal.append((i >= 2000 && i < 2600) ? 9.f : 1.f); }
+    QVector<float> zeros(times.size(), 0.f);
+
+    forceLimits none, some, all;
+    QString error;
+    bool loaded = dir.isValid()
+            && makeLimitFile(dir.filePath("none.json"), QString()) && forceLimits::load(dir.filePath("none.json"), none, &error)
+            && makeLimitFile(dir.filePath("some.json"), "z_pos") && forceLimits::load(dir.filePath("some.json"), some, &error)
+            && makeLimitFile(dir.filePath("all.json"), "*") && forceLimits::load(dir.filePath("all.json"), all, &error);
+    report(loaded, "limit files for the test (none, one curve, every number marked checked) load: " + error);
+    if(!loaded) return;
+
+    designLimitsInfo a, b, c;
+    QList<finding> fa = designPointForceLimits(times, zeros, zeros, normal, &a, &none);
+    QList<finding> fb = designPointForceLimits(times, zeros, zeros, normal, &b, &some);
+    QList<finding> fc = designPointForceLimits(times, zeros, zeros, normal, &c, &all);
+    report(a.iChecked == 0 && a.iNumbers == 64 && a.label().endsWith("public numbers)")
+           && rideForceLimitsNote(a).contains("have not been checked"),
+           "no number checked: " + a.label());
+    report(b.iChecked == 8 && b.iNumbers == 64 && b.label() == "Force limits (ASTM F2291, 8 of 64 numbers checked)"
+           && rideForceLimitsNote(b).contains("Only 8 of the 64 numbers"),
+           "one curve checked: " + b.label());
+    report(c.iChecked == 64 && c.label() == "Force limits (ASTM F2291, numbers checked by the owner)"
+           && !rideForceLimitsNote(c).contains("not been checked") && !rideForceLimitsNote(c).contains("Only"),
+           "every number checked: " + c.label());
+    // findings made on the checked curve (+Gz) must not make the label say that everything is checked
+    bool onCurve = false;
+    for(int i = 0; i < fb.size(); ++i) if(fb.at(i).rule == "z_pos") onCurve = true;
+    report(onCurve && b.sConfidence != "" && b.label().contains("8 of 64") && fa.size() == fb.size() && fb.size() == fc.size(),
+           QString("findings on the checked curve (%1 findings, their numbers of %2 confidence) leave the label at 8 of 64").arg(fb.size()).arg(b.sConfidence));
+    report(b.sFileConfidence != "checked" && c.sFileConfidence == "checked",
+           "the file's own lowest confidence: " + b.sFileConfidence + " with one curve checked, " + c.sFileConfidence + " with every number checked");
+}
+
+// A track whose ride clock runs slower than the plot's (as on Bezier and NoLimits CSV sections): the
+// sentence names the plot's times of the node stretch, and says "of ride time" for the duration.
+static void checkDesignLimitsClocks()
+{
+    QVector<double> times;
+    QVector<float> normal;
+    for(int i = 0; i < 6000; ++i) { times.append(i*0.0015); normal.append((i >= 1400 && i < 1800) ? 9.f : 1.f); }
+    QVector<float> zeros(times.size(), 0.f);
+    designLimitsInfo info;
+    QList<finding> f = designPointForceLimits(times, zeros, zeros, normal, &info);
+    bool ok = !f.isEmpty();
+    for(int i = 0; i < f.size(); ++i) {
+        const finding& x = f.at(i);
+        const QString from = QString::number(x.fromNode/F_HZ, 'f', 2), to = QString::number(x.toNode/F_HZ, 'f', 2);
+        if(!x.text.contains("from " + from + " s to " + to + " s") || !x.text.contains("of ride time")) {
+            ok = false;
+            printf("  %s\n", qPrintable(x.text));
+        }
+    }
+    report(ok, QString("ride clock 1.5 ms per node: %1 sentence(s) name the plot's times (node / F_HZ) and say \"of ride time\"").arg(f.size()));
+    if(!f.isEmpty()) printf("  e.g. %s\n", qPrintable(f.first().text));
+}
+
 static int turnSamples[2] = { 0, 0 };       // nodes in a flat left turn / right turn
 static int turnSign[2] = { 0, 0 };          // ... whose lateral force has the sign expected
 
@@ -456,6 +646,43 @@ static void checkProject(const QString& file, const QString& tmp)
         QList<finding> f = checkRegistry::runAll(t);
         report(f.size() == r.findings.size() && r.findingCount[0] + r.findingCount[1] + r.findingCount[2] == f.size(),
                label + QString(": %1 finding(s) counted by severity").arg(f.size()));
+        {
+            // the ride sheet's line counts the findings of the check forceLimits; the gen- projects are within
+            // the limits, the others (four-sections, n1-) break some (cross-checked with `fvdcore limits --trace`)
+            int limitFindings = 0;
+            for(int k = 0; k < f.size(); ++k) if(f.at(k).checkId == "forceLimits") ++limitFindings;
+            bool timesOk = true;
+            for(int k = 0; k < f.size(); ++k) {
+                if(f.at(k).checkId != "forceLimits") continue;
+                const QString span = "from " + QString::number(f.at(k).fromNode/F_HZ, 'f', 2) + " s to " + QString::number(f.at(k).toNode/F_HZ, 'f', 2) + " s";
+                if(!f.at(k).text.contains(span)) { timesOk = false; printf("  %s\n", qPrintable(f.at(k).text)); }
+            }
+            report(timesOk, label + ": the force-limit sentences name the plot's times of their node stretch");
+            QElapsedTimer clock;
+            clock.start();
+            QList<finding> again = checkRegistry::run(t, "forceLimits");
+            printf("  time: the whole check forceLimits (measures, resampling, engine) on %s, %d nodes: %lld ms, %d finding(s)\n",
+                   qPrintable(label), (int)last + 1, (long long)clock.elapsed(), (int)again.size());
+            // Pinned only as far as the along-track measure allows: the totals of the projects with
+            // spikes move with issue 96 (the along-track force), and are pinned after it.
+            const QString fname = QFileInfo(file).fileName();
+            int onVertical = 0, firstNode = -1, lastNodeOf = -1;
+            for(int k = 0; k < f.size(); ++k) {
+                if(f.at(k).checkId != "forceLimits" || f.at(k).measureId != "forceNormal") continue;
+                ++onVertical;
+                if(firstNode < 0 || f.at(k).fromNode < firstNode) firstNode = f.at(k).fromNode;
+                if(f.at(k).toNode > lastNodeOf) lastNodeOf = f.at(k).toNode;
+            }
+            if(fname == "n1-tension-force-chain.fvd") {
+                report(limitFindings == 1 && onVertical == 1 && firstNode >= 2200 && lastNodeOf <= 2900,
+                       label + QString(": exactly one force-limit finding, on the vertical force, within 2.2 s to 2.9 s (%1 to %2 nodes)").arg(firstNode).arg(lastNodeOf));
+            } else if(fname == "four-sections.fvd" || fname == "n1-tension-loop.fvd") {
+                report(onVertical >= 1, label + QString(": at least one force-limit finding on the vertical force at the spike (%1)").arg(onVertical));
+            }
+            const bool gen = QFileInfo(file).fileName().startsWith("gen-");
+            report(r.forceLimits.bRan && r.forceLimits.iFindings == limitFindings && (!gen || limitFindings == 0),
+                   label + QString(": force limits say \"%1\" (%2 finding(s))").arg(r.forceLimits.value()).arg(limitFindings));
+        }
         printf("  inversions %d, largest angle from upright %.1f degrees\n", r.inversions, r.maxTilt.value);
 
         // the sign of the lateral force: flat turns
@@ -511,6 +738,9 @@ int main(int argc, char *argv[])
     checkAirtimeModel();
     checkInversionsModel();
     checkEmptyAndStalled(repo);
+    checkDesignLimitsArrays();
+    checkDesignLimitsChecked();
+    checkDesignLimitsClocks();
 
     QDir baseline(QDir(repo).filePath("samples/baseline"));
     QStringList files = baseline.entryList(QStringList() << "*.fvd", QDir::Files, QDir::Name);

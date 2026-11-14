@@ -54,6 +54,7 @@
 #include <QVector>
 #include <glm/glm.hpp>
 
+#include "designforcelimits.h"
 #include "finding.h"
 #include "measure.h"
 
@@ -170,6 +171,7 @@ struct rideSummary
 
     int findingCount[3];    // indexed by findingSeverity (information, warning, problem)
     QList<finding> findings;
+    designLimitsInfo forceLimits;   // what the check "forceLimits" says of itself (its findings are in findings)
 
     QList<rideSectionInfo> sections;
 
@@ -216,5 +218,10 @@ QString rideInversionLabel(const rideSummaryOptions& options);  // "Inversions (
 // One sentence that goes under the forces and airtime: they are for the
 // single point the program follows, not for every car (docs/research/r7-train-against-point.md).
 QString rideSheetNote();
+
+// The sentence that goes with the force-limits line: a design aid from public
+// secondary sources, not a certification (decision record 0014, point 11). It
+// says the numbers are unchecked unless the owner has checked them all.
+QString rideForceLimitsNote(const designLimitsInfo& info);
 
 #endif // RIDESUMMARY_H

@@ -56,6 +56,19 @@ struct finding
                             // then worstValue/worstNode are the first such value
     findingSeverity severity;
     QString text;           // "Speed falls to 2.4 m/s, below 3 m/s, between 41.2 s and 43.0 s"
+
+    // Only for a check that judges more than the measure's own value against a
+    // number (the check "forceLimits"). limit above is in the unit of the
+    // measure only when limitComparable is true; otherwise it is NaN, and the
+    // rule's own pair is judgedValue against judgedLimit in judgedUnit ("g",
+    // "s", or "ratio" for a share of a combined limit). Empty rule: not used.
+    QString rule;           // the rule that was broken: "z_pos", "egg_xz", "reversal_y"
+    bool limitComparable;   // limit and worstValue are in the same unit
+    float judgedValue;
+    float judgedLimit;
+    QString judgedUnit;
+    finding() : fromNode(0), toNode(0), worstValue(0.f), worstNode(0), limit(0.f), below(false), nonFinite(false),
+        severity(findingInformation), limitComparable(true), judgedValue(0.f), judgedLimit(0.f) {}
 };
 
 typedef QList<finding> (*checkRun)(const track* t);

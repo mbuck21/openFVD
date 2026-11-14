@@ -107,6 +107,21 @@ QString rideSheetNote()
            "the front and rear cars of a train feel more (docs/research/r7-train-against-point.md).";
 }
 
+QString rideForceLimitsNote(const designLimitsInfo& info)
+{
+    QString text = "The force limits are a design aid taken from public secondary sources, not a certification: "
+                   "they judge the single point the program follows, with the base restraint case.";
+    // only the whole file counts: findings made from the checked numbers do not make the rest checked
+    if(info.iNumbers > 0 && info.iChecked >= info.iNumbers) {
+        text += " Every number of the limit file has been checked by the owner.";
+    } else if(info.iChecked > 0) {
+        text += QString(" Only %1 of the %2 numbers have been checked against the standard.").arg(info.iChecked).arg(info.iNumbers);
+    } else {
+        text += " The numbers have not been checked against the standard.";
+    }
+    return text;
+}
+
 void rideAirtime(const QVector<float>& normalForce, const QVector<double>& dt,
                  const rideSummaryOptions& options, double* floaterSeconds, double* ejectorSeconds)
 {
@@ -339,7 +354,16 @@ rideSummary computeRideSummary(const track* t, const rideSummaryOptions& options
     if(tiltBest >= 0) r.maxTilt = spotAt(n, times, tiltBest, tilt.at(tiltBest));
 
     // Findings
-    r.findings = checkRegistry::runAll(t);
+    // (the registry's checks in order; "forceLimits" is given the measures and times
+    // computed above instead of computing them again)
+    const QList<checkDef>& checks = checkRegistry::all();
+    for(int c = 0; c < checks.size(); ++c) {
+        if(checks.at(c).id == QLatin1String("forceLimits")) {
+            r.findings << designPointForceLimits(times, along, lateral, normal, &r.forceLimits);
+        } else {
+            r.findings << checks.at(c).run(t);
+        }
+    }
     for(int i = 0; i < r.findings.size(); ++i) {
         int s = (int)r.findings.at(i).severity;
         if(s >= 0 && s <= 2) r.findingCount[s]++;

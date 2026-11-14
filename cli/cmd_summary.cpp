@@ -106,9 +106,10 @@ static QString sheetText(const rideSummary& r, bool withSections)
     t += valueLine("Along-track, thrown forward", r.alongMin, 2, "g");
     t += plain(rideInversionLabel(options), QString::number(r.inversions));
     t += valueLine("Largest angle from upright", r.maxTilt, 1, "deg");
+    t += plain(r.forceLimits.label(), r.forceLimits.value());
     t += plain("Findings", QString("%1 problem(s), %2 warning(s), %3 information")
                .arg(r.findingCount[findingProblem]).arg(r.findingCount[findingWarning]).arg(r.findingCount[findingInformation]));
-    t += "\n  " + rideSheetNote() + "\n";
+    t += "\n  " + rideSheetNote() + "\n  " + rideForceLimitsNote(r.forceLimits) + "\n";
     if(r.nonFinite) {
         t += "  Note: some values are not numbers (the train stalls); they are left out above.\n";
     }
@@ -206,6 +207,17 @@ QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QStrin
     labels["inversions"] = rideInversionLabel(options);
     o["labels"] = labels;
     o["note"] = rideSheetNote();
+    QJsonObject limits;
+    limits["label"] = r.forceLimits.label();
+    limits["value"] = r.forceLimits.value();
+    limits["ran"] = r.forceLimits.bRan;
+    limits["findings"] = r.forceLimits.iFindings;
+    limits["findings_confidence"] = r.forceLimits.sConfidence;
+    limits["file_confidence"] = r.forceLimits.sFileConfidence;
+    limits["numbers"] = r.forceLimits.iNumbers;
+    limits["numbers_checked"] = r.forceLimits.iChecked;
+    limits["note"] = rideForceLimitsNote(r.forceLimits);
+    o["force_limits"] = limits;
     o["max_tilt_deg"] = spotJson(r.maxTilt);
     QJsonObject counts;
     counts["problem"] = r.findingCount[findingProblem];
@@ -223,7 +235,13 @@ QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QStrin
         fo["to_node"] = fi.toNode;
         fo["worst_node"] = fi.worstNode;
         fo["worst_value"] = num(fi.worstValue);
-        fo["limit"] = num(fi.limit);
+        fo["limit"] = fi.limitComparable ? num(fi.limit) : QJsonValue(QJsonValue::Null);
+        if(!fi.rule.isEmpty()) {
+            fo["rule"] = fi.rule;
+            fo["judged_value"] = num(fi.judgedValue);
+            fo["judged_limit"] = num(fi.judgedLimit);
+            fo["judged_unit"] = fi.judgedUnit;
+        }
         fo["non_finite"] = fi.nonFinite;
         fo["text"] = fi.text;
         findings.append(fo);

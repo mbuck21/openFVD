@@ -602,7 +602,7 @@ static void checkProject(const QString& file, const QString& tmpDir, int& larges
         if(n.size() > largestNodes) { largestNodes = n.size(); largestName = name + QString(" track %1").arg(ti+1); }
 
         QList<finding> f = checkRegistry::runAll(t);
-        printf("  %s track %d: %d nodes, %d finding(s) from the basic check\n", qPrintable(name), ti+1, n.size(), f.size());
+        printf("  %s track %d: %d nodes, %d finding(s) from all the checks\n", qPrintable(name), ti+1, n.size(), f.size());
         for(int k = 0; k < f.size(); ++k) printf("    %s\n", qPrintable(f[k].text));
 
         // limits the track is known to break: one stretch over the whole track

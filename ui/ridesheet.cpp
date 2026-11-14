@@ -119,6 +119,7 @@ rideSheet::rideSheet(QWidget* parent) :
     addRow("AlongMin", tr("Along track, thrown forward"));
     addRow("Inversions", tr("Inversions"));
     addRow("Tilt", tr("Largest angle from upright"));
+    addRow("ForceLimits", tr("Force limits (ASTM F2291, public numbers)"));
     addRow("Findings", tr("Findings"));
 
     mFindingList = new QLabel(inner);
@@ -137,6 +138,14 @@ rideSheet::rideSheet(QWidget* parent) :
     mNote->setStyleSheet("color: #606060;");
     mNote->setText(rideSheetNote());
     column->addWidget(mNote);
+
+    mLimitsNote = new QLabel(inner);
+    mLimitsNote->setObjectName("rideForceLimitsNoteLabel");
+    mLimitsNote->setWordWrap(true);
+    mLimitsNote->setFont(small);
+    mLimitsNote->setStyleSheet("color: #606060;");
+    mLimitsNote->setText(rideForceLimitsNote(designLimitsInfo()));
+    column->addWidget(mLimitsNote);
     column->addStretch(1);
 
     mTimer.setSingleShot(true);
@@ -275,6 +284,8 @@ void rideSheet::refreshNow()
     setLabel("Floater", rideFloaterLabel(options));
     setLabel("Ejector", rideEjectorLabel(options));
     setLabel("Inversions", rideInversionLabel(options));
+    setLabel("ForceLimits", r.forceLimits.label());
+    mLimitsNote->setText(rideForceLimitsNote(r.forceLimits));
     mNonFinite->setVisible(r.nonFinite);
 
     if(r.empty) {
@@ -337,6 +348,8 @@ void rideSheet::refreshNow()
         setValue("Tilt", tr("none"));
     }
 
+    setValue("ForceLimits", r.forceLimits.value(), r.forceLimits.sConfidence.isEmpty() ? QString() : tr("The numbers behind these findings are of %1 confidence at the lowest").arg(r.forceLimits.sConfidence));
+
     int problems = r.findingCount[findingProblem];
     int warnings = r.findingCount[findingWarning];
     int infos = r.findingCount[findingInformation];
@@ -372,5 +385,6 @@ QStringList rideSheet::textLines() const
         lines.append("rideFindingsList | " + QString(mFindingList->text()).replace("\n", " / "));
     }
     lines.append("rideNoteLabel | " + mNote->text());
+    lines.append("rideForceLimitsNoteLabel | " + mLimitsNote->text());
     return lines;
 }
