@@ -248,8 +248,12 @@ static void checkLimits(bool& allOk, const QString& baseline, const QString& tmp
 {
     const QString captureFile = QDir(tmp).filePath("limits-captured.txt");
     QByteArray printed;
-    struct known { const char* project; bool within; };
-    const known projects[] = { {"gen-normal-shapes.fvd", true}, {"four-sections.fvd", false} };
+    // findings: the number limits --trace gives. four-sections' 3 are pinned
+    // since the along-track force became the force at the heartline (issue 96;
+    // before it, a false -6 g spike of the old measure gave 6); piece A3b pins
+    // the same count through the check.
+    struct known { const char* project; bool within; int findings; };
+    const known projects[] = { {"gen-normal-shapes.fvd", true, 0}, {"four-sections.fvd", false, 3} };
     for(unsigned k = 0; k < sizeof(projects)/sizeof(projects[0]); ++k) {
         const QString name = projects[k].project;
         const QString trace = QDir(tmp).filePath(name + ".trace.tsv");
@@ -258,15 +262,15 @@ static void checkLimits(bool& allOk, const QString& baseline, const QString& tmp
         report(allOk, code == 0, QString("measures writes the forces of %1 every 0.01 s (exit code %2)").arg(name).arg(code));
         code = runCaptured(cmdLimits, QStringList() << "--trace" << trace, captureFile, printed);
         const bool within = printed.contains("Result: within the limits.");
-        const bool found = printed.contains(" finding(s).");
+        const bool found = printed.contains(QString("Result: %1 finding(s).").arg(projects[k].findings).toUtf8());
         report(allOk, code == 0 && (projects[k].within ? within : found),
                QString("limits --trace on %1: exit 0 and %2 (exit code %3)").arg(name)
-               .arg(projects[k].within ? "within the limits" : "findings").arg(code));
+               .arg(projects[k].within ? QString("within the limits") : QString("%1 findings").arg(projects[k].findings)).arg(code));
         code = runCaptured(cmdLimits, QStringList() << "--trace" << trace << "--json", captureFile, printed);
         QJsonParseError error;
         const QJsonObject doc = QJsonDocument::fromJson(printed, &error).object();
         report(allOk, code == 0 && error.error == QJsonParseError::NoError && doc.value("pass").toBool() == projects[k].within
-                      && (doc.value("findings").toArray().isEmpty() == projects[k].within),
+                      && doc.value("findings").toArray().size() == projects[k].findings,
                QString("limits --trace --json on %1: a document that parses, pass %2, %3 findings (exit code %4)")
                .arg(name).arg(doc.value("pass").toBool() ? "true" : "false").arg(doc.value("findings").toArray().size()).arg(code));
     }

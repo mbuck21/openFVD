@@ -355,11 +355,7 @@ static void checkSpec(const QString& repo)
 static const int kJoinMargin = 20;
 static const double kSpeedTol = 0.002;      // m/s, the plan's number
 static const double kForceTol = 0.02;       // g, gz and gy away from joins
-static const double kAlongTol = 0.02;       // g, gx against the measure forceAlong away from joins
-// g, the same on held-speed track, where the measure keeps vDir.y and has no
-// pitching term: the ride's v^2 drh/ds / g there, measured up to 0.057 g in the
-// lead-ins of gen-curves-speed's held curves (issue 96; a bound, not a match)
-static const double kHeldAlongTol = 0.1;
+static const double kAlongTol = 0.02;       // g, gx against the measure forceAlong away from joins, held track included
 
 struct pointStats
 {
@@ -497,18 +493,16 @@ static pointStats comparePoint(track* t, const QString& label)
         st.dy = qMax(st.dy, std::fabs(gy.at(i) - m[2][i]));
         // The along-track force: since issue 96 the measure forceAlong is the
         // force at the heartline by the ride's own rule (core/heartline.h),
-        // from the design's speed; compared directly. On held-speed track the
-        // measure keeps vDir.y exactly (no pitching term), and the ride's gx
-        // differs there by v^2 drh/ds / g where the held section pitches: that
-        // gap is counted apart.
+        // from the design's speed; compared directly, held-speed track
+        // included (a = 0 there, the pitching term stays). The worst on held
+        // track alone is kept for the record.
         double off = std::fabs(gx.at(i) - m[3][i]);
+        st.dx = qMax(st.dx, off);
+        st.measureOffSum += off;
+        ++st.alongNodes;
         if(held) {
             st.heldOffWorst = qMax(st.heldOffWorst, off);
             ++st.heldNodes;
-        } else {
-            st.dx = qMax(st.dx, off);
-            st.measureOffSum += off;
-            ++st.alongNodes;
         }
         ++st.forceNodes;
     }
@@ -563,23 +557,23 @@ static void checkPointOnBaseline(const QString& repo)
             offSum += st.measureOffSum;
             offNodes += st.alongNodes;
             bool ok = st.dv <= kSpeedTol && st.dvSmoothed <= kSpeedTol && st.dz <= kForceTol && st.dy <= kForceTol && st.dx <= kAlongTol
-                    && st.heldOffWorst <= kHeldAlongTol && !st.excluded.contains("NOT FINITE");
+                    && !st.excluded.contains("NOT FINITE");
             report(ok, QString("(1) %1: the point reproduces the design's speed within %2 m/s at %3 of %4 nodes (worst %5), "
                                "gz %6, gy %7 g at %8 nodes away from joins, gx against the measure forceAlong %9 g at worst, "
-                               "%10 g on average (%11 nodes; held-speed track %12 g at %13 nodes)%14")
+                               "%10 g on average (%11 nodes, of them on held-speed track %12 nodes, worst there %13 g)%14")
                    .arg(label).arg(kSpeedTol).arg(st.speedNodes).arg(st.nodes).arg(st.dv, 0, 'g', 3)
                    .arg(st.dz, 0, 'f', 4).arg(st.dy, 0, 'f', 4).arg(st.forceNodes).arg(st.dx, 0, 'f', 4)
                    .arg(st.alongNodes ? st.measureOffSum/st.alongNodes : 0.0, 0, 'f', 5).arg(st.alongNodes)
-                   .arg(st.heldOffWorst, 0, 'f', 4).arg(st.heldNodes)
+                   .arg(st.heldNodes).arg(st.heldOffWorst, 0, 'f', 4)
                    .arg(st.excluded.isEmpty() ? QString() : "; left out: " + st.excluded.join(", ")));
         }
     }
     report(tracks >= 10, QString("(1) worst over %1 tracks: speed %2 m/s (limit %3), gz %4 g, gy %5 g (limit %6 g), gx against "
-                                 "the measure forceAlong %7 g, %8 g on average over %9 nodes (limit %10 g; on held-speed "
-                                 "track %11 g, limit %12 g); nodes within %13 of a section join left out")
+                                 "the measure forceAlong %7 g, %8 g on average over %9 nodes (limit %10 g, held-speed "
+                                 "track included; worst on held-speed track alone %11 g); nodes within %12 of a section join left out")
            .arg(tracks).arg(worstV, 0, 'g', 3).arg(kSpeedTol).arg(worstZ, 0, 'f', 4).arg(worstY, 0, 'f', 4).arg(kForceTol)
            .arg(worstX, 0, 'f', 4).arg(offNodes ? offSum/offNodes : 0.0, 0, 'f', 5).arg(offNodes).arg(kAlongTol)
-           .arg(heldWorst, 0, 'f', 4).arg(kHeldAlongTol).arg(kJoinMargin));
+           .arg(heldWorst, 0, 'f', 4).arg(kJoinMargin));
 }
 
 // ---------------------------------------------------------------------------

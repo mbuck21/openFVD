@@ -153,16 +153,16 @@ static void fillForceLateral(const measureNodes& n, QVector<float>& out)
 // rh and drh/ds are not clamped to the section (the shape is continuous at a
 // join), as in the ride.
 //
-// Held speed (measureSpeedIsHeld): forceAlong = vDir.y exactly, as before
-// issue 96: a = 0 and the pitching term is left out too (on held track, lifts,
-// stations and brakes, the design holds a speed and has no force along the
-// track of its own; the ride differs there by v^2 drh/ds / g where a held
-// section pitches).
+// Held speed (measureSpeedIsHeld): a = 0, the rail's speed does not change;
+// the pitching term stays, since the car still pitches where the curvature
+// changes (a crest or a valley on a lift or a brake run), so forceAlong =
+// vDir.y + v^2 drh/ds / g, as the ride gives it. Where a held section does not
+// turn in the vertical plane drh is 0 and the value is vDir.y.
 // Zero or tiny spacing (a section of one node, or the train standing): the
 // distance gives no acceleration, a = 0.
 // Not a number: from the node where the design stalls (a speed, roll rate,
 // position or frame that is not a number; heartlineFrame::nodeEntry is -1)
-// the value is not a number, except on held-speed track (vDir.y).
+// the value is not a number.
 void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan, QVector<double>* accel,
                        QVector<double>* place)
 {
@@ -174,10 +174,6 @@ void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan,
         const mnode* node = n.nodes.at(i);
         int s = n.sectionOf.at(i);
         const section* sec = n.trk->lSections.at(s);
-        if(measureSpeedIsHeld(sec)) {
-            out[i] = node->vDir.y;
-            continue;
-        }
         int e = f.nodeEntry.at(i);
         if(e < 0) {
             out[i] = std::numeric_limits<float>::quiet_NaN();
@@ -190,7 +186,7 @@ void measureForceAlong(const measureNodes& n, QVector<float>& out, int halfSpan,
         // lo can be past hi (a section of one node): test before reading.
         // A non-finite speed passes through as non-finite.
         double ds = (hi > lo) ? f.nodePlace.at(hi) - f.nodePlace.at(lo) : 0.0;
-        if(hi > lo && ds > 1e-6) {
+        if(!measureSpeedIsHeld(sec) && hi > lo && ds > 1e-6) {
             double vlo = n.nodes.at(lo)->fVel;
             double vhi = n.nodes.at(hi)->fVel;
             a = (vhi*vhi - vlo*vlo) / (2.0*ds);
