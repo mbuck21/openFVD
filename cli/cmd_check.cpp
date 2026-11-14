@@ -71,7 +71,15 @@ QJsonObject checkFindingsJson(track* t, const QList<finding>& found)
         o["to_dist_m"] = rounded(t->getPoint(f.toNode)->fTotalLength);
         o["worst_node"] = f.worstNode;
         o["worst_value"] = num(f.worstValue);
-        o["limit"] = num(f.limit);
+        // limit is in the unit of the measure; a rule whose limit is not (a share of a combined
+        // limit, seconds) gives null here and its own pair below (finding.h)
+        o["limit"] = f.limitComparable ? num(f.limit) : QJsonValue(QJsonValue::Null);
+        if(!f.rule.isEmpty()) {
+            o["rule"] = f.rule;
+            o["judged_value"] = num(f.judgedValue);
+            o["judged_limit"] = num(f.judgedLimit);
+            o["judged_unit"] = f.judgedUnit;
+        }
         o["below"] = f.below;
         o["non_finite"] = f.nonFinite;
         o["text"] = f.text;

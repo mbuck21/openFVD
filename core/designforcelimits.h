@@ -47,18 +47,23 @@ class track;
 // What the check says about itself, for the ride sheet and the command line.
 struct designLimitsInfo
 {
-    designLimitsInfo() : bRan(false), iFindings(0), iJudgedNodes(0), iNodes(0) {}
+    designLimitsInfo() : bRan(false), iFindings(0), iJudgedNodes(0), iNodes(0), iNumbers(0), iChecked(0) {}
     bool bRan;              // false: not judged (no track, a problem with the limit file; sError says which)
     QString sError;
     int iFindings;
     QString sStandard;      // "ASTM F2291"
-    QString sConfidence;    // the lowest confidence of the numbers behind the answer (findings, else the whole file)
+    QString sConfidence;    // the lowest confidence of the numbers the findings used (empty without findings)
     QString sDisclaimer;    // the file's sentence: a design aid, not a certification
     int iJudgedNodes;       // the nodes judged (fewer than iNodes when the track stalls)
     int iNodes;
+    // The whole limit file, worked out on every run: how many numbers it has and how many
+    // the owner has marked checked. The label and the note speak only of these.
+    int iNumbers;
+    int iChecked;
+    QString sFileConfidence;    // the lowest confidence over every number of the file
 
-    // "Force limits (ASTM F2291, public numbers)": says "numbers checked by the owner"
-    // only when every number of the file has been checked.
+    // "Force limits (ASTM F2291, public numbers)", or "(... 12 of 64 numbers checked)", or
+    // "(... numbers checked by the owner)" when every number has been checked.
     QString label() const;
     // "within", "3 findings", "not judged (...)"
     QString value() const;
@@ -80,9 +85,11 @@ forceTrace designPointTrace(const QVector<double>& times, const QVector<float>& 
 
 // The check on measures already computed (the ride sheet has them), or from
 // the track. times as rideNodeTimes() gives. info may be null.
+// limits: the limit set to use; null is the one that ships inside the program (the
+// parameter is there so that a test can hand over a file with numbers marked checked).
 QList<finding> designPointForceLimits(const QVector<double>& times, const QVector<float>& along,
                                       const QVector<float>& lateral, const QVector<float>& normal,
-                                      designLimitsInfo* info);
+                                      designLimitsInfo* info, const forceLimits* limits = 0);
 QList<finding> designPointForceLimits(const track* t, designLimitsInfo* info = 0);
 
 #endif // DESIGNFORCELIMITS_H

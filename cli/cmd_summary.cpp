@@ -212,7 +212,10 @@ QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QStrin
     limits["value"] = r.forceLimits.value();
     limits["ran"] = r.forceLimits.bRan;
     limits["findings"] = r.forceLimits.iFindings;
-    limits["confidence"] = r.forceLimits.sConfidence;
+    limits["findings_confidence"] = r.forceLimits.sConfidence;
+    limits["file_confidence"] = r.forceLimits.sFileConfidence;
+    limits["numbers"] = r.forceLimits.iNumbers;
+    limits["numbers_checked"] = r.forceLimits.iChecked;
     limits["note"] = rideForceLimitsNote(r.forceLimits);
     o["force_limits"] = limits;
     o["max_tilt_deg"] = spotJson(r.maxTilt);
@@ -232,7 +235,13 @@ QJsonObject summarySheetJson(const rideSummary& r, int trackNumber, const QStrin
         fo["to_node"] = fi.toNode;
         fo["worst_node"] = fi.worstNode;
         fo["worst_value"] = num(fi.worstValue);
-        fo["limit"] = num(fi.limit);
+        fo["limit"] = fi.limitComparable ? num(fi.limit) : QJsonValue(QJsonValue::Null);
+        if(!fi.rule.isEmpty()) {
+            fo["rule"] = fi.rule;
+            fo["judged_value"] = num(fi.judgedValue);
+            fo["judged_limit"] = num(fi.judgedLimit);
+            fo["judged_unit"] = fi.judgedUnit;
+        }
         fo["non_finite"] = fi.nonFinite;
         fo["text"] = fi.text;
         findings.append(fo);

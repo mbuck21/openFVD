@@ -348,7 +348,7 @@ void rideSheet::refreshNow()
         setValue("Tilt", tr("none"));
     }
 
-    setValue("ForceLimits", r.forceLimits.value(), r.forceLimits.bRan ? tr("Numbers of %1 confidence at the lowest").arg(r.forceLimits.sConfidence) : QString());
+    setValue("ForceLimits", r.forceLimits.value(), r.forceLimits.sConfidence.isEmpty() ? QString() : tr("The numbers behind these findings are of %1 confidence at the lowest").arg(r.forceLimits.sConfidence));
 
     int problems = r.findingCount[findingProblem];
     int warnings = r.findingCount[findingWarning];

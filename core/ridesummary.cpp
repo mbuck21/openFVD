@@ -111,8 +111,13 @@ QString rideForceLimitsNote(const designLimitsInfo& info)
 {
     QString text = "The force limits are a design aid taken from public secondary sources, not a certification: "
                    "they judge the single point the program follows, with the base restraint case.";
-    if(info.sConfidence != QLatin1String("checked")) {
-        text += " The numbers have not all been checked against the standard.";
+    // only the whole file counts: findings made from the checked numbers do not make the rest checked
+    if(info.iNumbers > 0 && info.iChecked >= info.iNumbers) {
+        text += " Every number of the limit file has been checked by the owner.";
+    } else if(info.iChecked > 0) {
+        text += QString(" Only %1 of the %2 numbers have been checked against the standard.").arg(info.iChecked).arg(info.iNumbers);
+    } else {
+        text += " The numbers have not been checked against the standard.";
     }
     return text;
 }
