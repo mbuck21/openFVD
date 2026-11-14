@@ -28,6 +28,7 @@
 
 class MainWindow;
 class QWidget;
+class QDoubleSpinBox;
 class trackHandler;
 class track;
 class trackWidget;
@@ -91,6 +92,7 @@ public:
     void setPanelChecked(const char* name, bool on);
     double panelValue(const char* name);
     bool panelEnabled(const char* name);
+    QDoubleSpinBox* panelSpin(const char* name);     // for the units check of --batch-ride-sheet
 
     // transition editor of the open track
     void selectTransition(eFunctype f, int index);

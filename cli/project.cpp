@@ -25,7 +25,7 @@
 
 #include "../lenassert.h"
 
-coreProject::coreProject() : texPath(":/background.png") {}
+coreProject::coreProject() : texPath(":/background.png"), additionsDropped(false) {}
 coreProject::~coreProject() { clear(); }
 
 void coreProject::clear()
@@ -35,7 +35,14 @@ void coreProject::clear()
     }
 }
 
-void coreProject::projectCleared() { clear(); }
+void coreProject::projectCleared()
+{
+    clear();
+    additions = QJsonObject();
+    additionsDropped = false;
+    droppedReason.clear();
+    loadedFrom.clear();
+}
 
 // The image resources of resources.qrc: this program does not link them, so
 // they are accepted by name.
@@ -83,13 +90,25 @@ bool loadProject(const QString& file, coreProject& project, QString& error, QStr
         return false;
     }
     QString loadResult = loadProjectFile(file, &project);
-    if(loadResult.contains("Error")) {
+    // told by how the text starts: a warning can quote words from the file
+    if(loadResult.startsWith("Error")) {
         error = QString("loading ") + file + ": " + loadResult;
         return false;
     }
-    if(loadResult.contains("Warning") && warnings) {
+    project.loadedFrom = file;
+    if(loadResult.startsWith("Warning") && warnings) {
         warnings->append(loadResult);
     }
+    return true;
+}
+
+bool refuseOverwritingDropped(const coreProject& project, const QString& target, QString& error)
+{
+    if(!project.additionsDropped || project.loadedFrom.isEmpty()) return false;
+    QFileInfo to(target), from(project.loadedFrom);
+    if(!to.exists() || to.canonicalFilePath() != from.canonicalFilePath()) return false;
+    error = QString("%1 was loaded without its additions (%2); writing over it would lose them for good, "
+                    "even with --force. Give another output file.").arg(target, project.droppedReason);
     return true;
 }
 

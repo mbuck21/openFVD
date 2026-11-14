@@ -1,0 +1,9 @@
+# X1: the cost of one round in the program
+
+Milliseconds. "load": `fvdcore nodes --every-m 1000` (start, load, compute, print almost nothing). "ride": `fvdcore ride` less "load", with the point and with 9 cars 2.2 m apart. "recompute": the program's own time for a whole-track recompute in `fvdcore session`. One round = recompute + 9-car ride.
+
+| project | nodes | load | ride, point | ride, 9 cars | recompute | one round |
+|---|---|---|---|---|---|---|
+| gen-normal-shapes.fvd | 14,125 | 114 | 4 | 7 | 13.6 | 21 |
+| camelback.fvd | 9,087 | 130 | 5 | 4 | 3.6 | 7 |
+

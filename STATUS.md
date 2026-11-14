@@ -4,7 +4,7 @@ Rewrite this file in place each time. Do not append to it. The long story is in 
 
 ## As of
 
-2026-11-13, written by the session that planned Stage 3. **Stage 3 is planned and not started; no code has changed since Stage 2.** The owner accepted the plan's eight recommendations the same day. Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
+2026-11-13, written by the session that builds Stage 3, when the owner paused it the same evening. **Stage 3 is partly built on the integration branch `claude/stage-3` and paused.** All of wave 1 is merged there and verified together against the 2016 binary, the owner's project included: English units by default (U1), the ride of a train (P1, `fvdcore ride`), the force-limit engine (A3a), additions to the saved file (F4), the kit for the NoLimits 2 session (N3a), and the design-for-a-car trial (X1). Three pieces are built and open as draft pull requests, not merged: the along-track measure corrected (M2, 104), the force limits at the design point (A3b, 98) and the train in the project (D5, 100). The every-seat check (A4) and the screens (V1, V2) are not started. Nothing is in `master`. The integration pull request 87 lists every piece and its state. The rest of this file below "Focus" still describes Stage 2 and the plan; it is rewritten at the stage's closing. The owner accepted the plan's eight recommendations the same day. Stage 2 is complete and in `master`: it was built on the integration branch `claude/stage-2` and merged through pull request #46 by the lead session at the owner's word. Stage 1 has been in `master` since 2026-11-10.
 
 ## Focus
 
@@ -39,7 +39,7 @@ Open issues:
 
 The full list, with when each answer is needed, is the last section of `docs/roadmap.md`. The ones that matter now:
 
-- **The word for a session to build Stage 3.** The eight choices of decision record 0014 are answered (all accepted, 2026-11-13), so nothing in the stage waits for an answer.
+- **Issue 101, about ten minutes: see the 2016 program open a project with an appendix.** The piece that saves the train (pull request 100) may not be merged before that, and the every-seat check and the train's screens wait behind it. Two more for when convenient: issue 97 (check the force-limit numbers against your copy of ASTM F2291-26b) and issue 94 (the hour in NoLimits 2, needed before Stage 4). And the word to resume Stage 3.
 - **Two of those answers need his hands later,** each as an `owner` issue the building session files: buying ASTM F2291 (edition 26b, US$121) and typing its numbers into the limit file, once that file exists; and about an hour in NoLimits 2, once the kit for it is ready (needed before Stage 4).
 - **Try Stage 2,** if not done yet. Pull request #46's "For the owner" part says what to try first.
 - **#72, the start-rate boxes:** recommendation, leave it. No answer means it stays.

@@ -534,6 +534,10 @@ void trackWidget::setupAnchorFrame(QWidget* keep)
     float yaw = inTrack->trackData->startYaw*F_PI/180;
     glm::vec3 temp = anchor->vPosHeart(inTrack->trackData->fHeart);
 
+    optionsMenu::setBoxRange(ui->xBox, gloParent->mOptions->getLengthFactor());
+    optionsMenu::setBoxRange(ui->yBox, gloParent->mOptions->getLengthFactor());
+    optionsMenu::setBoxRange(ui->zBox, gloParent->mOptions->getLengthFactor());
+    optionsMenu::setBoxRange(ui->anchorSpeedBox, gloParent->mOptions->getSpeedFactor());
     if(keep != ui->xBox) ui->xBox->setValue( (-cos(yaw)*temp.z+sin(yaw)*temp.x+inTrack->trackData->startPos.x)  * gloParent->mOptions->getLengthFactor());
     if(keep != ui->yBox) ui->yBox->setValue((temp.y+inTrack->trackData->startPos.y) * gloParent->mOptions->getLengthFactor());
     if(keep != ui->zBox) ui->zBox->setValue((cos(yaw)*temp.x+sin(yaw)*temp.z+inTrack->trackData->startPos.z) * gloParent->mOptions->getLengthFactor());
@@ -557,6 +561,8 @@ void trackWidget::setupStraightFrame()
 {
     bool oldP = phantomChanges;
     phantomChanges = true;
+    optionsMenu::setBoxRange(ui->straightLengthBox, gloParent->mOptions->getLengthFactor());
+    optionsMenu::setBoxRange(ui->straightSpeedBox, gloParent->mOptions->getSpeedFactor());
     ui->straightLengthBox->setValue(selSection->sectionData->fHLength*gloParent->mOptions->getLengthFactor());
     ui->straightLengthBox->setSuffix(gloParent->mOptions->getLengthString());
     ui->straightSpeedBox->setEnabled(!selSection->sectionData->bSpeed);
@@ -571,6 +577,8 @@ void trackWidget::setupCurvedFrame()
 {
     bool oldP = phantomChanges;
     phantomChanges = true;
+    optionsMenu::setBoxRange(ui->curvedRadiusBox, gloParent->mOptions->getLengthFactor());
+    optionsMenu::setBoxRange(ui->curvedSpeedBox, gloParent->mOptions->getSpeedFactor());
     ui->curvedRadiusBox->setValue(selSection->sectionData->fRadius*gloParent->mOptions->getLengthFactor());
     ui->curvedRadiusBox->setSuffix(gloParent->mOptions->getLengthString());
     ui->curvedAngleBox->setValue(selSection->sectionData->fAngle);
@@ -589,6 +597,7 @@ void trackWidget::setupAdvFrame()
 {
     bool oldP = phantomChanges;
     phantomChanges = true;
+    optionsMenu::setBoxRange(ui->advancedSpeedBox, gloParent->mOptions->getSpeedFactor());
     ui->advancedSpeedBox->setEnabled(!selSection->sectionData->bSpeed);
     ui->advancedSpeedCheck->setChecked(!selSection->sectionData->bSpeed);
     ui->advancedSpeedBox->setValue(selSection->sectionData->getSpeed()*gloParent->mOptions->getSpeedFactor());

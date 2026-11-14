@@ -44,7 +44,7 @@ optionsMenu::optionsMenu(QWidget *parent) :
     optionsFile = common::getResource("options.cfg", true);
 
     if(!QFileInfo(QString(optionsFile)).exists() || !loadFromOptionsFile()) {
-        measures = 0;
+        measures = english;
         drawGrid = true;
         backgroundColor = QColor(80, 140, 160);
 #ifndef Q_OS_MAC // on Win / Unix
@@ -228,6 +228,19 @@ double optionsMenu::getLengthFactor()
         return 0.0;
         break;
     }
+}
+
+void optionsMenu::setBoxRange(QDoubleSpinBox* box, double factor)
+{
+    // The limits typed into the .ui form are metric. Remember them the first
+    // time, then always scale those, never the already scaled ones. In metric
+    // the factor is 1.0 and the range is exactly the form's.
+    if(!box->property("metricMin").isValid()) {
+        box->setProperty("metricMin", box->minimum());
+        box->setProperty("metricMax", box->maximum());
+    }
+    box->setRange(box->property("metricMin").toDouble() * factor,
+                  box->property("metricMax").toDouble() * factor);
 }
 
 void optionsMenu::on_rollColor0_clicked()

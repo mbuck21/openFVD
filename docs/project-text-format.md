@@ -76,6 +76,7 @@ Judged harmless and so not limited beyond being finite: positions, angles (roll,
 | `binaryVersion` | text | the binary format this text maps to, always `"v0.77"` |
 | `groundTexture` | text | the ground texture's path (a `:/` name is built into the program) |
 | `tracks` | list of tracks | in the order of the project |
+| `additions` | object, optional | the project's own additions: what the binary file keeps under `"project"` in its appendix after `EOP` (`docs/codebase-map.md`, "Saved project file"). Written only when there are some, so the text of a project without additions is as before. Kept exactly as it is, keys the program does not know included |
 
 ## A track
 
@@ -94,6 +95,9 @@ Judged harmless and so not limited beyond being finite: positions, angles (roll,
 | `povPosition` | [x, y] | | the point-of-view setting, as the program keeps it |
 | `sections` | list of sections | | in the order of the track |
 | `smoothing` | object | | `wholeTrack`: the smoothing entry of the whole track; `custom`: a list of custom regions (below) |
+| `additions` | object, optional | | the track's additions, one key per feature: what the binary file keeps for this track in its appendix after `EOP`. Written only when the track has some. Read and written back exactly as they are, keys this program does not know included (no warning for those: they belong to a later feature); anything but an object is refused |
+
+The additions are JSON as they stand, not numbers of the model: the rules above for floats (shortest decimal, `"-0"`, `"inf"`) do not apply inside them. Text to model to text and binary to text to binary both give them back exactly (`tests/appendix`).
 
 ### A colour
 
@@ -274,4 +278,4 @@ The program writes every list and object one item per line; the example is folde
 
 ## How reading builds the model
 
-The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in, then every `from` and `to` set to the text's values as they are), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions.
+The reader turns the text into plain data first, checking every key. Only then does it call the client and build each track as `track::loadTrack()` and `readProject()` do: the anchor's fields and the same anchor calls; per section `track::appendSectionFromFile()`, the fields, the transitions (the first one filled in, each further one appended with `func::appendSubFunction()` and filled in, then every `from` and `to` set to the text's values as they are), then `updateSection()`; the smoothing entries by position (0 the whole track, 1 to n the sections, then new custom regions); `updateTrack(0, 0)`; then `bAutoSmooth`, `updateSmoothEntries()`, `projectTrackSmoothingUpdated()` and `applyRollSmooth()`. A track's `additions` are set on it before anything else, and the project's go to `projectAdditionsRead()` before the first track is made. A NoLimits CSV section keeps its points private, so they pass through its own stream save and load functions.

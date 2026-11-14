@@ -59,12 +59,25 @@ fvdcore check --list
 The findings as sentences, one per line, with the severity and the stretch (metres along the track; the sentence has the times), and a last line with the counts. `--json` prints them as an object. Exit code 0 when it ran, 1 on an error, 3 when `--fail-on` is given and a finding of that severity or worse exists. `--list` prints the checks.
 
 ```
+fvdcore ride <project.fvd> [--track N] [--type ID] [--catalogue FILE] [--cars N] [--pitch M] [--rows N] [--seats N] [--reference centre|front|rear|N] [--table [--every-s X]] [--json] [--out FILE]
+fvdcore ride docs\research\r7-prototype\projects\camelback.fvd --cars 9 --pitch 2.2
+```
+A train ridden over the finished track (`core/trainride.h`; the model is decision record 0014 points 1 to 7 and R7): per car (car 1 is the front car) the lowest and highest vertical (`gz`), sideways (`gy`, + rider pressed to his right) and along-track force (`gx`, + pressed into the seat back) with where they happen, and the floater and ejector seconds, counted while the car is on the track; the ride's notes (held-speed cases met) and a stall with its place. The train is the program's own point unless `--type` (an id of `data/traintypes.json`, found beside or above the program or given with `--catalogue`) or the counts describe one; what the catalogue lacks is a stand-in (car pitch 2.5 m, rows 0.9 m and seats 0.55 m apart) and is listed as assumed. `--reference` is the car that is at the track's start at time 0 (the train's centre by default). `--table` prints the samples (every 0.01 s, or every `--every-s`) as tab-separated text, one column per car and force; `--json` one object `{"tracks": [...]}` (with `--table` also the samples). Nothing is saved in the project.
+
+```
 fvdcore totext <project.fvd> <out.json|-> [--force]
 fvdcore fromtext <in.json|-> <out.fvd> [--force]
 fvdcore totext samples\baseline\four-sections.fvd four.json
 fvdcore fromtext four.json four.fvd
 ```
 The project as text (`docs/project-text-format.md`) and back. `-` means standard output (`totext`) or standard input (`fromtext`). Warnings go to standard error; a text that is refused prints the message that names the place and exits 1. An existing output file is not replaced unless `--force` is given. A project written out and read back saves the same bytes as a re-save.
+
+```
+fvdcore additions <project.fvd> --show
+fvdcore additions <project.fvd> (--project | --track N) (--set key=<json> | --remove key) [--out <file>] [--force]
+fvdcore additions samples\baseline\four-sections.fvd --track 1 --set "note=\"made by hand\"" --out four-with-appendix.fvd
+```
+The additions a project keeps in the appendix after the end of its file (`docs/codebase-map.md`, "Saved project file"). Nothing in the program uses one yet; this makes a test file by hand. `--show` prints the document the appendix holds (`{"needs": [], "project": {...}, "tracks": [{...}, ...]}`, empty objects when there are none; with none at all the file has no appendix). With `--set` or `--remove` the key belongs to the project (`--project`) or to track N (`--track N`, 1-based); exactly one of the two is given, and keys are plain names (`train`, `note`), the same for both. `--set` takes any JSON value after the first `=` (an object, a list, a number, `true`, `null`, or a text in its double quotes) and replaces a key that is there; `--remove` of a key that is not there is an error. The project is re-saved with the change to `--out`, or over itself without `--out`; an existing file is replaced only with `--force`, as `totext` and `import` do. A project whose appendix cannot be read (damaged, or saved by a newer version) loads with a warning on stderr ("... The original file is not written over, so that it keeps its additions: save the project under another name."), without those additions; the file itself still holds them, so `additions`, `totext` and the session's `save` and `totext` refuse to write over that file, even with `--force` (give another output file, which is then written without them).
 
 ```
 fvdcore import <nltrack|txt|csv> <file> <out.fvd> [--force] [--window-project] [--export-dir <dir>]
@@ -76,6 +89,12 @@ The three importers of the project panel on the window-less program: a NoLimits 
 fvdcore commands [--json]
 ```
 The model's named commands (`core/command.h`) with their parameters, units and ranges, as text or as the JSON array a script reads; no project needed. The session's `describe` returns the same list.
+
+```
+fvdcore limits [--file <limits.json>] [--json]
+fvdcore limits --trace <trace.tsv> [--dt S] [--restraint base|otsr|prone] [--extended] [--no-filter] [--samples <out.tsv>] [--json]
+```
+The force-limit engine (`core/forcelimits.h`, decision record 0014 points 8 to 11). Without `--trace` it shows the limit file as the program reads it (the embedded `data/limits/astm-f2291-public.json`, or `--file`): the edition, the sources, and every number by its name with its value, confidence, the owner's "checked" note and its source; a file it refuses is named with the place of the problem. With `--trace` it checks one rider's forces: a tab-separated file with a header line naming `gz` (or `forceNormal`/`normal_g`), optionally `gx` (`forceAlong`), `gy` (`forceLateral`/`lateral_g`) and `time_s` (evenly spaced; else `--dt`), so `fvdcore measures <project> --ids forceAlong,forceLateral,forceNormal --every-s 0.01` is a valid input. It prints the result, the largest share of a limit per rule family, the restraint area and one sentence per finding; `--samples` writes the share per sample and family. Exit code 0 when it ran, with or without findings; 1 on an error (a refused file or trace, an unknown restraint). Where nothing applies, the text says "none" or "not found" and the JSON has null. The restraint kind (default `base`; the train catalogue's `lapbar`, `vest`, `other` are the base case) selects the eyes-front line and the egg's radius, `--extended` allows the extended airtime line. The numbers are transcribed from public secondary sources; a design aid, not a certification.
 
 ```
 fvdcore session <project.fvd> [--track N]

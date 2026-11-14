@@ -43,6 +43,9 @@
 #include "../core/finding.h"
 #include "../core/nolimitsimporter.h"
 #include "../core/ridesummary.h"
+#include "../core/exportfuncs.h"
+
+#include <sstream>
 
 static QByteArray readAll(const QString& fileName)
 {
@@ -239,9 +242,121 @@ static void checkSessionAndImport(bool& allOk, const QString& repo, const QStrin
     }
 }
 
+// limits: a real project's forces end to end (measures, then limits --trace),
+// and the output when nothing is found (no time of minus one step)
+static void checkLimits(bool& allOk, const QString& baseline, const QString& tmp)
+{
+    const QString captureFile = QDir(tmp).filePath("limits-captured.txt");
+    QByteArray printed;
+    struct known { const char* project; bool within; };
+    const known projects[] = { {"gen-normal-shapes.fvd", true}, {"four-sections.fvd", false} };
+    for(unsigned k = 0; k < sizeof(projects)/sizeof(projects[0]); ++k) {
+        const QString name = projects[k].project;
+        const QString trace = QDir(tmp).filePath(name + ".trace.tsv");
+        int code = cmdMeasures.run(QStringList() << QDir(baseline).filePath(name) << "--ids" << "forceAlong,forceLateral,forceNormal"
+                                   << "--every-s" << "0.01" << "--out" << trace);
+        report(allOk, code == 0, QString("measures writes the forces of %1 every 0.01 s (exit code %2)").arg(name).arg(code));
+        code = runCaptured(cmdLimits, QStringList() << "--trace" << trace, captureFile, printed);
+        const bool within = printed.contains("Result: within the limits.");
+        const bool found = printed.contains(" finding(s).");
+        report(allOk, code == 0 && (projects[k].within ? within : found),
+               QString("limits --trace on %1: exit 0 and %2 (exit code %3)").arg(name)
+               .arg(projects[k].within ? "within the limits" : "findings").arg(code));
+        code = runCaptured(cmdLimits, QStringList() << "--trace" << trace << "--json", captureFile, printed);
+        QJsonParseError error;
+        const QJsonObject doc = QJsonDocument::fromJson(printed, &error).object();
+        report(allOk, code == 0 && error.error == QJsonParseError::NoError && doc.value("pass").toBool() == projects[k].within
+                      && (doc.value("findings").toArray().isEmpty() == projects[k].within),
+               QString("limits --trace --json on %1: a document that parses, pass %2, %3 findings (exit code %4)")
+               .arg(name).arg(doc.value("pass").toBool() ? "true" : "false").arg(doc.value("findings").toArray().size()).arg(code));
+    }
+    // nothing found: a still, weightless trace at 0.6 s steps, not filtered, so
+    // no limit applies anywhere and the 1 Hz restraint filter cannot run
+    const QString still = QDir(tmp).filePath("still.tsv");
+    QFile f(still);
+    if(f.open(QIODevice::WriteOnly)) {
+        f.write("time_s\tgx\tgy\tgz\n");
+        for(int i = 0; i < 20; ++i) f.write(QString("%1\t0\t0\t0\n").arg(i*0.6).toUtf8());
+        f.close();
+    }
+    int code = runCaptured(cmdLimits, QStringList() << "--trace" << still << "--no-filter", captureFile, printed);
+    report(allOk, code == 0 && printed.contains("Largest share of a limit: none") && printed.contains("Restraint area (1 Hz, information): not found.")
+                  && !printed.contains("-0.60 s"),
+           QString("limits on a trace where nothing applies says \"none\" and \"not found\", no negative time (exit code %1)").arg(code));
+    code = runCaptured(cmdLimits, QStringList() << "--trace" << still << "--no-filter" << "--json", captureFile, printed);
+    const QJsonObject doc = QJsonDocument::fromJson(printed).object();
+    report(allOk, code == 0 && doc.value("worst_time_s").isNull() && doc.value("restraint_area_time_s").isNull()
+                  && doc.value("restraint_area").isNull() && doc.value("families").toObject().value("z").toObject().value("time_s").isNull(),
+           QString("limits --json on that trace gives null times (exit code %1)").arg(code));
+}
+
 // Exports samples/baseline/four-sections.fvd and compares the Spline export
 // and the re-saved project with the 2016 binary's files, byte for byte; then
 // tries the other commands on the same project.
+// An int as the project file writes one (writeBytes(): big-endian).
+static QByteArray fileInt(int value)
+{
+    std::stringbuf buf(std::ios::in | std::ios::out | std::ios::binary);
+    std::iostream io(&buf);
+    writeBytes(&io, (const char*)&value, sizeof(int));
+    std::string s = buf.str();
+    return QByteArray(s.data(), (int)s.size());
+}
+
+static void writeAll(const QString& fileName, const QByteArray& bytes)
+{
+    QFile file(fileName);
+    if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(bytes);
+}
+
+// A project whose appendix is dropped on loading (here: written by a newer
+// program, appendix version 2) is never written over, not even with --force;
+// another output file is allowed. A warning that quotes "Error" from the file
+// is still a warning.
+static void checkDroppedAppendix(bool& allOk, const QString& tmp, const QString& resaved)
+{
+    QByteArray plain = readAll(resaved);
+    QByteArray doc("{\"needs\":[],\"project\":{},\"tracks\":[{\"train\":{\"cars\":3}}]}");
+    QByteArray newer = plain + "FVX" + fileInt(2) + fileInt(doc.size()) + doc + "EOX";
+    QString file = QDir(tmp).filePath("newer-appendix.fvd");
+    writeAll(file, newer);
+
+    int code = cmdAdditions.run(QStringList() << file << "--track" << "1" << "--set" << "x=1" << "--force");
+    report(allOk, !plain.isEmpty() && code == 1 && readAll(file) == newer,
+           QString("additions over a file whose appendix version 2 was dropped is refused even with --force; "
+                   "the file is unchanged (exit code %1)").arg(code));
+    QString other = QDir(tmp).filePath("newer-appendix-other.fvd");
+    code = cmdAdditions.run(QStringList() << file << "--track" << "1" << "--set" << "x=1" << "--out" << other);
+    report(allOk, code == 0 && readAll(other).startsWith(plain) && readAll(file) == newer,
+           QString("... and with --out another file it writes that file (exit code %1)").arg(code));
+    QString json = QDir(tmp).filePath("newer-appendix.json");
+    code = cmdToText.run(QStringList() << file << file << "--force");
+    int code2 = cmdToText.run(QStringList() << file << json);
+    report(allOk, code == 1 && code2 == 0 && readAll(file) == newer,
+           QString("totext over that file is refused even with --force, to another file it writes (exit codes %1, %2)").arg(code).arg(code2));
+    QString error;
+    QByteArray in = requestLine(QString("{\"op\":\"save\",\"path\":%1,\"force\":true}").arg(q(file)))
+                  + requestLine(QString("{\"op\":\"totext\",\"path\":%1,\"force\":true}").arg(q(file)))
+                  + requestLine(QString("{\"op\":\"save\",\"path\":%1}").arg(q(QDir(tmp).filePath("newer-session.fvd"))));
+    QList<QJsonObject> r = replies(sessionRunText(file, 1, in, &error));
+    report(allOk, r.size() == 3 && !r[0].value("ok").toBool() && !r[1].value("ok").toBool() && r[2].value("ok").toBool()
+           && readAll(file) == newer,
+           QString("the session's save and totext over that file are refused, a save elsewhere is done (%1 replies)").arg(r.size()));
+
+    // an unknown key "ErrorLog" at the appendix's top: dropped with a warning
+    // that quotes the word "Error", and the project still loads
+    QByteArray odd("{\"ErrorLog\":1,\"needs\":[],\"project\":{},\"tracks\":[{}]}");
+    QString oddFile = QDir(tmp).filePath("errorlog-key.fvd");
+    writeAll(oddFile, plain + "FVX" + fileInt(1) + fileInt(odd.size()) + odd + "EOX");
+    coreProject p;
+    QStringList warnings;
+    bool loaded = loadProject(oddFile, p, error, &warnings);
+    QByteArray printed;
+    code = runCaptured(cmdSummary, QStringList() << oddFile, QDir(tmp).filePath("captured-errorlog.txt"), printed);
+    report(allOk, loaded && p.tracks.size() == 1 && warnings.size() == 1 && warnings[0].contains("ErrorLog") && code == 0,
+           QString("a dropped appendix whose key is \"ErrorLog\" loads with a warning; summary exits %1").arg(code));
+}
+
 static int runSelftest(const QStringList& args)
 {
     if(args.size() != 1) {
@@ -369,8 +484,13 @@ static int runSelftest(const QStringList& args)
     code = cmdCheck.run(QStringList() << QDir(baseline).filePath("no-such-project.fvd"));
     report(allOk, code == 1, QString("check of a missing project exits 1 (exit code %1)").arg(code));
 
+    checkLimits(allOk, baseline, tmp.path());
+
     // (gen-normal-shapes.fvd: its sections do not hold the speed, so friction changes the ride sheet)
     checkSessionAndImport(allOk, repo, tmp.path(), QDir(baseline).filePath("gen-normal-shapes.fvd"));
+
+    // a dropped appendix protects the file it came from
+    checkDroppedAppendix(allOk, tmp.path(), QDir(tmp.path()).filePath("four-sections.resaved.fvd"));
 
     // angle changes go the short way round: -179 to +179 degrees is 2, not 358
     double turn = wrap180(179.0 - (-179.0));
@@ -387,6 +507,6 @@ static int runSelftest(const QStringList& args)
 const command cmdSelftest = {
     "selftest",
     "fvdcore selftest <repository folder>",
-    "export, nodes, compare, summary, measures, check and totext/fromtext on the baseline project four-sections.fvd and check the results (also: fvdcore <folder>)",
+    "export, nodes, compare, summary, measures, check, limits and totext/fromtext on the baseline project four-sections.fvd and check the results (also: fvdcore <folder>)",
     runSelftest
 };

@@ -54,11 +54,14 @@ extern const command cmdCompare;
 extern const command cmdSummary;
 extern const command cmdMeasures;
 extern const command cmdCheck;
+extern const command cmdRide;
 extern const command cmdToText;
 extern const command cmdFromText;
+extern const command cmdAdditions;
 extern const command cmdImport;
 extern const command cmdSession;
 extern const command cmdCommands;
+extern const command cmdLimits;
 extern const command cmdSelftest;
 extern const command cmdHelp;
 
